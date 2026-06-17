@@ -1,4 +1,4 @@
-import { notFound, useRouter } from 'next/navigation';
+import { notFound } from 'next/navigation';
 import Link from 'next/link';
 import { prisma } from '@/lib/db';
 import { cn } from '@/lib/cn';
@@ -20,6 +20,7 @@ import { PostActions } from './PostActions';
 import { DetailActions } from './DetailActions';
 import { SkillPreview } from './SkillPreview';
 import { PreCopyButton } from './PreCopyButton';
+import { BackLink } from './BackLink';
 
 export default async function PostDetailPage({
   params,
@@ -385,26 +386,5 @@ function RestFile({
         下载
       </a>
     </li>
-  );
-}
-
-/**
- * 返回按钮：优先用浏览器后退（保留筛选状态），没有历史则回首页。
- */
-function BackLink() {
-  'use client';
-  const router = useRouter();
-  return (
-    <button
-      type="button"
-      onClick={() => {
-        // 有浏览历史（从首页点进来的）→ 后退，保留筛选
-        if (window.history.length > 1) router.back();
-        else router.push('/');
-      }}
-      className="inline-flex items-center gap-1.5 font-serif italic text-sm text-sepia hover:text-ink-brown transition-colors"
-    >
-      ← 返回
-    </button>
   );
 }

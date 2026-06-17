@@ -21,3 +21,4 @@ uploads/
 .env.local
 .env.*.local
 .env.local-backup
+scripts/deploy-server.sh
