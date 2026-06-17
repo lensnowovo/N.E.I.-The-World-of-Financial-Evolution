@@ -1,0 +1,187 @@
+// PEVC 知识平台 V1.0 数据模型
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ---------- 用户 ----------
+model User {
+  id           Int      @id @default(autoincrement())
+  email        String   @unique
+  nickname     String   @unique
+  role         String   // VC / PE / FA
+  passwordHash String?
+  avatarUrl    String?
+  institution  String?  // 机构（选填）
+  bio          String?  // 个人简介（选填）
+  githubId        String?   @unique
+  githubAvatarUrl String?
+  githubUsername  String?
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  posts     Post[]
+  comments  Comment[]
+  likes     PostLike[]
+  favorites PostFavorite[]
+  commentLikes CommentLike[]
+
+  // 关注关系
+  following UserFollow[] @relation("Follower")  // 我关注的人
+  followers UserFollow[] @relation("Followee")  // 关注我的人
+}
+
+// ---------- 关注 ----------
+model UserFollow {
+  id         Int      @id @default(autoincrement())
+  followerId Int      // 谁
+  followeeId Int      // 关注谁
+  createdAt  DateTime @default(now())
+
+  follower User @relation("Follower", fields: [followerId], references: [id])
+  followee User @relation("Followee", fields: [followeeId], references: [id])
+
+  @@unique([followerId, followeeId])
+  @@index([followerId])
+  @@index([followeeId])
+}
+
+// ---------- 内容 ----------
+model Post {
+  id           Int      @id @default(autoincrement())
+  userId       Int
+  title        String
+  body         String
+  tagScene     String   // 工作场景，必填
+  tagIndustry  String?  // 行业赛道
+  tagContent   String   // 工作内容，JSON string of array
+  tagSkill     String?  // Skill 类型
+  status       String   @default("published") // draft / pending / published / rejected
+  viewCount    Int      @default(0)
+  commentCount Int      @default(0)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  author       User           @relation(fields: [userId], references: [id])
+  comments     Comment[]
+  attachments  Attachment[]
+  likes        PostLike[]
+  favorites    PostFavorite[]
+  skillAsset   SkillAsset?
+
+  @@index([createdAt])
+  @@index([tagScene])
+  @@index([userId])
+}
+
+// ---------- Skill 资产 ----------
+model SkillAsset {
+  id             Int      @id @default(autoincrement())
+  postId         Int      @unique
+  assetType      String
+  sourceUrl      String?
+  originalAuthor String?  // 原作者（搬运帖填，如 Anthropic；普通帖空=作者即发布者）
+  installHint    String?
+  usageNotes     String?
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  post Post @relation(fields: [postId], references: [id], onDelete: Cascade)
+
+  @@index([assetType])
+}
+
+// ---------- 附件 ----------
+model Attachment {
+  id            Int      @id @default(autoincrement())
+  postId        Int?     // 上传时尚未关联帖子 → null，发帖成功后回填
+  uploaderId    Int
+  fileName      String
+  storageKey    String   // 本地路径 / OSS key
+  fileSize      Int
+  mimeType      String
+  downloadCount Int      @default(0)
+  createdAt     DateTime @default(now())
+
+  post Post? @relation(fields: [postId], references: [id], onDelete: Cascade)
+
+  @@index([postId])
+}
+
+// ---------- 评论 ----------
+model Comment {
+  id        Int      @id @default(autoincrement())
+  postId    Int
+  parentId  Int?
+  userId    Int
+  body      String
+  likeCount Int      @default(0)
+  createdAt DateTime @default(now())
+
+  post     Post          @relation(fields: [postId], references: [id], onDelete: Cascade)
+  parent   Comment?      @relation("CommentReplies", fields: [parentId], references: [id])
+  replies  Comment[]     @relation("CommentReplies")
+  author   User          @relation(fields: [userId], references: [id])
+  likes    CommentLike[]
+
+  @@index([postId])
+  @@index([parentId])
+}
+
+model CommentLike {
+  id        Int      @id @default(autoincrement())
+  userId    Int
+  commentId Int
+  createdAt DateTime @default(now())
+
+  user    User    @relation(fields: [userId], references: [id])
+  comment Comment @relation(fields: [commentId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, commentId])
+}
+
+// ---------- 点赞 ----------
+model PostLike {
+  id        Int      @id @default(autoincrement())
+  userId    Int
+  postId    Int
+  createdAt DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id])
+  post Post @relation(fields: [postId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, postId])
+  @@index([userId])
+  @@index([postId])
+}
+
+// ---------- 收藏 ----------
+model PostFavorite {
+  id        Int      @id @default(autoincrement())
+  userId    Int
+  postId    Int
+  createdAt DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id])
+  post Post @relation(fields: [postId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, postId])
+  @@index([userId])
+}
+
+// ---------- 邮箱验证码 ----------
+model VerificationCode {
+  id        Int      @id @default(autoincrement())
+  email     String
+  code      String
+  expiresAt DateTime
+  consumed  Boolean  @default(false)
+  createdAt DateTime @default(now())
+
+  @@index([email])
+}
