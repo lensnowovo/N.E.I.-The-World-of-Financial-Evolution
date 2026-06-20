@@ -5,6 +5,7 @@
   "scripts": {
     "dev": "next dev -p 3000",
     "build": "prisma generate && next build",
+    "vercel-build": "prisma generate && prisma db push --skip-generate && next build",
     "postinstall": "prisma generate",
     "start": "next start",
     "lint": "next lint",
@@ -15,6 +16,7 @@
   "dependencies": {
     "@anthropic-ai/sdk": "^0.104.1",
     "@aws-sdk/client-s3": "^3.1069.0",
+    "@floating-ui/dom": "^1.7.6",
     "@prisma/client": "^5.22.0",
     "@tiptap/extension-link": "^3.23.6",
     "@tiptap/extension-placeholder": "^3.23.6",
