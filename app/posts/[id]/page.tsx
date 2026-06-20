@@ -45,17 +45,22 @@ export default async function PostDetailPage({
   const me = await getCurrentUser();
   const uid = me?.id ?? null;
 
-  // 并行：viewCount 自增 + 用户态查询 + API key 查询（减少 Neon 往返次数）
-  const [, , userWithKey, likeRow, favRow] = await Promise.all([
-    prisma.post.update({ where: { id }, data: { viewCount: { increment: 1 } } }),
-    Promise.resolve(),
-    uid ? prisma.user.findUnique({ where: { id: uid }, select: { apiKeyEnc: true } }) : Promise.resolve(null),
-    uid ? prisma.postLike.findUnique({ where: { userId_postId: { userId: uid, postId: id } } }) : Promise.resolve(null),
-    uid ? prisma.postFavorite.findUnique({ where: { userId_postId: { userId: uid, postId: id } } }) : Promise.resolve(null),
-  ]);
-  const liked = !!likeRow;
-  const favorited = !!favRow;
-  const hasApiKey = !!userWithKey?.apiKeyEnc;
+  // viewCount 自增（不 await，容许偶尔丢失）
+  void prisma.post.update({ where: { id }, data: { viewCount: { increment: 1 } } });
+
+  let liked = false;
+  let favorited = false;
+  let hasApiKey = false;
+  if (uid) {
+    const [l, f, u] = await Promise.all([
+      prisma.postLike.findUnique({ where: { userId_postId: { userId: uid, postId: id } } }),
+      prisma.postFavorite.findUnique({ where: { userId_postId: { userId: uid, postId: id } } }),
+      prisma.user.findUnique({ where: { id: uid }, select: { apiKeyEnc: true } }),
+    ]);
+    liked = !!l;
+    favorited = !!f;
+    hasApiKey = !!u?.apiKeyEnc;
+  }
 
   const tagContent: string[] = (() => {
     try {
