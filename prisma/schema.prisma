@@ -19,6 +19,7 @@ model User {
   avatarUrl    String?
   institution  String?  // 机构（选填）
   bio          String?  // 个人简介（选填）
+  apiKeyEnc    String?  // 加密后的 AI API key（AES-256-GCM）
   githubId        String?   @unique
   githubAvatarUrl String?
   githubUsername  String?

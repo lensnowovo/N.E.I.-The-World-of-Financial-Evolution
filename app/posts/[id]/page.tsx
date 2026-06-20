@@ -21,6 +21,7 @@ import { DetailActions } from './DetailActions';
 import { SkillPreview } from './SkillPreview';
 import { PreCopyButton } from './PreCopyButton';
 import { BackLink } from './BackLink';
+import { ExecuteButton } from './ExecuteButton';
 
 export default async function PostDetailPage({
   params,
@@ -41,21 +42,20 @@ export default async function PostDetailPage({
   });
   if (!post || post.status !== POST_STATUS.PUBLISHED) notFound();
 
-  // 仅在初次渲染累加阅读 —— 不要 race
-  await prisma.post.update({ where: { id }, data: { viewCount: { increment: 1 } } });
-
   const me = await getCurrentUser();
   const uid = me?.id ?? null;
-  let liked = false;
-  let favorited = false;
-  if (uid) {
-    const [l, f] = await Promise.all([
-      prisma.postLike.findUnique({ where: { userId_postId: { userId: uid, postId: id } } }),
-      prisma.postFavorite.findUnique({ where: { userId_postId: { userId: uid, postId: id } } }),
-    ]);
-    liked = !!l;
-    favorited = !!f;
-  }
+
+  // 并行：viewCount 自增 + 用户态查询 + API key 查询（减少 Neon 往返次数）
+  const [, , userWithKey, likeRow, favRow] = await Promise.all([
+    prisma.post.update({ where: { id }, data: { viewCount: { increment: 1 } } }),
+    Promise.resolve(),
+    uid ? prisma.user.findUnique({ where: { id: uid }, select: { apiKeyEnc: true } }) : Promise.resolve(null),
+    uid ? prisma.postLike.findUnique({ where: { userId_postId: { userId: uid, postId: id } } }) : Promise.resolve(null),
+    uid ? prisma.postFavorite.findUnique({ where: { userId_postId: { userId: uid, postId: id } } }) : Promise.resolve(null),
+  ]);
+  const liked = !!likeRow;
+  const favorited = !!favRow;
+  const hasApiKey = !!userWithKey?.apiKeyEnc;
 
   const tagContent: string[] = (() => {
     try {
@@ -130,6 +130,12 @@ export default async function PostDetailPage({
           likes={post._count.likes}
           commentsCount={post._count.comments}
         />
+        {/* 执行按钮（仅 prompt 类型） */}
+        {isPrompt && (
+          <div className="mt-3">
+            <ExecuteButton postId={post.id} isAuthed={!!uid} hasApiKey={hasApiKey} />
+          </div>
+        )}
       </div>
 
       {/* —— 怎么用说明（紧凑内联）—— */}

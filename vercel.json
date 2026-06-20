@@ -1,3 +1,9 @@
 {
-  "buildCommand": "prisma generate && next build"
+  "buildCommand": "prisma generate && next build",
+  "regions": ["sin1"],
+  "functions": {
+    "app/api/skills/[id]/execute/route.ts": {
+      "maxDuration": 300
+    }
+  }
 }
