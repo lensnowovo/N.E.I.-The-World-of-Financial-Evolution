@@ -15,6 +15,7 @@ type Profile = {
   institution: string | null;
   bio: string | null;
   avatarUrl: string | null;
+  hasApiKey: boolean;
 };
 
 export default function SettingsPage() {
@@ -36,6 +37,11 @@ export default function SettingsPage() {
   const [newPw, setNewPw] = useState('');
   const [pwSaving, setPwSaving] = useState(false);
   const [pwMsg, setPwMsg] = useState<{ ok: boolean; text: string } | null>(null);
+
+  // API key
+  const [apiKey, setApiKey] = useState('');
+  const [keySaving, setKeySaving] = useState(false);
+  const [keyMsg, setKeyMsg] = useState<{ ok: boolean; text: string } | null>(null);
 
   useEffect(() => {
     fetch('/api/users/me')
@@ -282,6 +288,73 @@ export default function SettingsPage() {
             {pwSaving ? '修改中…' : '修改密码'}
           </Button>
         </form>
+      </section>
+
+      {/* —— AI API Key 配置 —— */}
+      <section className="mt-10 pt-8 border-t border-paper-edge">
+        <h2 className="font-serif text-xl text-ink-brown mb-1">AI API Key</h2>
+        <p className="font-sans text-xs text-sepia mb-4">
+          配置你的 Anthropic API key 后，可以在网站上直接执行 Skill（流式输出）。Key 加密存储，不会泄露。去{' '}
+          <a href="https://console.anthropic.com/settings/keys" target="_blank" rel="noopener noreferrer" className="text-wax-red underline">console.anthropic.com</a>
+          {' '}获取。
+        </p>
+        {profile?.hasApiKey ? (
+          <div className="flex items-center gap-3">
+            <span className="inline-flex items-center gap-1.5 h-9 px-4 border border-moss/40 bg-moss/5 text-moss font-sans text-sm rounded-sm">
+              <svg width="14" height="14" viewBox="0 0 12 12" fill="none" stroke="currentColor" strokeWidth="1.5"><path d="M2 6.5L5 9.5L10 3" strokeLinecap="round" strokeLinejoin="round"/></svg>
+              已配置
+            </span>
+            <button
+              type="button"
+              onClick={async () => {
+                setKeySaving(true);
+                await fetch('/api/users/me', { method: 'DELETE' });
+                setKeySaving(false);
+                setProfile(p => p ? { ...p, hasApiKey: false } : p);
+                setKeyMsg({ ok: true, text: '已清除' });
+              }}
+              disabled={keySaving}
+              className="font-sans text-sm text-wax-red hover:underline"
+            >
+              {keySaving ? '清除中…' : '清除'}
+            </button>
+          </div>
+        ) : (
+          <form onSubmit={async (e) => {
+            e.preventDefault();
+            setKeyMsg(null);
+            if (!apiKey.trim()) return;
+            setKeySaving(true);
+            const res = await fetch('/api/users/me', {
+              method: 'PATCH',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ apiKey: apiKey.trim() }),
+            });
+            const data = await res.json();
+            setKeySaving(false);
+            if (!res.ok) { setKeyMsg({ ok: false, text: data.error || '保存失败' }); return; }
+            setProfile(p => p ? { ...p, hasApiKey: true } : p);
+            setApiKey('');
+            setKeyMsg({ ok: true, text: 'API key 已加密保存' });
+          }}>
+            <Input
+              type="password"
+              value={apiKey}
+              onChange={(e) => setApiKey(e.target.value)}
+              placeholder="sk-ant-..."
+            />
+            {keyMsg && (
+              <p className={cn('mt-2 font-sans text-sm border-l pl-3', keyMsg.ok ? 'text-moss border-moss' : 'text-wax-red border-wax-red')}>
+                {keyMsg.text}
+              </p>
+            )}
+            <div className="mt-3">
+              <Button type="submit" disabled={keySaving || !apiKey.trim()}>
+                {keySaving ? '保存中…' : '保存 API Key'}
+              </Button>
+            </div>
+          </form>
+        )}
       </section>
     </div>
   );
