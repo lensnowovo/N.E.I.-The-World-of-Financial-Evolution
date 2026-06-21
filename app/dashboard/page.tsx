@@ -134,7 +134,7 @@ export default async function DashboardPage() {
             )}
             <div className="flex flex-wrap gap-2">
               <Link
-                href="/settings"
+                href="/connect"
                 className="inline-flex items-center h-7 px-3 text-xs font-sans border border-paper-edge rounded-sm text-leather hover:border-ink-brown hover:text-ink-brown transition-colors"
               >
                 {hasMcpToken ? '管理 Token' : '生成 Token'}
@@ -163,7 +163,7 @@ export default async function DashboardPage() {
               {hasApiKey ? '✅ API Key 已配置，可在网站直接执行 Prompt' : '配置后可在网站直接执行 Prompt（流式输出）'}
             </p>
             <Link
-              href="/settings"
+              href="/connect"
               className="inline-flex items-center h-7 px-3 text-xs font-sans border border-paper-edge rounded-sm text-leather hover:border-ink-brown hover:text-ink-brown transition-colors"
             >
               {hasApiKey ? '管理 Key' : '去配置'}
