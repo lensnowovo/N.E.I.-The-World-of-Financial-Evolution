@@ -45,7 +45,7 @@ export function DashboardClient({
   hasApiKey: boolean;
   userId: number;
 }) {
-  const [tab, setTab] = useState<'library' | 'stats' | 'connect'>('library');
+  const [tab, setTab] = useState<'skills' | 'connect'>('skills');
   const [items, setItems] = useState(initialItems);
   const [stats] = useState(initialStats);
   const [mcpToken, setMcpToken] = useState('');
@@ -102,8 +102,7 @@ export function DashboardClient({
       {/* Tabs */}
       <div className="flex items-center gap-1 mb-6 border-b border-paper-edge">
         {([
-          ['library', 'Skill 库'],
-          ['stats', '使用统计'],
+          ['skills', 'Skill 库'],
           ['connect', '连接状态'],
         ] as const).map(([key, label]) => (
           <button
@@ -122,9 +121,43 @@ export function DashboardClient({
         ))}
       </div>
 
-      {/* Tab 1: Skill 库 */}
-      {tab === 'library' && (
+      {/* Tab: Skill 库（含使用统计） */}
+      {tab === 'skills' && (
         <div>
+          {/* 使用统计（紧凑横条） */}
+          {stats.totalCalls > 0 && (
+            <div className="mb-6 grid grid-cols-4 gap-3">
+              <div className="border border-paper-edge bg-vellum rounded-md p-3 text-center">
+                <p className="font-serif text-xl text-ink-brown num-osf">{stats.totalCalls}</p>
+                <p className="font-sans text-[10px] text-sepia">总调用</p>
+              </div>
+              <div className="border border-paper-edge bg-vellum rounded-md p-3 text-center">
+                <p className="font-serif text-xl text-ink-brown num-osf">{stats.last7Days}</p>
+                <p className="font-sans text-[10px] text-sepia">近 7 天</p>
+              </div>
+              <div className="border border-paper-edge bg-vellum rounded-md p-3 text-center">
+                <p className="font-serif text-xl text-ink-brown num-osf">{items.length}</p>
+                <p className="font-sans text-[10px] text-sepia">已收藏</p>
+              </div>
+              <div className="border border-paper-edge bg-vellum rounded-md p-3 text-center">
+                <p className="font-serif text-xl text-wax-red num-osf">{stats.sleeping.length}</p>
+                <p className="font-sans text-[10px] text-sepia">沉睡</p>
+              </div>
+            </div>
+          )}
+
+          {/* Top 常用 + 沉睡提醒 */}
+          {stats.topSkills.length > 0 && (
+            <div className="mb-5 flex flex-wrap gap-3 text-xs">
+              {stats.topSkills.slice(0, 3).map((s, i) => (
+                <Link key={s.postId} href={`/posts/${s.postId}`} className="inline-flex items-center gap-1 text-leather hover:text-ink-brown font-serif italic">
+                  <span className="text-sepia num-osf">#{i + 1}</span>
+                  {s.title.slice(0, 16)}…
+                  <span className="font-mono text-sepia">{s.calls}×</span>
+                </Link>
+              ))}
+            </div>
+          )}
           {items.length === 0 ? (
             <div className="border border-paper-edge bg-vellum rounded-md py-14 px-8 text-center">
               <p className="font-serif italic text-leather text-lg mb-2">还没有收藏 Skill</p>
@@ -164,54 +197,7 @@ export function DashboardClient({
         </div>
       )}
 
-      {/* Tab 2: 使用统计 */}
-      {tab === 'stats' && (
-        <div className="space-y-6">
-          <div className="grid grid-cols-2 sm:grid-cols-3 gap-4">
-            <StatCard label="总调用" value={stats.totalCalls} />
-            <StatCard label="近 7 天" value={stats.last7Days} />
-            <StatCard label="沉睡 Skill" value={stats.sleeping.length} />
-          </div>
-
-          {stats.topSkills.length > 0 && (
-            <div>
-              <h3 className="font-serif text-base text-ink-brown mb-3">最常用 Top 5</h3>
-              <ol className="space-y-2">
-                {stats.topSkills.map((s, i) => (
-                  <li key={s.postId} className="flex items-center gap-3 text-sm">
-                    <span className="font-mono text-xs text-sepia num-osf w-4">{i + 1}</span>
-                    <Link href={`/posts/${s.postId}`} className="font-serif text-ink-brown hover:text-wax-red flex-1 truncate">{s.title}</Link>
-                    <span className="font-mono text-xs text-sepia">{s.calls} 次</span>
-                  </li>
-                ))}
-              </ol>
-            </div>
-          )}
-
-          {stats.sleeping.length > 0 && (
-            <div>
-              <h3 className="font-serif text-base text-ink-brown mb-3">收藏了但从没用过</h3>
-              <ul className="space-y-1">
-                {stats.sleeping.map((s) => (
-                  <li key={s.postId}>
-                    <Link href={`/posts/${s.postId}`} className="font-sans text-sm text-leather hover:text-wax-red">{s.title}</Link>
-                  </li>
-                ))}
-              </ul>
-            </div>
-          )}
-
-          {stats.totalCalls === 0 && (
-            <div className="border border-paper-edge bg-vellum rounded-md py-10 px-6 text-center">
-              <p className="font-serif italic text-sm text-sepia">
-                还没有 MCP 调用记录。配置好 MCP 连接后在客户端使用 Skill，这里会显示统计。
-              </p>
-            </div>
-          )}
-        </div>
-      )}
-
-      {/* Tab 3: 连接状态 */}
+      {/* Tab: 连接状态 */}
       {tab === 'connect' && (
         <div className="space-y-6">
           {/* MCP */}
@@ -275,15 +261,6 @@ export function DashboardClient({
           </Link>
         </div>
       )}
-    </div>
-  );
-}
-
-function StatCard({ label, value }: { label: string; value: number }) {
-  return (
-    <div className="border border-paper-edge bg-vellum rounded-md p-4 text-center">
-      <p className="font-serif text-2xl text-ink-brown num-osf">{value}</p>
-      <p className="font-sans text-xs text-sepia mt-1">{label}</p>
     </div>
   );
 }
