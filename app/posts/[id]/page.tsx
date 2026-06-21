@@ -183,7 +183,7 @@ export default async function PostDetailPage({
                   <div key={i} className="relative mt-4 not-italic">
                     <PreCopyButton bodyHtml={part.html} postId={post.id} isAuthed={!!uid} />
                     <div
-                      className="font-mono text-sm bg-vellum/40 border border-paper-edge rounded p-4 [&_pre]:bg-transparent [&_pre]:p-0 [&_pre]:border-0 [&_pre]:whitespace-pre-wrap"
+                      className="font-mono text-sm text-ink-brown bg-vellum/40 border border-paper-edge rounded p-4 [&_pre]:bg-transparent [&_pre]:p-0 [&_pre]:border-0 [&_pre]:text-ink-brown [&_pre]:whitespace-pre-wrap"
                       dangerouslySetInnerHTML={{ __html: part.html }}
                     />
                   </div>
