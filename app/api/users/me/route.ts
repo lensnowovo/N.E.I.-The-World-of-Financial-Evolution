@@ -54,11 +54,11 @@ export async function GET() {
   if (!uid) return NextResponse.json({ error: '请先登录' }, { status: 401 });
   const user = await prisma.user.findUnique({
     where: { id: uid },
-    select: { id: true, email: true, nickname: true, role: true, avatarUrl: true, institution: true, bio: true, createdAt: true, apiKeyEnc: true },
+    select: { id: true, email: true, nickname: true, role: true, avatarUrl: true, institution: true, bio: true, createdAt: true, apiKeyEnc: true, mcpTokenHash: true },
   });
   if (!user) return NextResponse.json({ error: '用户不存在' }, { status: 404 });
-  const { apiKeyEnc, ...safe } = user;
-  return NextResponse.json({ ...safe, hasApiKey: !!apiKeyEnc });
+  const { apiKeyEnc, mcpTokenHash, ...safe } = user;
+  return NextResponse.json({ ...safe, hasApiKey: !!apiKeyEnc, hasMcpToken: !!mcpTokenHash });
 }
 
 /** DELETE /api/users/me —— 清除 API key */

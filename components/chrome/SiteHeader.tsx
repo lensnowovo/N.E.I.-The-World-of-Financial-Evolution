@@ -145,6 +145,9 @@ export function SiteHeader({ user }: { user: User }) {
                       <MenuItem href="/dashboard" onClose={() => setMenuOpen(false)}>
                         我的控制台
                       </MenuItem>
+                      <MenuItem href="/mcp" onClose={() => setMenuOpen(false)}>
+                        MCP 配置
+                      </MenuItem>
                       <MenuItem href="/settings" onClose={() => setMenuOpen(false)}>
                         设置
                       </MenuItem>
@@ -221,6 +224,9 @@ export function SiteHeader({ user }: { user: User }) {
                   </DrawerLink>
                   <DrawerLink href="/dashboard" active={isActive('/dashboard')}>
                     我的控制台
+                  </DrawerLink>
+                  <DrawerLink href="/mcp" active={isActive('/mcp')}>
+                    MCP 配置
                   </DrawerLink>
                   <DrawerLink href="/settings" active={isActive('/settings')}>
                     设置

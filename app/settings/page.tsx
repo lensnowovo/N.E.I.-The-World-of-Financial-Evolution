@@ -16,6 +16,7 @@ type Profile = {
   bio: string | null;
   avatarUrl: string | null;
   hasApiKey: boolean;
+  hasMcpToken: boolean;
 };
 
 export default function SettingsPage() {
@@ -42,6 +43,12 @@ export default function SettingsPage() {
   const [apiKey, setApiKey] = useState('');
   const [keySaving, setKeySaving] = useState(false);
   const [keyMsg, setKeyMsg] = useState<{ ok: boolean; text: string } | null>(null);
+
+  // MCP Token
+  const [mcpToken, setMcpToken] = useState('');
+  const [mcpGenerating, setMcpGenerating] = useState(false);
+  const [mcpMsg, setMcpMsg] = useState<{ ok: boolean; text: string } | null>(null);
+  const [copied, setCopied] = useState(false);
 
   useEffect(() => {
     fetch('/api/users/me')
@@ -354,6 +361,87 @@ export default function SettingsPage() {
               </Button>
             </div>
           </form>
+        )}
+      </section>
+
+      {/* —— MCP Token 配置 —— */}
+      <section className="mt-10 pt-8 border-t border-paper-edge">
+        <h2 className="font-serif text-xl text-ink-brown mb-1">MCP Server</h2>
+        <p className="font-sans text-xs text-sepia mb-4">
+          生成 Token 后，在你的 AI 客户端（Claude Code / Cursor / Kimi）里配置 N.E.I. MCP Server，
+          就能在客户端里直接搜索和调用本站的 Skill。详见
+          <Link href="/mcp" className="text-wax-red underline ml-0.5">配置指南</Link>。
+        </p>
+
+        {mcpToken ? (
+          // 刚生成的 token，只显示这一次
+          <div className="space-y-3">
+            <div className="p-3 rounded-md border border-gilded/40 bg-gilded/5">
+              <p className="font-sans text-xs text-leather mb-1">你的 MCP Token（只显示一次，请保存）：</p>
+              <code className="font-mono text-sm text-ink-brown break-all">{mcpToken}</code>
+            </div>
+            <div className="flex gap-2">
+              <Button
+                type="button"
+                variant="secondary"
+                onClick={() => {
+                  navigator.clipboard.writeText(mcpToken);
+                  setCopied(true);
+                  setTimeout(() => setCopied(false), 2000);
+                }}
+              >
+                {copied ? '已复制' : '复制 Token'}
+              </Button>
+              <Link href="/mcp" className="inline-flex items-center h-9 px-4 border border-paper-edge text-leather hover:border-ink-brown hover:text-ink-brown font-serif text-sm rounded-sm transition-colors">
+                配置指南 →
+              </Link>
+            </div>
+          </div>
+        ) : profile?.hasMcpToken ? (
+          // 已有 token（之前生成过）
+          <div className="space-y-3">
+            <div className="flex items-center gap-3">
+              <span className="inline-flex items-center gap-1.5 h-9 px-4 border border-moss/40 bg-moss/5 text-moss font-sans text-sm rounded-sm">
+                <svg width="14" height="14" viewBox="0 0 12 12" fill="none" stroke="currentColor" strokeWidth="1.5"><path d="M2 6.5L5 9.5L10 3" strokeLinecap="round" strokeLinejoin="round"/></svg>
+                MCP Token 已配置
+              </span>
+              <button
+                type="button"
+                onClick={async () => {
+                  setMcpGenerating(true);
+                  const res = await fetch('/api/users/me/mcp-token', { method: 'POST' });
+                  const data = await res.json();
+                  setMcpGenerating(false);
+                  if (res.ok) setMcpToken(data.token);
+                }}
+                disabled={mcpGenerating}
+                className="font-sans text-sm text-wax-red hover:underline"
+              >
+                {mcpGenerating ? '生成中…' : '重新生成'}
+              </button>
+            </div>
+            <Link href="/mcp" className="inline-flex items-center text-sm text-leather hover:text-ink-brown font-serif italic">
+              查看配置指南 →
+            </Link>
+          </div>
+        ) : (
+          // 未生成
+          <Button
+            type="button"
+            onClick={async () => {
+              setMcpGenerating(true);
+              const res = await fetch('/api/users/me/mcp-token', { method: 'POST' });
+              const data = await res.json();
+              setMcpGenerating(false);
+              if (res.ok) {
+                setMcpToken(data.token);
+                setProfile(p => p ? { ...p, hasMcpToken: true } : p);
+              }
+            }}
+            disabled={mcpGenerating}
+          >
+            {mcpGenerating ? '生成中…' : '生成 MCP Token'}
+          </Button>
         )}
       </section>
     </div>
