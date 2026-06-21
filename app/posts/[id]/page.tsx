@@ -1,5 +1,6 @@
 import { notFound } from 'next/navigation';
 import Link from 'next/link';
+import { Prisma } from '@prisma/client';
 import { prisma } from '@/lib/db';
 import { cn } from '@/lib/cn';
 import { getCurrentUser } from '@/lib/session';
@@ -45,21 +46,25 @@ export default async function PostDetailPage({
   const me = await getCurrentUser();
   const uid = me?.id ?? null;
 
-  // viewCount 自增（不 await，容许偶尔丢失）
-  void prisma.post.update({ where: { id }, data: { viewCount: { increment: 1 } } });
+  // Start the non-critical write early, but always await it before the serverless
+  // request finishes so a rejected Prisma promise cannot escape the render.
+  const viewCountUpdate = incrementViewCount(id);
 
   let liked = false;
   let favorited = false;
   let hasApiKey = false;
   if (uid) {
-    const [l, f, u] = await Promise.all([
+    const [l, f, apiKeyConfigured] = await Promise.all([
       prisma.postLike.findUnique({ where: { userId_postId: { userId: uid, postId: id } } }),
       prisma.postFavorite.findUnique({ where: { userId_postId: { userId: uid, postId: id } } }),
-      prisma.user.findUnique({ where: { id: uid }, select: { apiKeyEnc: true } }),
+      getHasApiKey(uid),
+      viewCountUpdate,
     ]);
     liked = !!l;
     favorited = !!f;
-    hasApiKey = !!u?.apiKeyEnc;
+    hasApiKey = apiKeyConfigured;
+  } else {
+    await viewCountUpdate;
   }
 
   const tagContent: string[] = (() => {
@@ -349,6 +354,35 @@ export default async function PostDetailPage({
       </div>
     </article>
   );
+}
+
+async function incrementViewCount(postId: number): Promise<void> {
+  try {
+    await prisma.post.update({
+      where: { id: postId },
+      data: { viewCount: { increment: 1 } },
+    });
+  } catch (error) {
+    console.error(`Failed to increment view count for post ${postId}`, error);
+  }
+}
+
+async function getHasApiKey(userId: number): Promise<boolean> {
+  try {
+    const user = await prisma.user.findUnique({
+      where: { id: userId },
+      select: { apiKeyEnc: true },
+    });
+    return !!user?.apiKeyEnc;
+  } catch (error) {
+    // This field was introduced after the initial production schema. Keep the
+    // detail page usable while a deployment is applying the additive change.
+    if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2022') {
+      console.error('User.apiKeyEnc is missing from the database; run prisma db push.');
+      return false;
+    }
+    throw error;
+  }
 }
 
 /** 右栏小标签 chip */
