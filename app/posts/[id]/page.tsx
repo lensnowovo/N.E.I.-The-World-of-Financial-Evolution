@@ -89,11 +89,15 @@ export default async function PostDetailPage({
   // 摘要（去 HTML 标签）
   const excerpt = post.body.replace(/<[^>]*>/g, '').replace(/\s+/g, ' ').trim().slice(0, 120);
 
-  // 提示词帖：把 body 按 <pre> 拆成「介绍」+「Prompt 块」，
-  // Prompt 块单独包 relative 容器，让复制按钮锚定到 <pre> 右上角（而非整篇正文顶部）
+  // 提示词帖：把 body 按 <pre> 拆成「介绍」+「Prompt 块」（可能有多个）
+  // 每个 Prompt 块单独配复制按钮
   const preSplit = isPrompt ? post.body.split(/(<pre[\s\S]*?<\/pre>)/i) : null;
-  const promptIntro = preSplit ? preSplit.filter((s) => !/<pre/i.test(s)).join('') : post.body;
-  const promptPre = preSplit ? preSplit.find((s) => /<pre/i.test(s)) ?? '' : '';
+  const promptParts = preSplit
+    ? preSplit.filter((s) => s.trim()).map((s) => ({
+        isPre: /<pre/i.test(s),
+        html: s,
+      }))
+    : [];
 
   return (
     <article className="mx-auto max-w-page px-4 sm:px-6">
@@ -172,23 +176,23 @@ export default async function PostDetailPage({
         {/* 左：正文 */}
         <div className="min-w-0">
           {isPrompt ? (
-            // 提示词帖：介绍部分 + Prompt 块分开渲染，
-            // 复制按钮锚定到 <pre> 方块的右上角
-            <div className="mb-8">
-              {promptIntro && (
-                <div
-                  className="prose-manuscript"
-                  dangerouslySetInnerHTML={{ __html: promptIntro }}
-                />
-              )}
-              {promptPre && (
-                <div className="relative mt-4">
-                  <PreCopyButton bodyHtml={promptPre} postId={post.id} isAuthed={!!uid} />
+            // 提示词帖：按 <pre> 块拆分渲染，每个 pre 配复制按钮
+            <div className="mb-8 prose-manuscript">
+              {promptParts.map((part, i) =>
+                part.isPre ? (
+                  <div key={i} className="relative mt-4 not-italic">
+                    <PreCopyButton bodyHtml={part.html} postId={post.id} isAuthed={!!uid} />
+                    <div
+                      className="font-mono text-sm bg-vellum/40 border border-paper-edge rounded p-4 [&_pre]:bg-transparent [&_pre]:p-0 [&_pre]:border-0 [&_pre]:whitespace-pre-wrap"
+                      dangerouslySetInnerHTML={{ __html: part.html }}
+                    />
+                  </div>
+                ) : (
                   <div
-                    className="prose-manuscript font-mono text-sm bg-vellum/40 border border-paper-edge rounded p-4 not-italic [&_pre]:bg-transparent [&_pre]:p-0 [&_pre]:border-0 [&_pre]:whitespace-pre-wrap"
-                    dangerouslySetInnerHTML={{ __html: promptPre }}
+                    key={i}
+                    dangerouslySetInnerHTML={{ __html: part.html }}
                   />
-                </div>
+                ),
               )}
             </div>
           ) : (
