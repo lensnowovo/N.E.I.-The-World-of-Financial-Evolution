@@ -89,6 +89,9 @@ export function SiteHeader({ user }: { user: User }) {
           {/* 桌面：主导航 */}
           <nav className="hidden md:flex items-center gap-5 font-serif text-sm">
             <NavLink href="/" active={isActive('/')}>目录</NavLink>
+            {user && (
+              <NavLink href="/dashboard" active={isActive('/dashboard')}>控制台</NavLink>
+            )}
           </nav>
 
           {/* 桌面：搜索框 */}
