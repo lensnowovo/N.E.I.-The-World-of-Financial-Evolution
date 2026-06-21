@@ -32,6 +32,7 @@ model User {
   likes     PostLike[]
   favorites PostFavorite[]
   commentLikes CommentLike[]
+  mcpCallLogs McpCallLog[]
 
   // 关注关系
   following UserFollow[] @relation("Follower")  // 我关注的人
@@ -167,12 +168,27 @@ model PostFavorite {
   id        Int      @id @default(autoincrement())
   userId    Int
   postId    Int
+  sortOrder Int      @default(0)
+  note      String?
   createdAt DateTime @default(now())
 
   user User @relation(fields: [userId], references: [id])
   post Post @relation(fields: [postId], references: [id], onDelete: Cascade)
 
   @@unique([userId, postId])
+  @@index([userId])
+}
+
+// ---------- MCP 调用日志 ----------
+model McpCallLog {
+  id        Int      @id @default(autoincrement())
+  userId    Int
+  postId    Int?
+  tool      String
+  createdAt DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
   @@index([userId])
 }
 

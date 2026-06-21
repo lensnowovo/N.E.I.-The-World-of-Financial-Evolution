@@ -48,6 +48,9 @@ const handler = createMcpHandler(
         limit: z.number().optional().default(10).describe('返回条数'),
       },
       async (args) => {
+        // 记录调用日志（fire-and-forget）
+        void prisma.mcpCallLog.create({ data: { userId: currentUid!, tool: 'search_skills' } }).catch(() => {});
+
         const where = buildFeedWhere({
           q: args.query || '',
           scene: args.scene,
@@ -83,6 +86,9 @@ const handler = createMcpHandler(
       '获取某个 Skill 的完整 Prompt / 内容原文',
       { id: z.number().describe('Skill ID') },
       async (args) => {
+        // 记录调用日志（fire-and-forget）
+        void prisma.mcpCallLog.create({ data: { userId: currentUid!, postId: args.id, tool: 'get_skill' } }).catch(() => {});
+
         const post = await prisma.post.findUnique({
           where: { id: args.id },
           select: { title: true, body: true, tagScene: true, status: true,
@@ -106,6 +112,9 @@ const handler = createMcpHandler(
       '列出你收藏的 Skill',
       {},
       async () => {
+        // 记录调用日志（fire-and-forget）
+        void prisma.mcpCallLog.create({ data: { userId: currentUid!, tool: 'list_my_skills' } }).catch(() => {});
+
         const favs = await prisma.postFavorite.findMany({
           where: { userId: currentUid! },
           include: {
@@ -116,7 +125,7 @@ const handler = createMcpHandler(
               },
             },
           },
-          orderBy: { createdAt: 'desc' },
+          orderBy: [{ sortOrder: 'asc' }, { createdAt: 'desc' }],
           take: 50,
         });
         const skills = favs

@@ -16,7 +16,9 @@ export async function POST(_req: Request, { params }: { params: { id: string } }
     return NextResponse.json({ favorited: false });
   }
   try {
-    await prisma.postFavorite.create({ data: { userId: uid, postId } });
+    // 新收藏排在最后（sortOrder = 当前收藏数）
+    const count = await prisma.postFavorite.count({ where: { userId: uid } });
+    await prisma.postFavorite.create({ data: { userId: uid, postId, sortOrder: count } });
   } catch {
     /* race; ignore */
   }
