@@ -4,7 +4,7 @@ import { getSessionUid } from '@/lib/session';
 import { sanitizeHtml, stripHtml } from '@/lib/validate';
 import { POST_STATUS } from '@/lib/status';
 import { SCENE_TAGS, INDUSTRY_TAGS, CONTENT_TAGS, SKILL_TAGS } from '@/lib/tags';
-import { buildFeedWhere, fetchUserLikeFav, filterByContent, normalizeSort, sortPosts } from '@/lib/feed';
+import { buildFeedWhere, fetchUserStars, filterByContent, normalizeSort, sortPosts } from '@/lib/feed';
 
 // Used by POST handler for validation
 const sceneVals: string[] = SCENE_TAGS.map((t) => t.value);
@@ -32,7 +32,7 @@ export async function GET(req: Request) {
     where,
     include: {
       author: { select: { id: true, nickname: true, role: true, avatarUrl: true } },
-      _count: { select: { comments: true, likes: true, attachments: true } },
+      _count: { select: { comments: true, stars: true, attachments: true } },
       skillAsset: { select: { id: true, assetType: true } },
     },
     orderBy: { createdAt: 'desc' },
@@ -45,7 +45,7 @@ export async function GET(req: Request) {
   posts = sortPosts(posts, sort);
 
   const uid = await getSessionUid();
-  const { likedIds, favIds } = await fetchUserLikeFav(uid, posts.map((p) => p.id));
+  const { starredIds } = await fetchUserStars(uid, posts.map((p) => p.id));
 
   return NextResponse.json({
     items: posts.map((p) => ({
@@ -61,11 +61,10 @@ export async function GET(req: Request) {
       author: p.author,
       counts: {
         comments: p._count.comments,
-        likes: p._count.likes,
+        stars: p._count.stars,
         attachments: p._count.attachments,
       },
-      liked: likedIds.has(p.id),
-      favorited: favIds.has(p.id),
+      starred: starredIds.has(p.id),
       skillAsset: p.skillAsset
         ? { id: p.skillAsset.id, assetType: p.skillAsset.assetType }
         : null,

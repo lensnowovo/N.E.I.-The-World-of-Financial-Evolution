@@ -11,7 +11,7 @@ export async function GET(_req: Request, { params }: { params: { id: string } })
     include: {
       author: { select: { id: true, nickname: true, role: true, avatarUrl: true } },
       attachments: true,
-      _count: { select: { comments: true, likes: true } },
+      _count: { select: { comments: true, stars: true } },
     },
   });
   if (!post || post.status !== 'published') {
@@ -21,21 +21,15 @@ export async function GET(_req: Request, { params }: { params: { id: string } })
   await prisma.post.update({ where: { id }, data: { viewCount: { increment: 1 } } });
 
   const uid = await getSessionUid();
-  let liked = false;
-  let favorited = false;
+  let starred = false;
   if (uid) {
-    const [l, f] = await Promise.all([
-      prisma.postLike.findUnique({ where: { userId_postId: { userId: uid, postId: id } } }),
-      prisma.postFavorite.findUnique({ where: { userId_postId: { userId: uid, postId: id } } }),
-    ]);
-    liked = !!l;
-    favorited = !!f;
+    const star = await prisma.postFavorite.findUnique({ where: { userId_postId: { userId: uid, postId: id } } });
+    starred = !!star;
   }
 
   return NextResponse.json({
     ...post,
     tagContent: JSON.parse(post.tagContent || '[]'),
-    liked,
-    favorited,
+    starred,
   });
 }

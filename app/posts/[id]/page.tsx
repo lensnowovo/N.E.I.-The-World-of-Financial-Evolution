@@ -38,7 +38,7 @@ export default async function PostDetailPage({
       author: { select: { id: true, nickname: true, role: true, avatarUrl: true } },
       attachments: { orderBy: { createdAt: 'asc' } },
       skillAsset: true,
-      _count: { select: { comments: true, likes: true, favorites: true } },
+      _count: { select: { comments: true, stars: true } },
     },
   });
   if (!post || post.status !== POST_STATUS.PUBLISHED) notFound();
@@ -50,18 +50,15 @@ export default async function PostDetailPage({
   // request finishes so a rejected Prisma promise cannot escape the render.
   const viewCountUpdate = incrementViewCount(id);
 
-  let liked = false;
-  let favorited = false;
+  let starred = false;
   let hasApiKey = false;
   if (uid) {
-    const [l, f, apiKeyConfigured] = await Promise.all([
-      prisma.postLike.findUnique({ where: { userId_postId: { userId: uid, postId: id } } }),
+    const [starRow, apiKeyConfigured] = await Promise.all([
       prisma.postFavorite.findUnique({ where: { userId_postId: { userId: uid, postId: id } } }),
       getHasApiKey(uid),
       viewCountUpdate,
     ]);
-    liked = !!l;
-    favorited = !!f;
+    starred = !!starRow;
     hasApiKey = apiKeyConfigured;
   } else {
     await viewCountUpdate;
@@ -141,7 +138,7 @@ export default async function PostDetailPage({
           isPrompt={isPrompt}
           bodyHtml={post.body}
           viewCount={post.viewCount}
-          likes={post._count.likes}
+          stars={post._count.stars}
           commentsCount={post._count.comments}
         />
         {/* 执行按钮（仅 prompt 类型） */}
@@ -341,7 +338,7 @@ export default async function PostDetailPage({
           {/* 统计 */}
           <div className="font-mono text-[11px] text-sepia space-y-1">
             <div>浏览 <span className="num-osf text-ink-brown">{post.viewCount}</span></div>
-            <div>收藏 <span className="num-osf text-ink-brown">{post._count.favorites}</span></div>
+            <div>收藏 <span className="num-osf text-ink-brown">{post._count.stars}</span></div>
           </div>
         </aside>
       </div>
@@ -350,9 +347,8 @@ export default async function PostDetailPage({
       <div className="mt-12">
         <PostActions
           postId={id}
-          initialLiked={liked}
-          initialFavorited={favorited}
-          initialLikes={post._count.likes}
+          initialStarred={starred}
+          initialStars={post._count.stars}
           isAuthed={!!uid}
         />
       </div>

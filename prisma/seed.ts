@@ -9,7 +9,7 @@ async function main() {
   // 清空（仅开发用）
   await prisma.commentLike.deleteMany();
   await prisma.comment.deleteMany();
-  await prisma.postLike.deleteMany();
+  
   await prisma.postFavorite.deleteMany();
   await prisma.skillAsset.deleteMany();
   await prisma.attachment.deleteMany();
@@ -163,7 +163,7 @@ async function main() {
   console.log(`✅ 已创建 ${posts.length} 篇内容`);
 
   // 部分点赞 & 收藏 & 评论
-  await prisma.postLike.createMany({
+  await prisma.postFavorite.createMany({
     data: [
       { userId: users[1].id, postId: posts[0].id },
       { userId: users[2].id, postId: posts[0].id },

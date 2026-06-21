@@ -46,9 +46,8 @@ export function PostCard({
     return <CompactPostCard post={post} currentUserId={currentUserId} />;
   }
   const router = useRouter();
-  const [liked, setLiked] = useState(post.liked);
-  const [likes, setLikes] = useState(post.counts.likes);
-  const [fav, setFav] = useState(post.favorited);
+  const [starred, setStarred] = useState(post.starred);
+  const [stars, setStars] = useState(post.counts.stars);
 
   const requireAuth = () => {
     if (!currentUserId) {
@@ -58,28 +57,18 @@ export function PostCard({
     return true;
   };
 
-  const toggleLike = async (e: React.MouseEvent) => {
+  const toggleStar = async (e: React.MouseEvent) => {
     e.preventDefault();
     e.stopPropagation();
     if (!requireAuth()) return;
-    const next = !liked;
-    setLiked(next);
-    setLikes((n) => n + (next ? 1 : -1));
-    const res = await fetch(`/api/posts/${post.id}/like`, { method: 'POST' });
-    if (!res.ok) {
-      setLiked(!next);
-      setLikes((n) => n + (next ? -1 : 1));
-    }
-  };
-
-  const toggleFav = async (e: React.MouseEvent) => {
-    e.preventDefault();
-    e.stopPropagation();
-    if (!requireAuth()) return;
-    const next = !fav;
-    setFav(next);
+    const next = !starred;
+    setStarred(next);
+    setStars((n) => n + (next ? 1 : -1));
     const res = await fetch(`/api/posts/${post.id}/favorite`, { method: 'POST' });
-    if (!res.ok) setFav(!next);
+    if (!res.ok) {
+      setStarred(!next);
+      setStars((n) => n + (next ? -1 : 1));
+    }
   };
 
   return (
@@ -160,24 +149,15 @@ export function PostCard({
           {/* —— 互动条 —— */}
           <div className="pt-4 border-t border-paper-edge flex items-center gap-5 font-sans text-xs">
             <CardAction
-              onClick={toggleLike}
-              active={liked}
-              icon={<HeartIcon filled={liked} />}
+              onClick={toggleStar}
+              active={starred}
+              icon={<StarIcon filled={starred} />}
             >
-              {formatCount(likes)}
+              {formatCount(stars)}
             </CardAction>
             <CardAction icon={<CommentIcon />}>
               {formatCount(post.counts.comments)}
             </CardAction>
-            <div className="ml-auto">
-              <CardAction
-                onClick={toggleFav}
-                active={fav}
-                icon={<BookmarkIcon filled={fav} />}
-              >
-                {fav ? '已收藏' : '收藏'}
-              </CardAction>
-            </div>
           </div>
         </div>
       </Link>
@@ -196,23 +176,23 @@ function CompactPostCard({
   currentUserId: number | null;
 }) {
   const router = useRouter();
-  const [liked, setLiked] = useState(post.liked);
-  const [likes, setLikes] = useState(post.counts.likes);
+  const [starred, setStarred] = useState(post.starred);
+  const [stars, setStars] = useState(post.counts.stars);
 
-  const toggleLike = async (e: React.MouseEvent) => {
+  const toggleStar = async (e: React.MouseEvent) => {
     e.preventDefault();
     e.stopPropagation();
     if (!currentUserId) {
       router.push(`/login?next=/posts/${post.id}`);
       return;
     }
-    const next = !liked;
-    setLiked(next);
-    setLikes((n) => n + (next ? 1 : -1));
-    const res = await fetch(`/api/posts/${post.id}/like`, { method: 'POST' });
+    const next = !starred;
+    setStarred(next);
+    setStars((n: number) => n + (next ? 1 : -1));
+    const res = await fetch(`/api/posts/${post.id}/favorite`, { method: 'POST' });
     if (!res.ok) {
-      setLiked(!next);
-      setLikes((n) => n + (next ? -1 : 1));
+      setStarred(!next);
+      setStars((n: number) => n + (next ? -1 : 1));
     }
   };
 
@@ -281,15 +261,15 @@ function CompactPostCard({
               </span>
               <button
                 type="button"
-                onClick={toggleLike}
+                onClick={toggleStar}
                 className={cn(
                   'inline-flex items-center gap-0.5 transition-colors cursor-pointer',
-                  liked ? 'text-wax-red' : 'hover:text-ink-brown',
+                  starred ? 'text-gilded' : 'hover:text-ink-brown',
                 )}
-                title="点赞"
+                title="Star"
               >
-                <HeartIcon filled={liked} />
-                {formatCount(likes)}
+                <StarIcon filled={starred} />
+                {formatCount(stars)}
               </button>
               <span className="inline-flex items-center gap-0.5" title="评论">
                 <CommentIcon />
@@ -355,10 +335,10 @@ function CardAction({
 }
 
 /* —— 极简线性图标 —— */
-function HeartIcon({ filled }: { filled?: boolean }) {
+function StarIcon({ filled }: { filled?: boolean }) {
   return (
     <svg width="13" height="13" viewBox="0 0 16 16" fill={filled ? 'currentColor' : 'none'} stroke="currentColor" strokeWidth="1.2" aria-hidden="true">
-      <path d="M8 14 C4 11, 1.5 8.5, 1.5 6 C1.5 4, 3 2.5, 5 2.5 C6.5 2.5, 7.5 3.3, 8 4.5 C8.5 3.3, 9.5 2.5, 11 2.5 C13 2.5, 14.5 4, 14.5 6 C14.5 8.5, 12 11, 8 14 Z" />
+      <path d="M8 1.5 L10.2 5.5 L14.5 6.3 L11.5 9.5 L12.2 14 L8 11.8 L3.8 14 L4.5 9.5 L1.5 6.3 L5.8 5.5 Z" strokeLinejoin="round" />
     </svg>
   );
 }
@@ -366,13 +346,6 @@ function CommentIcon() {
   return (
     <svg width="13" height="13" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.2" aria-hidden="true">
       <path d="M2.5 4 H13.5 V11 H8.5 L5.5 13.5 V11 H2.5 Z" strokeLinejoin="round" />
-    </svg>
-  );
-}
-function BookmarkIcon({ filled }: { filled?: boolean }) {
-  return (
-    <svg width="13" height="13" viewBox="0 0 16 16" fill={filled ? 'currentColor' : 'none'} stroke="currentColor" strokeWidth="1.2" aria-hidden="true">
-      <path d="M4 2.5 H12 V14 L8 11 L4 14 Z" strokeLinejoin="round" />
     </svg>
   );
 }

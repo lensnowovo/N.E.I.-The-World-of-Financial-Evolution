@@ -29,8 +29,7 @@ model User {
 
   posts     Post[]
   comments  Comment[]
-  likes     PostLike[]
-  favorites PostFavorite[]
+  stars     PostFavorite[]
   commentLikes CommentLike[]
   mcpCallLogs McpCallLog[]
 
@@ -73,8 +72,7 @@ model Post {
   author       User           @relation(fields: [userId], references: [id])
   comments     Comment[]
   attachments  Attachment[]
-  likes        PostLike[]
-  favorites    PostFavorite[]
+  stars        PostFavorite[]
   skillAsset   SkillAsset?
 
   @@index([createdAt])
@@ -148,22 +146,7 @@ model CommentLike {
   @@unique([userId, commentId])
 }
 
-// ---------- 点赞 ----------
-model PostLike {
-  id        Int      @id @default(autoincrement())
-  userId    Int
-  postId    Int
-  createdAt DateTime @default(now())
-
-  user User @relation(fields: [userId], references: [id])
-  post Post @relation(fields: [postId], references: [id], onDelete: Cascade)
-
-  @@unique([userId, postId])
-  @@index([userId])
-  @@index([postId])
-}
-
-// ---------- 收藏 ----------
+// ---------- Star（收藏+点赞合并）----------
 model PostFavorite {
   id        Int      @id @default(autoincrement())
   userId    Int

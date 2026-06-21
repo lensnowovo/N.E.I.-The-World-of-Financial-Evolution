@@ -43,7 +43,7 @@ export default async function StagePage({
     where: { status: POST_STATUS.PUBLISHED, tagScene: { in: [...scenes] } },
     include: {
       author: { select: { id: true, nickname: true, role: true, avatarUrl: true } },
-      _count: { select: { comments: true, likes: true, attachments: true } },
+      _count: { select: { comments: true, stars: true, attachments: true } },
       skillAsset: { select: { id: true, assetType: true, originalAuthor: true } },
     },
     orderBy: { createdAt: 'desc' },
@@ -69,11 +69,10 @@ export default async function StagePage({
     author: p.author,
     counts: {
       comments: p._count.comments,
-      likes: p._count.likes,
+      stars: p._count.stars,
       attachments: p._count.attachments,
     },
-    liked: false,
-    favorited: false,
+    starred: false,
     skillAsset: p.skillAsset
       ? { id: p.skillAsset.id, assetType: p.skillAsset.assetType, originalAuthor: p.skillAsset.originalAuthor }
       : null,

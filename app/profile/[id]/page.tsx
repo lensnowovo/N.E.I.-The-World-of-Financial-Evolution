@@ -18,12 +18,12 @@ const ROLE_FULL: Record<string, string> = {
 };
 
 type SP = { tab?: string };
-type Tab = 'posts' | 'likes' | 'favorites';
+type Tab = 'posts' | 'stars' | 'favorites';
 
 const TAB_LABEL: Record<Tab, { numeral: string; label: string; subtitle: string; ownerOnly: boolean }> = {
   posts:     { numeral: 'I',   label: '发布',  subtitle: '已发布',   ownerOnly: false },
-  likes:     { numeral: 'II',  label: '点赞',  subtitle: '点赞过', ownerOnly: true },
-  favorites: { numeral: 'III', label: '收藏',  subtitle: '收藏',   ownerOnly: true },
+  stars:     { numeral: 'II',  label: 'Star',  subtitle: 'Star 过',  ownerOnly: true },
+  favorites: { numeral: 'III', label: '收藏',  subtitle: '收藏',     ownerOnly: true },
 };
 
 export default async function ProfilePage({
@@ -47,15 +47,15 @@ export default async function ProfilePage({
   if (!isOwner && TAB_LABEL[tab]?.ownerOnly) redirect(`/profile/${id}`);
 
   /* —— 计数 —— */
-  const [postCount, likeCount, favCount, receivedLikesAgg, followersCount, followingCount, myFollowRow] =
+  const [postCount, starCount, favCount, receivedLikesAgg, followersCount, followingCount, myFollowRow] =
     await Promise.all([
       prisma.post.count({
         where: isOwner ? { userId: id } : { userId: id, status: 'published' },
       }),
-      isOwner ? prisma.postLike.count({ where: { userId: id } }) : Promise.resolve(0),
+      isOwner ? prisma.postFavorite.count({ where: { userId: id } }) : Promise.resolve(0),
       isOwner ? prisma.postFavorite.count({ where: { userId: id } }) : Promise.resolve(0),
       // 该用户所有已发布卷收到的点赞合计
-      prisma.postLike.count({
+      prisma.postFavorite.count({
         where: { post: { userId: id, status: 'published' } },
       }),
       // 粉丝数
@@ -80,20 +80,20 @@ export default async function ProfilePage({
       where,
       include: {
         author: { select: { id: true, nickname: true, role: true, avatarUrl: true } },
-        _count: { select: { comments: true, likes: true, attachments: true } },
+        _count: { select: { comments: true, stars: true, attachments: true } },
         skillAsset: { select: { id: true, assetType: true } },
       },
       orderBy: { createdAt: 'desc' },
       take: 50,
     });
-  } else if (tab === 'likes') {
-    const likes = await prisma.postLike.findMany({
+  } else if (tab === 'stars') {
+    const likes = await prisma.postFavorite.findMany({
       where: { userId: id },
       include: {
         post: {
           include: {
             author: { select: { id: true, nickname: true, role: true, avatarUrl: true } },
-            _count: { select: { comments: true, likes: true, attachments: true } },
+            _count: { select: { comments: true, stars: true, attachments: true } },
             skillAsset: { select: { id: true, assetType: true } },
           },
         },
@@ -109,7 +109,7 @@ export default async function ProfilePage({
         post: {
           include: {
             author: { select: { id: true, nickname: true, role: true, avatarUrl: true } },
-            _count: { select: { comments: true, likes: true, attachments: true } },
+            _count: { select: { comments: true, stars: true, attachments: true } },
             skillAsset: { select: { id: true, assetType: true } },
           },
         },
@@ -121,10 +121,10 @@ export default async function ProfilePage({
   }
 
   /* —— 我对这些 post 的点赞/收藏（用于卡片态） —— */
-  const myLikedIds = me
+  const myStarredIds = me
     ? new Set(
         (
-          await prisma.postLike.findMany({
+          await prisma.postFavorite.findMany({
             where: { userId: me.id, postId: { in: posts.map((p) => p.id) } },
             select: { postId: true },
           })
@@ -161,12 +161,11 @@ export default async function ProfilePage({
     },
     counts: {
       comments: p._count.comments,
-      likes: p._count.likes,
+      stars: p._count.stars,
       attachments: p._count.attachments,
     },
     viewCount: p.viewCount,
-    liked: myLikedIds.has(p.id),
-    favorited: myFavIds.has(p.id),
+    starred: myStarredIds.has(p.id),
     skillAsset: p.skillAsset
       ? { id: p.skillAsset.id, assetType: p.skillAsset.assetType }
       : null,
@@ -238,7 +237,7 @@ export default async function ProfilePage({
           {isOwner && (
             <>
               <Sep dot />
-              <Stat n={likeCount} label="我的赞" />
+              <Stat n={starCount} label="我的赞" />
               <Sep dot />
               <Stat n={favCount} label="收藏" />
             </>
@@ -258,8 +257,8 @@ export default async function ProfilePage({
         {isOwner && (
           <>
             <Sep />
-            <TabLink href={`/profile/${id}?tab=likes`} active={tab === 'likes'} numeral={TAB_LABEL.likes.numeral} count={likeCount}>
-              {TAB_LABEL.likes.label}
+            <TabLink href={`/profile/${id}?tab=stars`} active={tab === 'stars'} numeral={TAB_LABEL.stars.numeral} count={starCount}>
+              {TAB_LABEL.stars.label}
             </TabLink>
             <Sep />
             <TabLink href={`/profile/${id}?tab=favorites`} active={tab === 'favorites'} numeral={TAB_LABEL.favorites.numeral} count={favCount}>
@@ -368,7 +367,7 @@ function EmptyTab({ tab, isOwner }: { tab: Tab; isOwner: boolean }) {
       sub:  isOwner ? '把好用的 prompt、模板、工作流分享出来吧' : '',
       cta:  isOwner ? { href: '/publish', label: '发布第一个' } : undefined,
     },
-    likes: {
+    stars: {
       line: '还没有点赞过内容',
       sub:  '看到有用的内容，点个赞就会在这里显示',
     },

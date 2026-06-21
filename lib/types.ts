@@ -19,9 +19,8 @@ export type PostCardData = {
   createdAt: string; // ISO string
   viewCount: number;
   author: { id: number; nickname: string; role: string; avatarUrl: string | null };
-  counts: { comments: number; likes: number; attachments: number };
-  liked: boolean;
-  favorited: boolean;
+  counts: { comments: number; stars: number; attachments: number };
+  starred: boolean;
   skillAsset: {
     id: number;
     assetType: string;
@@ -62,7 +61,7 @@ export type ApiSkillDetail = {
   updatedAt: string;
   viewCount: number;
   author: { id: number; nickname: string; role: string; avatarUrl: string | null };
-  counts: { comments: number; likes: number; favorites: number };
+  counts: { comments: number; stars: number };
   skillAsset: {
     id: number;
     assetType: string;

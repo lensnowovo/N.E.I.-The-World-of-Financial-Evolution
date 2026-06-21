@@ -25,7 +25,7 @@ export function DetailActions({
   isPrompt,
   bodyHtml,
   viewCount,
-  likes,
+  stars,
   commentsCount,
 }: {
   postId: number;
@@ -34,7 +34,7 @@ export function DetailActions({
   isPrompt: boolean;
   bodyHtml: string;
   viewCount: number;
-  likes: number;
+  stars: number;
   commentsCount: number;
 }) {
   return (
@@ -56,7 +56,7 @@ export function DetailActions({
       {/* 热度数字 */}
       <div className="flex items-center gap-3 font-mono text-[11px] text-sepia">
         <Stat icon={<EyeIcon />} value={formatCount(viewCount)} label="浏览" />
-        <Stat icon={<HeartIcon />} value={formatCount(likes)} label="赞" />
+        <Stat icon={<HeartIcon />} value={formatCount(stars)} label="赞" />
         <Stat icon={<CommentIcon />} value={formatCount(commentsCount)} label="评论" />
       </div>
     </div>

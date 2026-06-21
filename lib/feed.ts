@@ -53,18 +53,15 @@ export function buildFeedWhere(query: Pick<FeedQuery, 'scene' | 'industry' | 'sk
 /**
  * 获取当前用户对一批 post 的 liked / favorited 状态（共用）
  */
-export async function fetchUserLikeFav(uid: number | null, postIds: number[]) {
+export async function fetchUserStars(uid: number | null, postIds: number[]) {
   if (!uid || postIds.length === 0) {
-    return { likedIds: new Set<number>(), favIds: new Set<number>() };
+    return { starredIds: new Set<number>() };
   }
-  const [likes, favs] = await Promise.all([
-    prisma.postLike.findMany({ where: { userId: uid, postId: { in: postIds } }, select: { postId: true } }),
-    prisma.postFavorite.findMany({ where: { userId: uid, postId: { in: postIds } }, select: { postId: true } }),
-  ]);
-  return {
-    likedIds: new Set(likes.map((l) => l.postId)),
-    favIds: new Set(favs.map((f) => f.postId)),
-  };
+  const stars = await prisma.postFavorite.findMany({
+    where: { userId: uid, postId: { in: postIds } },
+    select: { postId: true },
+  });
+  return { starredIds: new Set(stars.map((s) => s.postId)) };
 }
 
 /**
@@ -103,7 +100,7 @@ export function normalizeSort(v: unknown): 'latest' | 'popular' {
  */
 export function sortPosts(posts: any[], sort: 'latest' | 'popular'): any[] {
   const score = (p: any) =>
-    (p.viewCount || 0) + (p._count?.likes || 0) * 5 + (p._count?.comments || 0) * 3;
+    (p.viewCount || 0) + (p._count?.stars || 0) * 5 + (p._count?.comments || 0) * 3;
   return posts.sort((a, b) => {
     if (sort === 'latest') {
       return b.createdAt.getTime() - a.createdAt.getTime();
@@ -146,7 +143,7 @@ export async function fetchFeed(query: FeedQuery, uid: number | null): Promise<P
     where,
     include: {
       author: { select: { id: true, nickname: true, role: true, avatarUrl: true } },
-      _count: { select: { comments: true, likes: true, attachments: true } },
+      _count: { select: { comments: true, stars: true, attachments: true } },
       skillAsset: { select: { id: true, assetType: true, originalAuthor: true } },
     },
     orderBy: { createdAt: 'desc' },
@@ -156,7 +153,7 @@ export async function fetchFeed(query: FeedQuery, uid: number | null): Promise<P
   posts = filterByContent(posts, contentList);
   posts = sortPosts(posts, sort);
 
-  const { likedIds, favIds } = await fetchUserLikeFav(uid, posts.map((p) => p.id));
+  const { starredIds } = await fetchUserStars(uid, posts.map((p) => p.id));
 
   return posts.map((p) => ({
     id: p.id,
@@ -181,12 +178,11 @@ export async function fetchFeed(query: FeedQuery, uid: number | null): Promise<P
     },
     counts: {
       comments: p._count.comments,
-      likes: p._count.likes,
+      stars: p._count.stars,
       attachments: p._count.attachments,
     },
     viewCount: p.viewCount,
-    liked: likedIds.has(p.id),
-    favorited: favIds.has(p.id),
+    starred: starredIds.has(p.id),
     skillAsset: p.skillAsset
       ? { id: p.skillAsset.id, assetType: p.skillAsset.assetType, originalAuthor: p.skillAsset.originalAuthor }
       : null,

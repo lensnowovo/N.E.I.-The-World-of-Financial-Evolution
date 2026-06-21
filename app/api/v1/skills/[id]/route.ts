@@ -48,7 +48,7 @@ export async function GET(req: Request, { params }: { params: { id: string } }) 
       author: { select: { id: true, nickname: true, role: true, avatarUrl: true } },
       attachments: { orderBy: { createdAt: 'asc' } },
       skillAsset: true,
-      _count: { select: { comments: true, likes: true, favorites: true } },
+      _count: { select: { comments: true, stars: true,  } },
     },
   });
   if (!post || post.status !== POST_STATUS.PUBLISHED) {
@@ -89,8 +89,7 @@ export async function GET(req: Request, { params }: { params: { id: string } }) 
     author: post.author,
     counts: {
       comments: post._count.comments,
-      likes: post._count.likes,
-      favorites: post._count.favorites,
+      stars: post._count.stars,
     },
     skillAsset: post.skillAsset
       ? {
