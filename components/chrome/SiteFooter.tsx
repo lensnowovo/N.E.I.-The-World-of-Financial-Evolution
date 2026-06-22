@@ -8,7 +8,7 @@ export function SiteFooter() {
           <Ornament />
         </div>
         <p className="text-center font-serif italic">
-          N.E.I. · New Era Investors · 一份给一级市场从业者的 Skill 档案馆
+          N.E.I. · New Era Investors · 一级市场投资人的 AI Skill Hub
         </p>
         <p className="mt-2 text-center text-xs">
           © {new Date().getFullYear()} N.E.I. · The World of Financial Evolution

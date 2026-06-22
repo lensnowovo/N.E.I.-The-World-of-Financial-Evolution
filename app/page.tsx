@@ -7,6 +7,10 @@ import { STAGE_GROUPS } from '@/lib/tags';
 import { PostCard, type PostCardData } from '@/components/PostCard';
 import { StageGroup } from '@/components/StageGroup';
 import { FilterStrip } from '@/components/FilterStrip';
+import { HomeHero } from '@/components/home/HomeHero';
+import { HomeTaskGrid } from '@/components/home/HomeTaskGrid';
+import { FeaturedWorkflows } from '@/components/home/FeaturedWorkflows';
+import { HomeMcpFeature } from '@/components/home/HomeMcpFeature';
 
 type SP = { [k: string]: string | string[] | undefined };
 
@@ -14,11 +18,17 @@ export default async function HomePage({ searchParams }: { searchParams: SP }) {
   const query = parseFeedQuery(searchParams);
   const uid = await getSessionUid();
 
-  // 并行：Feed 列表 + 已收录 Skill 总数（一个 count 查询，零额外往返）
-  const [items, totalSkills] = await Promise.all([
+  // 首页首屏统计全部来自真实数据；没有编辑精选字段时，以 workflow 类型作为可复用工作流数量。
+  const [items, totalSkills, workflowCount] = await Promise.all([
     fetchFeed(query, uid),
     prisma.post.count({
       where: { status: POST_STATUS.PUBLISHED, skillAsset: { isNot: null } },
+    }),
+    prisma.post.count({
+      where: {
+        status: POST_STATUS.PUBLISHED,
+        skillAsset: { is: { assetType: 'workflow' } },
+      },
     }),
   ]);
   const hasFilter = hasAnyFilter(query);
@@ -33,39 +43,45 @@ export default async function HomePage({ searchParams }: { searchParams: SP }) {
     : [];
 
   return (
-    <div className="mx-auto max-w-page px-4 sm:px-6">
-      {/* —— 小目录头（压缩版 Hero）—— */}
-      <header className="flex items-end justify-between gap-4 pt-6 pb-5 border-b border-paper-edge">
-        <div className="min-w-0">
-          <p className="font-display tracking-display text-[11px] text-sepia uppercase mb-1.5">
-            PEVC Skill 档案馆
+    <div>
+      {!hasFilter ? (
+        <>
+          <HomeHero totalSkills={totalSkills} workflowCount={workflowCount} />
+          <HomeTaskGrid />
+          <FeaturedWorkflows />
+          <HomeMcpFeature />
+        </>
+      ) : (
+        <header className="pb-5 border-b border-paper-edge">
+          <p className="font-display tracking-display text-[10px] text-sepia uppercase mb-1">
+            Skill Library
           </p>
-          <div className="flex flex-col gap-1.5 mb-1.5">
-            <h1 className="font-serif text-3xl sm:text-4xl text-ink-brown">
-              发现可用的 PEVC Skills
-            </h1>
-            <p className="font-serif text-2xl sm:text-3xl">
-              <span className="num-osf text-wax-red">{totalSkills}</span>
-              <span className="text-ink-brown"> 个已收录</span>
+          <div className="flex flex-col sm:flex-row sm:items-end sm:justify-between gap-2">
+            <h1 className="font-serif text-3xl text-ink-brown">搜索与筛选 Skill</h1>
+            <Link href="/" className="font-serif italic text-sm text-leather hover:text-wax-red">
+              返回首页总览 →
+            </Link>
+          </div>
+        </header>
+      )}
+
+      <section id="skill-library" className={hasFilter ? 'pt-6' : 'pt-2'}>
+        {!hasFilter && (
+          <div className="flex flex-col sm:flex-row sm:items-end sm:justify-between gap-2 mb-5">
+            <div>
+              <p className="font-display tracking-display text-[10px] text-sepia uppercase mb-1">
+                Skill Library
+              </p>
+              <h2 className="font-serif text-2xl sm:text-3xl text-ink-brown">继续探索 Skill Library</h2>
+            </div>
+            <p className="font-sans text-xs sm:text-sm text-sepia">
+              按场景、类型、行业和热度浏览全部内容
             </p>
           </div>
-          <p className="font-serif italic text-sm text-leather line-clamp-1">
-            PE/VC/FA 从业者的 AI 提示词、模板、工作流 · 找到就能直接用
-          </p>
-        </div>
-        <Link
-          href="/publish"
-          className="shrink-0 inline-flex items-center h-10 px-5 bg-ink-brown text-vellum hover:bg-wax-red font-serif text-sm rounded-sm transition-colors"
-        >
-          分享一个
-        </Link>
-      </header>
+        )}
 
-      {/* —— 分类条（目录头条）—— */}
-      <FilterStrip />
+        <FilterStrip />
 
-      {/* —— Feed —— */}
-      <section>
         {items.length === 0 ? (
           <EmptyState query={query} />
         ) : groupedStages.length > 0 ? (

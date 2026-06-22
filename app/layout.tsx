@@ -40,9 +40,9 @@ const cinzel = Cinzel({
 });
 
 export const metadata: Metadata = {
-  title: 'N.E.I. · PEVC Skill 档案馆',
+  title: 'N.E.I. · 一级市场投资人的 AI Skill Hub',
   description:
-    '一个为 VC / PE / FA 从业者沉淀工作流、模板与案例的垂直知识社区',
+    '面向 PE、VC、FA 与产业投资人的 AI Skill Library 和 MCP 工作流平台',
 };
 
 export default async function RootLayout({
