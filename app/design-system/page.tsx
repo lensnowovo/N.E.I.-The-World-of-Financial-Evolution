@@ -300,7 +300,7 @@ export default function DesignSystemPage() {
         <article className="prose-manuscript">
           <p className="drop-cap">
             在过去半年里，我看了七十余家 AI Agent 方向的早期项目。可投与不可投之间，
-            真正的差别从来不在估值的高低，而在创始团队对"工程化路径"是否有过深度的痛苦——
+            真正的差别从来不在估值的高低，而在创始团队对“工程化路径”是否有过深度的痛苦——
             那些只画过白板，没真在生产环境里被 prompt drift 折磨过的人，
             很难让模型从 Demo 走到产品。
           </p>
@@ -310,7 +310,7 @@ export default function DesignSystemPage() {
             且<strong>有数据飞轮</strong>的项目。前者保证短期不会饿死，后者保证长期不会被取代。
           </p>
           <blockquote>
-            "技术栈完全依赖单一供应商、护城河等于 prompt engineering" ——
+            “技术栈完全依赖单一供应商、护城河等于 prompt engineering” ——
             这两条加起来，足以让我把任何项目放进观望队列。
           </blockquote>
           <h3>子节 · 红旗清单</h3>

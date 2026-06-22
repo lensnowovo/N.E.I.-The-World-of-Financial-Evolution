@@ -91,7 +91,7 @@ export default async function McpGuidePage() {
             配置完成后，在你的客户端里这样说：
           </p>
           <blockquote>
-            "帮我做一个合成生物学赛道的尽调，用 N.E.I. 上的 Skill"
+            “帮我做一个合成生物学赛道的尽调，用 N.E.I. 上的 Skill”
           </blockquote>
           <p>
             客户端会自动调用 <code>search_skills</code> 或 <code>list_my_skills</code>，

@@ -56,22 +56,25 @@ export function FilterBar() {
       else u.delete(key);
       router.push(`${basePath}?${u.toString()}`);
     },
-    [params, router],
+    [basePath, params, router],
   );
 
-  const toggleContent = (v: string) => {
-    const u = new URLSearchParams(params.toString());
-    const current = u.getAll('content');
-    u.delete('content');
-    let next: string[];
-    if (current.includes(v)) next = current.filter((x) => x !== v);
-    else {
-      if (current.length >= 3) return;
-      next = [...current, v];
-    }
-    next.forEach((x) => u.append('content', x));
-    router.push(`${basePath}?${u.toString()}`);
-  };
+  const toggleContent = useCallback(
+    (v: string) => {
+      const u = new URLSearchParams(params.toString());
+      const current = u.getAll('content');
+      u.delete('content');
+      let next: string[];
+      if (current.includes(v)) next = current.filter((x) => x !== v);
+      else {
+        if (current.length >= 3) return;
+        next = [...current, v];
+      }
+      next.forEach((x) => u.append('content', x));
+      router.push(`${basePath}?${u.toString()}`);
+    },
+    [basePath, params, router],
+  );
 
   const reset = () => router.push(basePath);
 
@@ -90,7 +93,7 @@ export function FilterBar() {
       if (t) parts.push({ key: `time-${time}`, label: t.label, clear: () => setParam('time', '') });
     }
     return parts;
-  }, [scene, industry, contents, skill, role, time]);
+  }, [scene, industry, contents, skill, role, time, setParam, toggleContent]);
 
   const hasFilter = summary.length > 0 || q;
 
@@ -111,7 +114,7 @@ export function FilterBar() {
           <div className="flex flex-wrap items-center gap-1.5">
             {q && (
               <SummaryPill onClear={() => setParam('q', '')}>
-                <span className="font-serif italic">"{q}"</span>
+                <span className="font-serif italic">“{q}”</span>
               </SummaryPill>
             )}
             {summary.map((s) => (

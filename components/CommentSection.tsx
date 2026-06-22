@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { cn } from '@/lib/cn';
@@ -51,16 +51,16 @@ export function CommentSection({
   const [replyTo, setReplyTo] = useState<{ id: number; nickname: string } | null>(null);
   const [submitting, setSubmitting] = useState(false);
 
-  const refresh = async () => {
+  const refresh = useCallback(async () => {
     const res = await fetch(`/api/posts/${postId}/comments`);
     const data = await res.json();
     setItems(data.items);
     setLoading(false);
-  };
+  }, [postId]);
 
   useEffect(() => {
     refresh();
-  }, [postId]);
+  }, [refresh]);
 
   const submit = async () => {
     if (!currentUser) {

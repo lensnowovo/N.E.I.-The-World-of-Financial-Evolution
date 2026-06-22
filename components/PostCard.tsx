@@ -45,6 +45,16 @@ export function PostCard({
   if (variant === 'compact') {
     return <CompactPostCard post={post} currentUserId={currentUserId} />;
   }
+  return <DefaultPostCard post={post} currentUserId={currentUserId} />;
+}
+
+function DefaultPostCard({
+  post,
+  currentUserId,
+}: {
+  post: PostCardData;
+  currentUserId: number | null;
+}) {
   const router = useRouter();
   const [starred, setStarred] = useState(post.starred);
   const [stars, setStars] = useState(post.counts.stars);
