@@ -227,3 +227,35 @@
   - 上下文：US-015 会让 components/home/FeaturedWorkflows.tsx 改读 `prisma.post.findMany({ where: { featured: true, deletedAt: null, status: 'published' } })`，本 story 提供的 featured 字段是前提
   - 上下文：US-014 admin 控制台会调用本 PATCH 接口做 feature/unfeature；前端切换按钮需把当前 featured 状态作为 body 传 `{ featured: !current }`
 ---
+
+## 2026-06-24 22:20 - US-013
+- 新增 app/posts/[id]/edit/page.tsx（server component）：
+  - findUnique select 6 个可编辑字段 + status + userId + deletedAt
+  - `!post || post.deletedAt` → notFound()（复用 posts/[id]/not-found.tsx 的 404/gone 视图，满足 acceptance 第 3 条「软删帖无编辑入口 + 渲染 404/gone」）
+  - 未登录 → redirect `/login?next=/posts/[id]/edit`
+  - canEditPost 校验失败 → redirect `/posts/[id]`（避免暴露 403 页面，直接回详情）
+  - tagContent JSON parse 兜底（Array.isArray + string filter）
+- 新增 app/posts/[id]/edit/EditForm.tsx（client component）：
+  - 预填 title / body / tagScene / tagIndustry / tagContent / tagSkill
+  - **按 assetType 分叉**：tagSkill==='prompt' 时用 textarea（extractPromptText 反向解 `<pre>` + HTML 实体，submit 时 encodePromptBody 重新 `<pre>${escape}</pre>`）；其他类型用 RichEditor（HTML 直进直出）
+  - tagSkill **只读展示**（用 skillLabel）—— 改 assetType 会让 body 存储格式错乱（prompt 是 pre-wrapped，其他是 rich HTML），所以禁止编辑
+  - 复用 PATCH /api/posts/[id]：submit `{ title, body, tagScene, tagIndustry, tagContent, tagSkill }`
+  - 成功后 router.push(`/posts/${id}`) + router.refresh() 刷新详情
+  - 局部 UI helpers（Section/Dimension/ChipSet/PillChip/FoldChip）从 PublishForm 抄过来，保持视觉一致；只保留编辑需要的 chip 形态（去掉了 SealChip）
+- app/posts/[id]/page.tsx 加编辑入口：
+  - import canEditPost
+  - `canEdit = me ? canEditPost(me.id, { userId: post.author.id }, me.isAdmin) : false`
+  - header meta 行右侧加 `编辑` Link（铅笔图标）—— 只在 canEdit 时渲染
+  - title 属性区分「作者编辑」vs「管理员编辑」（me.isAdmin && me.id !== author.id）
+- 更改的文件：app/posts/[id]/edit/page.tsx（新增）、app/posts/[id]/edit/EditForm.tsx（新增）、app/posts/[id]/page.tsx
+- 类型检查：`npx tsc --noEmit` EXIT=0
+- 浏览器验证（acceptanceCriteria 第 5 条「作者可编辑自己帖；非作者非管理员看不到编辑入口」）：本地无 DATABASE_URL 无法跑实际渲染，需部署后人工验证。已脑演：(a) 作者访问自己帖 → canEditPost(uid, {userId:author.id}, isAdmin=false) → author.id===uid → true → 显示「编辑」入口；(b) 非作者非管理员 → canEdit=false → 不渲染；(c) 管理员访问他人帖 → isAdmin=true → canEdit=true → 显示入口（title 提示「管理员编辑」）；(d) 未登录 → me=null → canEdit=false → 不渲染；(e) 软删帖 → page.tsx line 45 已 `notFound()` 拦截，根本进不到 header 渲染 → 无编辑入口 + 渲染 404/gone；(f) 编辑页直接访问软删帖 URL → edit/page.tsx `post.deletedAt` → notFound()
+- **未来迭代的学习：**
+  - pattern：编辑入口用**独立路由** `/posts/[id]/edit`（server page）+ client form，比 inline modal 更适合 Next.js App Router；鉴权（canEditPost + 软删检查）集中在 server page 顶部，UI 只负责表单。这和 publish 用独立 `/publish` 路由同一风格
+  - pattern：按 assetType 分叉 body 编辑器 —— **prompt 帖的 body 存储格式是 `<pre>${escapeHtml(text)}</pre>`，与其他类型的 rich HTML 不可互通**。编辑时必须 extractPromptText 反解 → textarea 编辑 → encodePromptBody 重新编码。US-014 的 admin 控制台若提供 inline 编辑也应遵循此分叉
+  - pattern：tagSkill（assetType）在编辑场景**必须只读**。它是结构性类型而非普通标签，改它会破坏 body 的存储/渲染一致性（prompt 渲染依赖 `<pre>` split，见 page.tsx line 96）。PATCH 路由虽然允许改 tagSkill，但 UI 不应提供入口
+  - 陷阱：extractPromptText 必须用 `[\s\S]*?` 非贪婪匹配跨行 `<pre>...</pre>` 内容（提示词正文通常多行），用 `.*?` 不带 s-flag 会在第一个换行处失败。且要还原 5 个常见 HTML 实体（`&amp; &lt; &gt; &quot; &#39;`），顺序不能乱（`&` 必须最后还原否则 `&lt;` → `<` 后又被 `&` 规则误伤 —— 实际上 escapeHtml 先转 `&` 所以 unescape 应先转 `&amp;`，即反序，这里写对了）
+  - 陷阱：EditForm import 了 `SKILL_TAGS` 但实际只用 `skillLabel`，TS strict 下 noUnusedLocals 会报错；只 import 实际用到的符号
+  - 上下文：US-014 的 /admin 控制台会调用 DELETE + feature API；不会调用本 edit 入口（管理员 content moderation 一般是删除/精选而非改写正文）。但 PATCH 路由已开放给管理员，若未来需要 admin inline 编辑也能直接复用
+  - 上下文：US-015 的 FeaturedWorkflows 会改读 DB featured 帖；与本 story 无依赖
+---

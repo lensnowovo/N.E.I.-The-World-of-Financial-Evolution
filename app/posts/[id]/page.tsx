@@ -4,6 +4,7 @@ import { Prisma } from '@prisma/client';
 import { prisma } from '@/lib/db';
 import { cn } from '@/lib/cn';
 import { getCurrentUser } from '@/lib/session';
+import { canEditPost } from '@/lib/post-auth';
 import {
   sceneLabel,
   industryLabel,
@@ -46,6 +47,8 @@ export default async function PostDetailPage({
 
   const me = await getCurrentUser();
   const uid = me?.id ?? null;
+  // 作者本人或管理员可编辑（US-013）
+  const canEdit = me ? canEditPost(me.id, { userId: post.author.id }, me.isAdmin) : false;
 
   // Start the non-critical write early, but always await it before the serverless
   // request finishes so a rejected Prisma promise cannot escape the render.
@@ -119,9 +122,21 @@ export default async function PostDetailPage({
               {sceneLabel(post.tagScene)}
             </span>
           </div>
-          <span className="font-mono text-[10px] text-sepia shrink-0 hidden sm:inline">
-            {post.tagScene}/{assetType || '-'}
-          </span>
+          <div className="flex items-center gap-3 shrink-0">
+            <span className="font-mono text-[10px] text-sepia hidden sm:inline">
+              {post.tagScene}/{assetType || '-'}
+            </span>
+            {canEdit && (
+              <Link
+                href={`/posts/${id}/edit`}
+                className="inline-flex items-center gap-1 font-serif italic text-xs text-leather hover:text-wax-red transition-colors"
+                title={me?.isAdmin && me.id !== post.author.id ? '管理员编辑' : '编辑这篇内容'}
+              >
+                <EditIcon />
+                编辑
+              </Link>
+            )}
+          </div>
         </div>
 
         <h1 className="font-serif text-3xl sm:text-4xl leading-tight text-ink-brown mb-2">
@@ -436,5 +451,25 @@ function RestFile({
         下载
       </a>
     </li>
+  );
+}
+
+/** 编辑入口的铅笔图标 */
+function EditIcon() {
+  return (
+    <svg
+      width="12"
+      height="12"
+      viewBox="0 0 16 16"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="1.2"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      aria-hidden="true"
+    >
+      <path d="M11 2 L14 5 L5 14 L1.5 14.5 L2 11 Z" />
+      <path d="M9.5 3.5 L12.5 6.5" />
+    </svg>
   );
 }

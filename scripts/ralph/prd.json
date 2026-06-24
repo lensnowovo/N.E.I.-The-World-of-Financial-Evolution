@@ -213,7 +213,7 @@
         "Verify in browser using agent-browser: author can edit own post; non-author without admin sees no edit control"
       ],
       "priority": 13,
-      "passes": false,
+      "passes": true,
       "notes": "",
       "retryCount": 0,
       "blocked": false
