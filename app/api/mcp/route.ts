@@ -150,6 +150,8 @@ function makeHandler(uid: number) {
     },
     // N.E.I. 的 MCP 路由挂在 /api/mcp，必须把 basePath 设为 /api，
     // 否则 mcp-handler 默认 endpoint 是 /mcp，与实际 pathname /api/mcp 不匹配 → 404
+    // 签名 createMcpHandler(initialize, serverOptions?, config?)：basePath 属于 config（第 3 参）
+    undefined,
     { basePath: '/api' },
   );
 }
