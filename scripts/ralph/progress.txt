@@ -3,6 +3,7 @@
 - 本项目无独立 typecheck script，统一用 `npx tsc --noEmit` 做静态校验；改完代码只需跑这一条
 - `createMcpHandler(initializeServer)` 的 `initializeServer` 回调在每次 POST 请求都会被调用（内部为每请求新建 McpServer + transport），所以在 POST/GET/DELETE 入口处按 uid 重建 handler 是安全的，且天然形成闭包隔离
 - `sanitizeHtml`（lib/validate.ts）走「白名单标签 + 每标签属性白名单（a.href / img.src / img.alt）+ URL scheme 过滤」；post.body 在写入(POST /api/posts) 与渲染(app/posts/[id]/page.tsx 的 safeBody) 两层都过，改 body 渲染/编辑接口时务必维持此不变量
+- rate limiting：所有限流收敛到 `lib/rate-limit.ts` 的 `checkRateLimit(key, limit, windowMs)`（纯内存固定窗口，无依赖，懒过期 + 60s 周期清理）；返回 `retryAfter` 单位是毫秒，写 HTTP Retry-After 头需 Math.ceil(/1000)。key 自带命名空间如 `verify-email:email:${email}`
 
 ---
 
@@ -44,4 +45,20 @@
   - pattern：全局密钥/单例类常量应收敛到一个 `lib/secret.ts`（或类似 module），并在生产环境做 fail-fast；避免每个文件各自 `process.env.X || '默认'`（复制粘贴 = 漏校验）
   - 陷阱：在 Next.js 中，route handler / server component 首次被 import 时即触发 module-level 代码执行；所以 `lib/secret.ts` 顶层的 `resolveSecret()` 会在任何生产请求 handler 加载时立即抛出，无需额外 hook（fail-fast 自然生效）
   - 上下文：SESSION_SECRET 同时用于 (a) session cookie 的 HMAC 签名（lib/session.ts）(b) API-key AES-256-GCM 密钥派生（lib/crypto.ts 经 scrypt）；任一被泄露/默认化都会让用户会话和加密的 LLM 凭据都可伪造
+---
+
+## 2026-06-24 17:45 - US-004
+- 新增 lib/rate-limit.ts：纯内存固定窗口 rate limiter，无运行时依赖
+  - 导出 checkRateLimit(key, limit, windowMs) -> { ok, retryAfter }
+  - 懒过期：命中时若 expiresAt <= now 重开窗口
+  - 周期清理：每 60s 最多跑一次 pruneStale，避免 Map 无限增长
+  - retryAfter 单位为毫秒；调用方写 HTTP Retry-After 头自行 Math.ceil(/1000)
+  - 语义：limit=N 表示允许 N 次，第 N+1 次被拒（满足 US-005 中「3 次后第 4 次 429」需求）
+- 更改的文件：lib/rate-limit.ts（新增）
+- 类型检查：`npx tsc --noEmit` 通过（EXIT=0）
+- **未来迭代的学习：**
+  - pattern：rate-limit 是纯函数 + 模块级 Map 单例；多实例/serverless 下不共享。Sprint 0.x 基础防护足够，未来跨实例一致限流换 Redis
+  - pattern：固定窗口实现最简，首请求建桶 + 计数 + 过期重置；调用方按 (key, limit, windowMs) 三元组自行决定维度（email/IP/uid）
+  - 上下文：US-005 会调用此 helper，verify-email 用 email 维度(limit 3 / 10min) + IP 维度(limit 10 / 10min)；login 用 email 维度(limit 5 / 15min)。HTTP 429 响应需设 Retry-After 头（秒）
+  - 陷阱：拒绝路径不要继续递增 count，否则窗口永远不会自然重置后允许新请求；只有 ok=true 时才 count+=1
 ---
