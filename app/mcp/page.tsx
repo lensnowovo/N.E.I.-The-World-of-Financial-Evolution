@@ -53,7 +53,7 @@ export default async function McpGuidePage() {
           </div>
 
           <h4>Claude Code</h4>
-          <div className="bg-vellum/60 text-ink-brown rounded-md p-4 text-xs font-mono overflow-x-auto whitespace-pre">
+          <div className="bg-linen text-ink-brown rounded-md p-4 text-xs font-mono overflow-x-auto whitespace-pre">
 {`# 在项目根目录的 .mcp.json 或 ~/.claude/mcp_settings.json
 {
   "mcpServers": {

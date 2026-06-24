@@ -58,7 +58,7 @@ export function OneClickAgentPrompt({
 
   return (
     <div className="my-4">
-      <div className="relative bg-vellum/60 rounded-md p-4 pr-14">
+      <div className="relative bg-linen rounded-md p-4 pr-14">
         <div className="font-mono text-sm text-ink-brown whitespace-pre-wrap break-words leading-relaxed">
           {prompt}
         </div>
