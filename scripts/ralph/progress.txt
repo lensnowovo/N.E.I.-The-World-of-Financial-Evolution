@@ -4,6 +4,8 @@
 - `createMcpHandler(initializeServer)` 的 `initializeServer` 回调在每次 POST 请求都会被调用（内部为每请求新建 McpServer + transport），所以在 POST/GET/DELETE 入口处按 uid 重建 handler 是安全的，且天然形成闭包隔离
 - `sanitizeHtml`（lib/validate.ts）走「白名单标签 + 每标签属性白名单（a.href / img.src / img.alt）+ URL scheme 过滤」；post.body 在写入(POST /api/posts) 与渲染(app/posts/[id]/page.tsx 的 safeBody) 两层都过，改 body 渲染/编辑接口时务必维持此不变量
 - rate limiting：所有限流收敛到 `lib/rate-limit.ts` 的 `checkRateLimit(key, limit, windowMs)`（纯内存固定窗口，无依赖，懒过期 + 60s 周期清理）；返回 `retryAfter` 单位是毫秒，写 HTTP Retry-After 头需 Math.ceil(/1000)。key 自带命名空间如 `verify-email:email:${email}`
+- 客户端 IP：用 `lib/rate-limit.ts` 的 `getClientIp(req)`（纯 header 解析，无 next 依赖），取 `x-forwarded-for` 第一项，兜底 `x-real-ip`，缺失返回 `'unknown'`（共享桶，比不限流安全）
+- rate-limit 维度与限额约定：verify-email = email 3/10min + IP 10/10min；login = email **失败** 5/15min（只在认证失败路径计数，成功登录不计）；register / reset-password = IP 10/10min。429 响应统一带 `Retry-After` 头（秒）+ body `{ error, retryAfter }`
 
 ---
 
@@ -61,4 +63,21 @@
   - pattern：固定窗口实现最简，首请求建桶 + 计数 + 过期重置；调用方按 (key, limit, windowMs) 三元组自行决定维度（email/IP/uid）
   - 上下文：US-005 会调用此 helper，verify-email 用 email 维度(limit 3 / 10min) + IP 维度(limit 10 / 10min)；login 用 email 维度(limit 5 / 15min)。HTTP 429 响应需设 Retry-After 头（秒）
   - 陷阱：拒绝路径不要继续递增 count，否则窗口永远不会自然重置后允许新请求；只有 ok=true 时才 count+=1
+---
+
+## 2026-06-24 18:05 - US-005
+- lib/rate-limit.ts 新增 `getClientIp(req)`：纯 header 解析（x-forwarded-for 第一项 → x-real-ip → 'unknown'），不引入 next/server 依赖，保持模块框架无关
+- verify-email：加 email（3/10min）+ IP（10/10min）双维度限流，任一命中即 429；key 用 `email.toLowerCase()` 防大小写绕过；两个维度并行检查（都计数一次请求），retryAfter 取两者最大值
+- login：加 email **失败计数** 限流（5 失败/15min）；用闭包 `onAuthFail()` 在「用户不存在 / 验证码错 / 未设密码 / 密码错」四个认证失败路径调用，命中上限返回 429（通用文案）；**成功登录与输入格式校验失败均不计入**（前者是正常行为，后者算 client 错误）
+- register / reset-password：加 IP 级别限流（10/10min），在业务校验前早返回
+- 所有 429 响应统一：status 429 + `Retry-After` 头（秒）+ body `{ error, retryAfter }`
+- 更改的文件：lib/rate-limit.ts、app/api/auth/verify-email/route.ts、app/api/auth/login/route.ts、app/api/auth/register/route.ts、app/api/auth/reset-password/route.ts
+- 类型检查：`npx tsc --noEmit` 通过（EXIT=0）
+- 浏览器验证（acceptanceCriteria 第 5 条「verify-email 4 次第 4 次 429」）：本地无 DATABASE_URL 无法跑实际 HTTP，需部署后人工验证。已脑演：同 email 第 4 次请求时 email bucket count=3，`3 < 3` 为 false → ok=false → 429 ✓；IP 维度 4 < 10 不触发
+- **未来迭代的学习：**
+  - pattern：「仅计数失败」语义不能用 checkRateLimit 的「检查即递增」直接套 —— 必须把调用放在失败路径上（login 的 onAuthFail 闭包模式），否则成功请求也会被计入导致误杀正常用户
+  - pattern：多维度限流（如 email + IP）应「都检查、都计数」，retryAfter 取最大值；不要 short-circuit（用 `||` 求值会让第二个维度不递增，但本次显式求值两次确保都计数）
+  - 陷阱：email 作为限流 key 必须 `toLowerCase()`，否则 `a@x.com` 和 `A@x.com` 是两个独立桶，等于限额翻倍
+  - 陷阱：`Retry-After` 头单位是秒，body 里 `retryAfter` 也用秒保持一致；从 checkRateLimit 的毫秒转换用 `Math.max(1, Math.ceil(/1000))` 保证至少 1 秒
+  - 上下文：login 的「用户不存在」返回 404 + 明确文案（账号不存在）会泄露用户是否注册，US-007 会把它改成与密码错不可区分的通用错误；本 story 不动文案，只在失败路径挂限流
 ---
