@@ -1,60 +1,39 @@
 import Link from 'next/link';
 
-const STEPS = [
-  ['01', '收藏 Skill', '把常用的投研方法加入自己的 Skill Library。'],
-  ['02', '生成 MCP Token', '在连接配置页生成只属于你的访问凭证。'],
-  ['03', '连接 AI 客户端', '按指南配置 Claude、Cursor 或 Windsurf。'],
-  ['04', '直接调用', '在对话里让 AI 自动找到并使用收藏的工作流。'],
-] as const;
-
+/**
+ * 首页 MCP 区（轻量版）。
+ *
+ * 原来是大块深色区 + 4 步流程，对已经知道 MCP 的用户是噪音、占首页空间。
+ * 现在缩成紧凑一行卡片：MCP 标签 + 一句话价值 + 客户端标签 + 配置入口。
+ * 详细教程仍在 /connect 和 /mcp 页。
+ */
 export function HomeMcpFeature() {
   return (
-    <section className="my-10 sm:my-12 border-y border-gilded/50 bg-ink-brown px-5 py-7 sm:px-8 sm:py-9 text-vellum">
-      <div className="grid grid-cols-1 lg:grid-cols-[minmax(0,1fr)_auto] gap-6 lg:items-end">
-        <div>
-          <p className="font-display tracking-display text-[10px] text-gilded uppercase mb-2">
-            N.E.I. MCP Server
-          </p>
-          <h2 className="font-serif text-3xl text-vellum">把 N.E.I. 接进你的 AI 助手</h2>
-          <p className="mt-3 max-w-3xl font-sans text-sm leading-6 text-paper-edge">
-            收藏 Skill 后，你可以通过 N.E.I. MCP Server 在 Claude、Cursor、Windsurf 等客户端中直接调用
-            自己的 PEVC 工作流。不用反复复制 Prompt，让 AI 助手自动找到你收藏的投资分析方法。
-          </p>
-        </div>
-        <div className="flex flex-wrap gap-2">
-          {['Claude', 'Cursor', 'Windsurf'].map((client) => (
-            <span key={client} className="border border-gilded/50 px-2.5 py-1 font-mono text-[10px] text-vellum rounded-full">
-              {client}
+    <section className="my-6 flex flex-wrap items-center justify-between gap-x-4 gap-y-2.5 rounded-md border border-gilded/40 bg-gilded/5 px-5 py-3.5">
+      <div className="flex items-center gap-3 min-w-0 flex-1">
+        <span className="shrink-0 font-display tracking-display text-[10px] text-gilded uppercase">
+          MCP
+        </span>
+        <p className="font-serif text-sm text-ink-brown truncate">
+          把收藏的 Skill 接进 Claude / Cursor / Windsurf，在 AI 助手里直接调用
+        </p>
+      </div>
+      <div className="flex items-center gap-3 shrink-0">
+        <div className="hidden sm:flex gap-1.5">
+          {['Claude', 'Cursor', 'Windsurf'].map((c) => (
+            <span
+              key={c}
+              className="border border-paper-edge px-2 py-0.5 font-mono text-[10px] text-sepia rounded-full"
+            >
+              {c}
             </span>
           ))}
         </div>
-      </div>
-
-      <ol className="mt-7 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 border-t border-vellum/20">
-        {STEPS.map(([number, title, description], index) => (
-          <li
-            key={number}
-            className={`py-4 lg:px-4 ${index > 0 ? 'border-t sm:border-t-0 lg:border-l border-vellum/20' : ''} ${index % 2 === 1 ? 'sm:border-l border-vellum/20' : ''}`}
-          >
-            <span className="font-mono text-[10px] text-gilded">{number}</span>
-            <h3 className="mt-1 font-serif text-lg text-vellum">{title}</h3>
-            <p className="mt-1 font-sans text-xs leading-5 text-paper-edge">{description}</p>
-          </li>
-        ))}
-      </ol>
-
-      <div className="mt-6 flex flex-wrap gap-2.5">
         <Link
           href="/connect"
-          className="inline-flex items-center justify-center h-10 px-5 bg-vellum text-ink-brown hover:bg-gilded font-serif text-sm rounded-sm transition-colors"
+          className="inline-flex items-center h-8 px-3 bg-ink-brown text-vellum hover:bg-wax-red font-serif text-xs rounded-sm transition-colors"
         >
-          配置 MCP Server
-        </Link>
-        <Link
-          href="/mcp"
-          className="inline-flex items-center justify-center h-10 px-5 border border-vellum/40 text-vellum hover:border-vellum font-serif text-sm rounded-sm transition-colors"
-        >
-          查看一键配置教程
+          配置 MCP →
         </Link>
       </div>
     </section>
