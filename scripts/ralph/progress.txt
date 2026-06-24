@@ -9,6 +9,7 @@
 - OAuth/CSRF state：收敛到 `lib/oauth-state.ts` 的 `issueOAuthState()`/`verifyOAuthState()`（HMAC 签名 token 复用 SESSION_SECRET，短期 one-shot cookie `pevc_oauth_state`，SameSite=Lax）。需要做 CSRF 防护的第三方跳转回跳场景都走这套
 - 开放重定向防护：客户端/服务端拿 `?next=` 做跳转前必须校验「单个 `/` 开头 && 非 `//` && 不含 `\`」。`//evil.com` 是协议相对 URL，浏览器会当 https://evil.com；部分浏览器会把 `/\` 规范化成 `//`，所以反斜杠也要拒。不合规一律回退 `/`
 - 用户枚举模糊：登录/重置/发码等鉴权接口，账号不存在时不能返回 "账号不存在"/"未注册"，必须返回与「凭证错误」完全一致的文案 + 状态码（如密码模式 → "邮箱或密码错误" 401；验证码模式 → "验证码无效或已过期" 400）。否则攻击者可枚举探测已注册邮箱
+- 管理员判断：用 `getCurrentUser()` 返回的 `isAdmin` 字段（lib/session.ts select 已含）；首批 admin 通过 `ADMIN_BOOTSTRAP_EMAILS` env（逗号分隔）引导，收敛到 `lib/admin.ts` 的 `shouldBootstrapAdmin(email)`，仅在用户 **创建** 路径（register/github-callback 新建/seed）调用 —— 已存在用户登录不应被升级为 admin
 
 ---
 
@@ -119,4 +120,27 @@
   - 陷阱：login 路由的 user 查找在 mode 分支之前，所以「账号不存在」时拿不到 mode 的后续校验信息（如 code 格式）。本次按 mode 返回对应通用错误已足够；若未来要完全消除时序差异（账号不存在时不应比凭证错误更快返回），需在不存在账号时也跑一次假的 bcrypt.compare —— 本 story 不做，US-005 的 rate limit 已是主要防护层
   - 上下文：US-008 会新增 User.isAdmin 字段，getCurrentUser select 会扩展 —— 本 story 未动 schema，无 prisma generate 步骤
   - 上下文：github/callback 路由的重定向是硬编码 `new URL('/', req.url)`（line 96），不走 `next` 参数，故无需校验；仅 app/login/page.tsx 一处消费 `next`
+---
+
+## 2026-06-24 20:05 - US-008
+- prisma/schema.prisma User 模型新增 `isAdmin Boolean @default(false)`（放在 githubUsername 后、createdAt 前）
+- 新增 lib/admin.ts：`shouldBootstrapAdmin(email)` —— 读取 `ADMIN_BOOTSTRAP_EMAILS` env（逗号分隔），trim + toLowerCase 后做 Set 查找；email 入参同样 trim + toLowerCase，大小写不敏感。env 未设置时返回空 Set（即不引导）
+- 三条用户创建路径接入 helper：
+  - app/api/auth/register/route.ts：`prisma.user.create({ data: { ..., isAdmin: shouldBootstrapAdmin(email) } })`
+  - app/api/auth/github/callback/route.ts：仅在「brand-new user via GitHub」分支调用；抽出 `createUserEmail = githubEmail || fallbackEmail` 后判断。已有的 find-or-update 路径不动 —— 避免已注册用户每次 OAuth 登录都被重新升级为 admin
+  - prisma/seed.ts：4 个测试用户 create 时分别调用 helper（import 用相对路径 `../lib/admin`，因 seed 用 tsx 而非 Next.js bundler）
+- lib/session.ts getCurrentUser select 新增 `isAdmin: true`（SessionUser 类型自动派生，下游消费方 US-013/US-014 使用 `getCurrentUser()?.isAdmin`）
+- 更改的文件：prisma/schema.prisma、lib/admin.ts（新增）、lib/session.ts、app/api/auth/register/route.ts、app/api/auth/github/callback/route.ts、prisma/seed.ts
+- 校验：
+  - `npx prisma generate`：报 EPERM（query_engine-windows.dll.node 被某 node 进程持有句柄无法 rename），但 index.d.ts / index.js 等类型文件时间戳 18:10 已更新且包含 isAdmin，tsc 能识别新字段 —— 二进制 rename 失败不影响 typecheck
+  - `DATABASE_URL=postgresql://placeholder@localhost:5432/placeholder npx prisma validate`：🚀 valid
+  - `npx tsc --noEmit`：EXIT=0
+- 浏览器验证：本 story 无 "Verify in browser" 验收项；schema 字段类型 + 创建路径 wiring 已由 tsc 覆盖
+- **未来迭代的学习：**
+  - pattern：admin 引导只在「创建」时做一次 —— 不要在登录或更新路径重复 check `shouldBootstrapAdmin`，否则等于「任何知道 ADMIN_BOOTSTRAP_EMAILS 邮箱的人登录后自动变 admin」，破坏后续 US-014 控制台的撤销语义
+  - pattern：env-driven 引导列表必然 trim + lowercase 对齐 —— 用户在 env 写可能带空格/大小写不一致（`A@x.com, b@x.com`），email 入参来自 GitHub / 表单也可能大小写不一，两边都归一化才不会漏判
+  - 陷阱：Windows 上 `npx prisma generate` 改 schema 后常报 `EPERM: ... query_engine-windows.dll.node`，因 next dev / VS Code TS server / 其他 node 进程持有句柄。**不影响 typecheck** —— Prisma 在 EPERM 前已成功写入新的 .d.ts / .js。后续 story 遇到同样情况可忽略此报错（只要 `grep <新字段> node_modules/.prisma/client/index.d.ts` 能命中即视为已生成）
+  - 陷阱：seed.ts 在 prisma/ 下、tsx 直接运行不走 Next.js bundler，所以不能用 `@/lib/admin` path alias（tsconfig paths 在 tsx 下需要额外 --tsconfig 配置才识别）；用相对路径 `../lib/admin` 最稳
+  - 上下文：US-009 会给 Post 加 `deletedAt` 字段，是本 sprint 第二处 schema 变更；US-012 会加 `featured`。schema 变更类 story 都要 prisma generate + validate + tsc 三连
+  - 上下文：getCurrentUser 现已含 isAdmin，下游 admin-only UI/API 应基于此字段；本 story 未加 requireAdmin 守卫，留给 US-012 的 lib/auth-guard.ts 实现
 ---
