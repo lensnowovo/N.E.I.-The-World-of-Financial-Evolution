@@ -30,10 +30,10 @@ export default async function ProfilePage({
   params,
   searchParams,
 }: {
-  params: { id: string };
-  searchParams: SP;
+  params: Promise<{ id: string }>;
+  searchParams: Promise<SP>;
 }) {
-  const id = parseInt(params.id, 10);
+  const id = parseInt((await params).id, 10);
   if (Number.isNaN(id)) notFound();
 
   const user = await prisma.user.findUnique({ where: { id } });
@@ -41,7 +41,7 @@ export default async function ProfilePage({
 
   const me = await getCurrentUser();
   const isOwner = me?.id === id;
-  const tab = (searchParams.tab ?? 'posts') as Tab;
+  const tab = ((await searchParams).tab ?? 'posts') as Tab;
 
   // 非本人不允许访问私密 Tab
   if (!isOwner && TAB_LABEL[tab]?.ownerOnly) redirect(`/profile/${id}`);

@@ -10,11 +10,11 @@ export const dynamic = 'force-dynamic';
  * Body: { note?: string, sortOrder?: number }
  * 交换排序逻辑：前端传新的 sortOrder 值，直接写入
  */
-export async function PATCH(req: Request, { params }: { params: { postId: string } }) {
+export async function PATCH(req: Request, { params }: { params: Promise<{ postId: string }> }) {
   const uid = await getSessionUid();
   if (!uid) return NextResponse.json({ error: '请先登录' }, { status: 401 });
 
-  const postId = parseInt(params.postId, 10);
+  const postId = parseInt((await params).postId, 10);
   if (Number.isNaN(postId)) return NextResponse.json({ error: '无效的 id' }, { status: 400 });
 
   const fav = await prisma.postFavorite.findUnique({
@@ -47,11 +47,11 @@ export async function PATCH(req: Request, { params }: { params: { postId: string
 /**
  * DELETE /api/favorites/[postId] —— 取消收藏
  */
-export async function DELETE(_req: Request, { params }: { params: { postId: string } }) {
+export async function DELETE(_req: Request, { params }: { params: Promise<{ postId: string }> }) {
   const uid = await getSessionUid();
   if (!uid) return NextResponse.json({ error: '请先登录' }, { status: 401 });
 
-  const postId = parseInt(params.postId, 10);
+  const postId = parseInt((await params).postId, 10);
   if (Number.isNaN(postId)) return NextResponse.json({ error: '无效的 id' }, { status: 400 });
 
   await prisma.postFavorite.deleteMany({

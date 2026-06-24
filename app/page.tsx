@@ -14,8 +14,8 @@ import { HomeMcpFeature } from '@/components/home/HomeMcpFeature';
 
 type SP = { [k: string]: string | string[] | undefined };
 
-export default async function HomePage({ searchParams }: { searchParams: SP }) {
-  const query = parseFeedQuery(searchParams);
+export default async function HomePage({ searchParams }: { searchParams: Promise<SP> }) {
+  const query = parseFeedQuery(await searchParams);
   const uid = await getSessionUid();
 
   // 首页首屏统计全部来自真实数据；没有编辑精选字段时，以 workflow 类型作为可复用工作流数量。

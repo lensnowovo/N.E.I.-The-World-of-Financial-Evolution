@@ -3,10 +3,10 @@ import { prisma } from '@/lib/db';
 import { getSessionUid } from '@/lib/session';
 
 // 评论作者可删除自己评论；内容作者可删除其帖子下所有评论
-export async function DELETE(_req: Request, { params }: { params: { id: string } }) {
+export async function DELETE(_req: Request, { params }: { params: Promise<{ id: string }> }) {
   const uid = await getSessionUid();
   if (!uid) return NextResponse.json({ error: '请先登录' }, { status: 401 });
-  const id = parseInt(params.id, 10);
+  const id = parseInt((await params).id, 10);
 
   const c = await prisma.comment.findUnique({
     where: { id },

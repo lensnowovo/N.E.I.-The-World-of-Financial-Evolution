@@ -11,8 +11,8 @@ import { POST_STATUS } from '@/lib/status';
  *
  * 这样调用方一个端点就能拿到「这个 skill 的原始可用内容」。
  */
-export async function GET(req: Request, { params }: { params: { id: string } }) {
-  const id = parseInt(params.id, 10);
+export async function GET(req: Request, { params }: { params: Promise<{ id: string }> }) {
+  const id = parseInt((await params).id, 10);
   if (Number.isNaN(id)) {
     return NextResponse.json({ error: '无效的 id' }, { status: 400 });
   }

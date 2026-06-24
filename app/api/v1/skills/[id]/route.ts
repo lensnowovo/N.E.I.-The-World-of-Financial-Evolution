@@ -36,8 +36,8 @@ function shouldCountView(ip: string, postId: number): boolean {
   return true;
 }
 
-export async function GET(req: Request, { params }: { params: { id: string } }) {
-  const id = parseInt(params.id, 10);
+export async function GET(req: Request, { params }: { params: Promise<{ id: string }> }) {
+  const id = parseInt((await params).id, 10);
   if (Number.isNaN(id)) {
     return NextResponse.json({ error: '无效的 id' }, { status: 400 });
   }

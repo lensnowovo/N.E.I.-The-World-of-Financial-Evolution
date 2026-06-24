@@ -3,11 +3,11 @@ import { prisma } from '@/lib/db';
 import { getSessionUid } from '@/lib/session';
 
 // POST /api/users/[id]/follow —— toggle 关注 / 取关
-export async function POST(_req: Request, { params }: { params: { id: string } }) {
+export async function POST(_req: Request, { params }: { params: Promise<{ id: string }> }) {
   const uid = await getSessionUid();
   if (!uid) return NextResponse.json({ error: '请先登录' }, { status: 401 });
 
-  const followeeId = parseInt(params.id, 10);
+  const followeeId = parseInt((await params).id, 10);
   if (Number.isNaN(followeeId)) return NextResponse.json({ error: '参数错误' }, { status: 400 });
   if (followeeId === uid) return NextResponse.json({ error: '不能关注自己' }, { status: 400 });
 

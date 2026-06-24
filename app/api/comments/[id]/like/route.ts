@@ -2,10 +2,10 @@ import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/db';
 import { getSessionUid } from '@/lib/session';
 
-export async function POST(_req: Request, { params }: { params: { id: string } }) {
+export async function POST(_req: Request, { params }: { params: Promise<{ id: string }> }) {
   const uid = await getSessionUid();
   if (!uid) return NextResponse.json({ error: '请先登录' }, { status: 401 });
-  const commentId = parseInt(params.id, 10);
+  const commentId = parseInt((await params).id, 10);
 
   const exist = await prisma.commentLike.findUnique({
     where: { userId_commentId: { userId: uid, commentId } },

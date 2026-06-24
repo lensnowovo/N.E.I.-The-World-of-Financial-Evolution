@@ -2,8 +2,8 @@ import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/db';
 import { getSessionUid } from '@/lib/session';
 
-export async function GET(_req: Request, { params }: { params: { id: string } }) {
-  const id = parseInt(params.id, 10);
+export async function GET(_req: Request, { params }: { params: Promise<{ id: string }> }) {
+  const id = parseInt((await params).id, 10);
   if (Number.isNaN(id)) return NextResponse.json({ error: '参数错误' }, { status: 400 });
 
   const post = await prisma.post.findUnique({

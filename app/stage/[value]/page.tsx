@@ -19,10 +19,10 @@ export default async function StagePage({
   params,
   searchParams,
 }: {
-  params: { value: string };
-  searchParams: { [k: string]: string | string[] | undefined };
+  params: Promise<{ value: string }>;
+  searchParams: Promise<{ [k: string]: string | string[] | undefined }>;
 }) {
-  const stageValue = params.value;
+  const { value: stageValue } = await params;
   const stage = STAGE_GROUPS.find((s) => s.value === stageValue);
   if (!stage) {
     return (
@@ -34,8 +34,9 @@ export default async function StagePage({
   }
 
   const uid = await getSessionUid();
-  const sort = normalizeSort(searchParams.sort);
-  const page = Math.max(1, parseInt((searchParams.page as string) || '1', 10));
+  const sp = await searchParams;
+  const sort = normalizeSort(sp.sort);
+  const page = Math.max(1, parseInt((sp.page as string) || '1', 10));
   const scenes = stage.scenes as readonly string[];
 
   // 查询该阶段所有场景的内容

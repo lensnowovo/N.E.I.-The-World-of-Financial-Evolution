@@ -27,9 +27,9 @@ import { ExecuteButton } from './ExecuteButton';
 export default async function PostDetailPage({
   params,
 }: {
-  params: { id: string };
+  params: Promise<{ id: string }>;
 }) {
-  const id = parseInt(params.id, 10);
+  const id = parseInt((await params).id, 10);
   if (Number.isNaN(id)) notFound();
 
   const post = await prisma.post.findUnique({

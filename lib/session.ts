@@ -35,7 +35,8 @@ function decode(token: string): { uid: number; exp: number } | null {
 
 export async function setSession(uid: number) {
   const token = encode(uid);
-  cookies().set(COOKIE_NAME, token, {
+  const store = await cookies();
+  store.set(COOKIE_NAME, token, {
     httpOnly: true,
     sameSite: 'lax',
     path: '/',
@@ -45,11 +46,13 @@ export async function setSession(uid: number) {
 }
 
 export async function clearSession() {
-  cookies().delete(COOKIE_NAME);
+  const store = await cookies();
+  store.delete(COOKIE_NAME);
 }
 
 export async function getSessionUid(): Promise<number | null> {
-  const c = cookies().get(COOKIE_NAME);
+  const store = await cookies();
+  const c = store.get(COOKIE_NAME);
   if (!c?.value) return null;
   const d = decode(c.value);
   return d?.uid ?? null;

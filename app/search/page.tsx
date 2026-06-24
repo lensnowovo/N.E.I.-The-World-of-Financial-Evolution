@@ -8,9 +8,9 @@ type SP = { [k: string]: string | string[] | undefined };
  * 这里保留路由做重定向，把所有参数原样带到首页，防止旧链接/书签 404。
  * 之前检索页与首页定位重叠（都是搜索+筛选+内容），取消它更干净。
  */
-export default async function SearchRedirect({ searchParams }: { searchParams: SP }) {
+export default async function SearchRedirect({ searchParams }: { searchParams: Promise<SP> }) {
   const u = new URLSearchParams();
-  for (const [k, v] of Object.entries(searchParams)) {
+  for (const [k, v] of Object.entries(await searchParams)) {
     if (typeof v === 'string') u.set(k, v);
     else if (Array.isArray(v)) v.forEach((x) => u.append(k, x));
   }

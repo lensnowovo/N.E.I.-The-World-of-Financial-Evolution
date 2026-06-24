@@ -14,13 +14,13 @@ export const dynamic = 'force-dynamic';
  * 用用户的 API key（从 DB 解密）调 Claude，流式返回。
  * SSE 格式：data: {"text":"xxx"}\n\n ... data: [DONE]\n\n
  */
-export async function POST(req: Request, { params }: { params: { id: string } }) {
+export async function POST(req: Request, { params }: { params: Promise<{ id: string }> }) {
   const uid = await getSessionUid();
   if (!uid) {
     return Response.json({ error: '请先登录' }, { status: 401 });
   }
 
-  const id = parseInt(params.id, 10);
+  const id = parseInt((await params).id, 10);
   if (Number.isNaN(id)) {
     return Response.json({ error: '无效的 id' }, { status: 400 });
   }

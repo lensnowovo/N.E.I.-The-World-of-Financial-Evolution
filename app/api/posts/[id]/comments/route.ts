@@ -2,8 +2,8 @@ import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/db';
 import { getSessionUid } from '@/lib/session';
 
-export async function GET(_req: Request, { params }: { params: { id: string } }) {
-  const postId = parseInt(params.id, 10);
+export async function GET(_req: Request, { params }: { params: Promise<{ id: string }> }) {
+  const postId = parseInt((await params).id, 10);
   const uid = await getSessionUid();
 
   const all = await prisma.comment.findMany({
@@ -41,10 +41,10 @@ export async function GET(_req: Request, { params }: { params: { id: string } })
   return NextResponse.json({ items: roots });
 }
 
-export async function POST(req: Request, { params }: { params: { id: string } }) {
+export async function POST(req: Request, { params }: { params: Promise<{ id: string }> }) {
   const uid = await getSessionUid();
   if (!uid) return NextResponse.json({ error: '请先登录' }, { status: 401 });
-  const postId = parseInt(params.id, 10);
+  const postId = parseInt((await params).id, 10);
   if (Number.isNaN(postId)) return NextResponse.json({ error: '参数错误' }, { status: 400 });
 
   const { body, parentId } = await req.json();
