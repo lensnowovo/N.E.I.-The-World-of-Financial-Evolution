@@ -55,6 +55,30 @@ function generateKey(originalName: string): string {
   return `${Date.now()}-${crypto.randomBytes(8).toString('hex')}${ext}`;
 }
 
+/** 从文件名扩展名推断 MIME（上传到 R2/S3 时写入对象 Content-Type 元数据） */
+const MIME_BY_EXT: Record<string, string> = {
+  pdf: 'application/pdf',
+  doc: 'application/msword',
+  docx: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+  xls: 'application/vnd.ms-excel',
+  xlsx: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+  ppt: 'application/vnd.ms-powerpoint',
+  pptx: 'application/vnd.openxmlformats-officedocument.presentationml.presentation',
+  png: 'image/png',
+  jpg: 'image/jpeg',
+  jpeg: 'image/jpeg',
+  gif: 'image/gif',
+  mp4: 'video/mp4',
+  zip: 'application/zip',
+  md: 'text/markdown',
+  txt: 'text/plain',
+};
+
+function mimeFromName(name: string): string {
+  const ext = path.extname(name).slice(1).toLowerCase();
+  return MIME_BY_EXT[ext] || 'application/octet-stream';
+}
+
 // ============================================================
 // 公共 API（签名与旧版完全一致）
 // ============================================================
@@ -73,6 +97,7 @@ export async function saveBuffer(buf: Buffer, originalName: string): Promise<str
         Bucket: S3_BUCKET_NAME,
         Key: key,
         Body: buf,
+        ContentType: mimeFromName(originalName),
       }),
     );
     return key;

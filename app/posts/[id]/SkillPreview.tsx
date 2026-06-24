@@ -1,9 +1,7 @@
-import fs from 'fs/promises';
 import path from 'path';
 import { marked } from 'marked';
 import { sanitizeHtml } from '@/lib/validate';
-
-const UPLOAD_DIR = process.env.UPLOAD_DIR || './uploads';
+import { readFileByKey } from '@/lib/storage';
 
 /**
  * SkillPreview · SKILL.md 原文预览（折叠区）
@@ -29,8 +27,9 @@ export async function SkillPreview({
 
   let raw: string;
   try {
-    const safeKey = path.basename(storageKey); // 防路径穿越
-    raw = await fs.readFile(path.join(UPLOAD_DIR, safeKey), 'utf-8');
+    // 走存储抽象：本地走 UPLOAD_DIR，生产走 R2/S3（readFileByKey 内部已防路径穿越）
+    const buf = await readFileByKey(storageKey);
+    raw = buf.toString('utf-8');
   } catch {
     return null; // 文件丢失，静默不渲染预览区
   }
