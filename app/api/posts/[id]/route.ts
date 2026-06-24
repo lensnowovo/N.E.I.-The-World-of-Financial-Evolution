@@ -106,3 +106,29 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
 
   return NextResponse.json({ id });
 }
+
+// DELETE /api/posts/[id] —— 软删除（作者本人或管理员）
+// 软删 = 设置 deletedAt = now；comments/favorites 不级联（保留以便恢复）
+export async function DELETE(_req: Request, { params }: { params: Promise<{ id: string }> }) {
+  const id = parseInt((await params).id, 10);
+  if (Number.isNaN(id)) return NextResponse.json({ error: '参数错误' }, { status: 400 });
+
+  const user = await getCurrentUser();
+  if (!user) return NextResponse.json({ error: '请先登录' }, { status: 401 });
+
+  // 取 post —— 已软删或不存在的都返回 404（防重复删，与 PATCH 语义一致）
+  const post = await prisma.post.findUnique({
+    where: { id },
+    select: { id: true, userId: true, deletedAt: true },
+  });
+  if (!post || post.deletedAt) {
+    return NextResponse.json({ error: '内容不存在或已删除' }, { status: 404 });
+  }
+  if (!canEditPost(user.id, post, user.isAdmin)) {
+    return NextResponse.json({ error: '无权删除此帖子' }, { status: 403 });
+  }
+
+  await prisma.post.update({ where: { id }, data: { deletedAt: new Date() } });
+
+  return NextResponse.json({ id });
+}
