@@ -20,3 +20,5 @@ uploads/
 .env
 .env.local
 .env.*.local
+.vercel
+.env*

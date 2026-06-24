@@ -1,0 +1,4 @@
+{
+    "frontend_tech_stack": "Next.js 15.5 (App Router) + React 18 + TypeScript + Tailwind CSS",
+    "backend_tech_stack": "Next.js API Routes + Prisma 5.22 + PostgreSQL (Neon) + 自实现 HMAC session"
+}
