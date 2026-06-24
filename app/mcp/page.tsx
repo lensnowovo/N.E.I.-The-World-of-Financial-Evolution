@@ -1,6 +1,7 @@
 export const dynamic = 'force-dynamic';
 
 import Link from 'next/link';
+import { OneClickAgentPrompt } from '@/components/mcp/OneClickAgentPrompt';
 
 export default async function McpGuidePage() {
   const baseUrl = process.env.NEXT_PUBLIC_BASE_URL || 'https://n-e-i-the-world-of-financial-evolut.vercel.app';
@@ -36,6 +37,15 @@ export default async function McpGuidePage() {
           </p>
 
           <h3>第 2 步：在客户端配置 MCP Server</h3>
+
+          <h4>方式一（推荐）：一键复制 prompt 给 AI agent</h4>
+          <p>
+            不想手动改配置文件？复制下面这段 prompt，粘贴到任意 AI agent（Claude Code / Codex /
+            Cursor / WorkBuddy）的对话框，它会自动帮你把 MCP 配好——你只需把 token 单独发给它。
+          </p>
+          <OneClickAgentPrompt mcpUrl={mcpUrl} settingsUrl={`${baseUrl}/settings`} />
+
+          <h4>方式二：手动配置</h4>
 
           <div className="bg-vellum/60 border border-paper-edge rounded-md p-4 mb-4">
             <p className="font-sans text-xs text-sepia mb-2">MCP Server 地址（所有客户端通用）：</p>
