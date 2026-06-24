@@ -1,0 +1,19 @@
+## Codebase Patterns
+- MCP 工具鉴权：`app/api/mcp/route.ts` 通过 `getUidFromRequest(req)` 解析 Bearer token（sha256 哈希后比对 `User.mcpTokenHash`），uid 必须通过 per-request 闭包传入 tool handlers，**绝不**用模块级全局变量（否则并发请求会串号）
+- 本项目无独立 typecheck script，统一用 `npx tsc --noEmit` 做静态校验；改完代码只需跑这一条
+- `createMcpHandler(initializeServer)` 的 `initializeServer` 回调在每次 POST 请求都会被调用（内部为每请求新建 McpServer + transport），所以在 POST/GET/DELETE 入口处按 uid 重建 handler 是安全的，且天然形成闭包隔离
+
+---
+
+## 2026-06-24 (init) - US-001
+- 移除 `app/api/mcp/route.ts` 中模块级 `let currentUid: number | null = null` 全局变量（race condition 根源）
+- 引入 `makeHandler(uid: number)` 工厂：每次请求由 POST/GET/DELETE 解析 token 得到 uid 后，新建一个闭包捕获 uid 的 handler；三个 tool（search_skills/get_skill/list_my_skills）全部改为从闭包读 uid，`list_my_skills` 的 `where` 用 `userId: uid`
+- 新增 `unauthorizedResponse()` 助手，三个 HTTP method 入口保留 401 早返回
+- 更改的文件：app/api/mcp/route.ts
+- 类型检查：`npx tsc --noEmit` 通过（exit 0）
+- 浏览器/并发验证（acceptanceCriteria 第 5 条）：本地无 DATABASE_URL 无法跑实际并发请求，需部署后人工验证
+- **未来迭代的学习：**
+  - 陷阱：写对象 shorthand `where: { userId }` 时 TS strict 会报 TS18004（"No value exists in scope for the shorthand property"），因为函数参数叫 `uid` 不叫 `userId`；要么显式 `userId: uid`，要么把参数命名为 userId
+  - pattern：mcp-handler 库内部每请求都新建 McpServer + transport 并调用 `initializeServer`，因此 per-request 闭包是解决 MCP 并发隔离的标准姿势，不需要 AsyncLocalStorage
+  - 上下文：`User.mcpTokenHash` 字段存 token 的 sha256 hex；token 以 `nei_` 前缀开头，明文不入库
+---

@@ -15,7 +15,7 @@
         "Verify in browser using agent-browser: two concurrent MCP calls with different tokens return each user's own favorites, no cross-contamination"
       ],
       "priority": 1,
-      "passes": false,
+      "passes": true,
       "notes": "",
       "retryCount": 0,
       "blocked": false
