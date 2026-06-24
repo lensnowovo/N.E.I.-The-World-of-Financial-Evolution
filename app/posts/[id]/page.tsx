@@ -12,6 +12,7 @@ import {
   HOW_TO_USE,
 } from '@/lib/tags';
 import { formatTime, formatBytes } from '@/lib/format';
+import { sanitizeHtml } from '@/lib/validate';
 import { POST_STATUS } from '@/lib/status';
 import { RoleBadge } from '@/components/icons/RoleBadge';
 import { SkillIcon } from '@/components/icons/SkillIcon';
@@ -83,12 +84,16 @@ export default async function PostDetailPage({
     : null;
   const restAttachments = post.attachments.slice(1);
 
+  // Defense-in-depth: 渲染前再清洗一次 body，覆盖 DB 中可能存在的未清洗 legacy 内容。
+  // 所有走 dangerouslySetInnerHTML 的路径（excerpt/promptParts/正文）都基于此值。
+  const safeBody = sanitizeHtml(post.body);
+
   // 摘要（去 HTML 标签）
-  const excerpt = post.body.replace(/<[^>]*>/g, '').replace(/\s+/g, ' ').trim().slice(0, 120);
+  const excerpt = safeBody.replace(/<[^>]*>/g, '').replace(/\s+/g, ' ').trim().slice(0, 120);
 
   // 提示词帖：把 body 按 <pre> 拆成「介绍」+「Prompt 块」（可能有多个）
   // 每个 Prompt 块单独配复制按钮
-  const preSplit = isPrompt ? post.body.split(/(<pre[\s\S]*?<\/pre>)/i) : null;
+  const preSplit = isPrompt ? safeBody.split(/(<pre[\s\S]*?<\/pre>)/i) : null;
   const promptParts = preSplit
     ? preSplit.filter((s) => s.trim()).map((s) => ({
         isPre: /<pre/i.test(s),
@@ -196,7 +201,7 @@ export default async function PostDetailPage({
             // 其他类型：正文整体渲染
             <div
               className="prose-manuscript mb-8"
-              dangerouslySetInnerHTML={{ __html: post.body }}
+              dangerouslySetInnerHTML={{ __html: safeBody }}
             />
           )}
 
