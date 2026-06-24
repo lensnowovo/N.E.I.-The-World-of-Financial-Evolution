@@ -113,7 +113,7 @@
         "Verify in browser using agent-browser: ?next=//evil.com redirects to /, not off-site"
       ],
       "priority": 7,
-      "passes": false,
+      "passes": true,
       "notes": "",
       "retryCount": 0,
       "blocked": false

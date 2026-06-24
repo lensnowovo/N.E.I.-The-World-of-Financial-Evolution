@@ -7,6 +7,8 @@
 - 客户端 IP：用 `lib/rate-limit.ts` 的 `getClientIp(req)`（纯 header 解析，无 next 依赖），取 `x-forwarded-for` 第一项，兜底 `x-real-ip`，缺失返回 `'unknown'`（共享桶，比不限流安全）
 - rate-limit 维度与限额约定：verify-email = email 3/10min + IP 10/10min；login = email **失败** 5/15min（只在认证失败路径计数，成功登录不计）；register / reset-password = IP 10/10min。429 响应统一带 `Retry-After` 头（秒）+ body `{ error, retryAfter }`
 - OAuth/CSRF state：收敛到 `lib/oauth-state.ts` 的 `issueOAuthState()`/`verifyOAuthState()`（HMAC 签名 token 复用 SESSION_SECRET，短期 one-shot cookie `pevc_oauth_state`，SameSite=Lax）。需要做 CSRF 防护的第三方跳转回跳场景都走这套
+- 开放重定向防护：客户端/服务端拿 `?next=` 做跳转前必须校验「单个 `/` 开头 && 非 `//` && 不含 `\`」。`//evil.com` 是协议相对 URL，浏览器会当 https://evil.com；部分浏览器会把 `/\` 规范化成 `//`，所以反斜杠也要拒。不合规一律回退 `/`
+- 用户枚举模糊：登录/重置/发码等鉴权接口，账号不存在时不能返回 "账号不存在"/"未注册"，必须返回与「凭证错误」完全一致的文案 + 状态码（如密码模式 → "邮箱或密码错误" 401；验证码模式 → "验证码无效或已过期" 400）。否则攻击者可枚举探测已注册邮箱
 
 ---
 
@@ -99,4 +101,22 @@
   - 陷阱：`crypto.timingSafeEqual` 要求两个 Buffer 等长，否则抛错；先 `if (a.length !== b.length) return false` 再比较，避免异常路径泄露长度信息
   - 陷阱：cookie 的 `maxAge: 0` 是「立即删除」的标准姿势（不是「session cookie」）；写空值 + maxAge=0 双保险，适配不同浏览器
   - 上下文：US-007 会顺带处理 login redirect 校验 / verify-code CSPRNG / 用户枚举模糊 —— 本 story 只动 github OAuth 两条路由，不动 login UI 和 verify-email 路由
+---
+
+## 2026-06-24 19:40 - US-007
+- app/login/page.tsx：`next` 查询参数加白名单校验 —— 仅允许「单个 `/` 开头 && 非 `//` 开头 && 不含 `\`」，否则回退 `/`。防止 `?next=//evil.com`（协议相对 → 跳出站外）与 `?next=/\evil.com`（反斜杠被部分浏览器规范化为 `//`）两类开放重定向
+- app/api/auth/verify-email/route.ts：验证码生成从 `Math.floor(100000 + Math.random() * 900000)` 改为 `crypto.randomInt(100000, 1000000)`（node:crypto 的 CSPRNG，返回 [100000, 1000000) 区间整数，即 6 位数字）。Math.random() 非密码学安全，理论上可被预测
+- app/api/auth/login/route.ts：账号不存在时不再返回 `{ error: '账号不存在' }`（404，明示邮箱未注册），改为按当前 `mode` 返回与凭证失败一致的响应：code 模式 → `'验证码无效或已过期'` (400)，password 模式 → `'邮箱或密码错误'` (401)。状态码也匹配，使响应在文案 + 状态码两个维度都无法区分「账号不存在」与「凭证错」
+- app/api/auth/reset-password/route.ts：账号不存在时不再返回 `'该邮箱未注册'` (404)，改为 `'验证码无效或已过期'` (400)，与验证码无效路径完全一致
+- 更改的文件：app/login/page.tsx、app/api/auth/verify-email/route.ts、app/api/auth/login/route.ts、app/api/auth/reset-password/route.ts
+- 类型检查：`npx tsc --noEmit` 通过（EXIT=0）
+- 浏览器验证（acceptanceCriteria 第 5 条「?next=//evil.com 重定向到 /」）：本地无 DATABASE_URL 但该验收纯客户端逻辑（useSearchParams → router.push），不依赖 DB。需部署后人工验证。已脑演：(a) `?next=//evil.com` → startsWith('//')=true → 回退 `/` ✓；(b) `?next=/\evil.com` → includes('\')=true → 回退 `/` ✓；(c) `?next=/posts/123` → 合规站内路径 → 跳转 /posts/123 ✓；(d) `?next=https://evil.com` → 非 `/` 开头 → 回退 `/` ✓；(e) `?next=` 缺失 → 默认 `/` ✓
+- 额外脑演用户枚举模糊：登录 a@x.com（不存在）密码模式 → 401 "邮箱或密码错误"，与 b@x.com（存在）密码错返回完全一致 ✓；reset-password 对不存在邮箱 → 400 "验证码无效或已过期"，与验证码错一致 ✓
+- **未来迭代的学习：**
+  - pattern：开放重定向校验三件套「单 `/` 开头 && 非 `//` && 不含 `\`」。只查 `//` 不够 —— Windows/老版 Chrome 会把 `/\` 当 `//`；只查前缀 `//` 也不够，`/\evil.com` 的 startsWith('//') 是 false 但同样危险。所以用 `includes('\')` 兜底所有反斜杠
+  - pattern：用户枚举模糊必须同时对齐「文案 + HTTP 状态码」两个维度。只改文案不改状态码（如账号不存在 404、密码错 401）依然可通过状态码枚举。本次 login 按模式分别对齐到 400/401，reset-password 对齐到 400
+  - 陷阱：`crypto.randomInt(min, max)` 是「左闭右开」[min, max)，要拿 6 位数字（100000-999999）必须写 `randomInt(100000, 1000000)`，写 `randomInt(100000, 999999)` 会漏掉 999999（虽然对验证码无实际影响，但语义错）
+  - 陷阱：login 路由的 user 查找在 mode 分支之前，所以「账号不存在」时拿不到 mode 的后续校验信息（如 code 格式）。本次按 mode 返回对应通用错误已足够；若未来要完全消除时序差异（账号不存在时不应比凭证错误更快返回），需在不存在账号时也跑一次假的 bcrypt.compare —— 本 story 不做，US-005 的 rate limit 已是主要防护层
+  - 上下文：US-008 会新增 User.isAdmin 字段，getCurrentUser select 会扩展 —— 本 story 未动 schema，无 prisma generate 步骤
+  - 上下文：github/callback 路由的重定向是硬编码 `new URL('/', req.url)`（line 96），不走 `next` 参数，故无需校验；仅 app/login/page.tsx 一处消费 `next`
 ---
