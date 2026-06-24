@@ -7,6 +7,7 @@ import { buildFeedWhere } from '@/lib/feed';
 import { stripHtml } from '@/lib/validate';
 import { POST_STATUS } from '@/lib/status';
 import { extractPlainText } from '@/lib/skill-text';
+import { withMetrics } from '@/lib/metrics';
 
 export const dynamic = 'force-dynamic';
 export const maxDuration = 60;
@@ -365,7 +366,9 @@ function unauthorizedResponse(): Response {
 }
 
 // 包装 handler：在调用前解析 token → 把 uid 通过闭包注入到 tool handlers
-export async function POST(req: Request): Promise<Response> {
+export const POST = withMetrics('POST /api/mcp', mcpPost);
+
+async function mcpPost(req: Request): Promise<Response> {
   const uid = await getUidFromRequest(req);
   if (!uid) return unauthorizedResponse();
   return makeHandler(uid)(req);

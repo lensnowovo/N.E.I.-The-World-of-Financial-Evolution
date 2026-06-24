@@ -4,13 +4,16 @@ import { getCurrentUser, getSessionUid } from '@/lib/session';
 import { sanitizeHtml } from '@/lib/validate';
 import { SCENE_TAGS, INDUSTRY_TAGS, CONTENT_TAGS, SKILL_TAGS } from '@/lib/tags';
 import { canEditPost } from '@/lib/post-auth';
+import { withMetrics } from '@/lib/metrics';
 
 const sceneVals: string[] = SCENE_TAGS.map((t) => t.value);
 const industryVals: string[] = INDUSTRY_TAGS.map((t) => t.value);
 const contentVals: string[] = CONTENT_TAGS.map((t) => t.value);
 const skillVals: string[] = SKILL_TAGS.map((t) => t.value);
 
-export async function GET(_req: Request, { params }: { params: Promise<{ id: string }> }) {
+export const GET = withMetrics('GET /api/posts/[id]', getPost);
+
+async function getPost(_req: Request, { params }: { params: Promise<{ id: string }> }) {
   const id = parseInt((await params).id, 10);
   if (Number.isNaN(id)) return NextResponse.json({ error: '参数错误' }, { status: 400 });
 

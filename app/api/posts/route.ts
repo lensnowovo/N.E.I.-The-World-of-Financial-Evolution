@@ -5,6 +5,7 @@ import { sanitizeHtml, stripHtml } from '@/lib/validate';
 import { POST_STATUS } from '@/lib/status';
 import { SCENE_TAGS, INDUSTRY_TAGS, CONTENT_TAGS, SKILL_TAGS } from '@/lib/tags';
 import { buildFeedWhere, fetchUserStars, filterByContent, normalizeSort, sortPosts } from '@/lib/feed';
+import { withMetrics } from '@/lib/metrics';
 
 // Used by POST handler for validation
 const sceneVals: string[] = SCENE_TAGS.map((t) => t.value);
@@ -13,7 +14,9 @@ const contentVals: string[] = CONTENT_TAGS.map((t) => t.value);
 const skillVals: string[] = SKILL_TAGS.map((t) => t.value);
 
 // GET /api/posts?scene=&industry=&content=&skill=&role=&time=&q=&page=
-export async function GET(req: Request) {
+export const GET = withMetrics('GET /api/posts', listPosts);
+
+async function listPosts(req: Request) {
   const url = new URL(req.url);
   const scene = url.searchParams.get('scene') || undefined;
   const industry = url.searchParams.get('industry') || undefined;
@@ -75,7 +78,9 @@ export async function GET(req: Request) {
 }
 
 // POST /api/posts —— 发布
-export async function POST(req: Request) {
+export const POST = withMetrics('POST /api/posts', createPost);
+
+async function createPost(req: Request) {
   const uid = await getSessionUid();
   if (!uid) return NextResponse.json({ error: '请先登录' }, { status: 401 });
 

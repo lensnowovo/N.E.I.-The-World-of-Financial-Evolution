@@ -8,6 +8,7 @@ import {
   normalizeSort,
 } from '@/lib/feed';
 import { POST_STATUS } from '@/lib/status';
+import { withMetrics } from '@/lib/metrics';
 import type { ApiSkillListItem, PaginatedResponse } from '@/lib/types';
 
 /**
@@ -20,7 +21,9 @@ import type { ApiSkillListItem, PaginatedResponse } from '@/lib/types';
  * 复用 lib/feed.ts 的 where/过滤/排序逻辑，uid 恒 null（公开 API 无用户态）。
  * 响应：{ data: [...], meta: { page, pageSize, hasMore } }
  */
-export async function GET(req: Request) {
+export const GET = withMetrics('GET /api/v1/skills', getSkills);
+
+async function getSkills(req: Request) {
   const url = new URL(req.url);
   const scene = url.searchParams.get('scene') || undefined;
   const industry = url.searchParams.get('industry') || undefined;

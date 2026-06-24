@@ -5,6 +5,7 @@ import { redirect } from 'next/navigation';
 import { prisma } from '@/lib/db';
 import { getCurrentUser } from '@/lib/session';
 import { AdminConsoleClient, type AdminPostItem } from './AdminConsoleClient';
+import { MetricsView } from '@/components/admin/MetricsView';
 
 // /admin —— 管理员内容控制台
 // 鉴权：未登录 → /login?next=/admin；已登录非管理员 → /?error=forbidden
@@ -64,6 +65,13 @@ export default async function AdminPage() {
       </div>
 
       <AdminConsoleClient initialItems={items} adminId={me.id} />
+
+      {/* —— 数据指标（流量 + 服务器压力，见决策 2）—— */}
+      <div className="mt-12 pt-8 border-t border-paper-edge">
+        <h2 className="font-serif text-2xl text-ink-brown mb-1">站点数据</h2>
+        <p className="font-sans text-xs text-leather mb-6">实时观测流量变化与服务器压力，提前预判维护需求。</p>
+        <MetricsView />
+      </div>
     </div>
   );
 }

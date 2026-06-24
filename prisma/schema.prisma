@@ -179,6 +179,20 @@ model McpCallLog {
   @@index([userId])
 }
 
+// ---------- API 观测样本（管理员 dashboard「服务器压力」用）----------
+// 由 lib/metrics.ts withMetrics 采样写入：路由 / 状态码 / 耗时 / 是否出错。
+model MetricSample {
+  id         Int      @id @default(autoincrement())
+  route      String   // 归一化路由，如 "GET /api/mcp"
+  status     Int      // HTTP 状态码
+  durationMs Int      // 本次请求耗时（毫秒）
+  error      Boolean  @default(false) // status >= 500 视为错误
+  createdAt  DateTime @default(now())
+
+  @@index([createdAt])
+  @@index([route, createdAt])
+}
+
 // ---------- 邮箱验证码 ----------
 model VerificationCode {
   id        Int      @id @default(autoincrement())
