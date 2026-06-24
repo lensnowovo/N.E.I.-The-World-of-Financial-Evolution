@@ -4,6 +4,7 @@ import { prisma } from '@/lib/db';
 import { setSession } from '@/lib/session';
 import { isEmail, isNickname, isPassword, isCode, hasSensitive } from '@/lib/validate';
 import { checkRateLimit, getClientIp } from '@/lib/rate-limit';
+import { shouldBootstrapAdmin } from '@/lib/admin';
 
 const VALID_ROLES = ['VC', 'PE', 'FA'];
 
@@ -50,7 +51,7 @@ export async function POST(req: Request) {
 
   const passwordHash = await bcrypt.hash(password, 10);
   const user = await prisma.user.create({
-    data: { email, role, nickname, passwordHash },
+    data: { email, role, nickname, passwordHash, isAdmin: shouldBootstrapAdmin(email) },
   });
 
   await prisma.verificationCode.update({ where: { id: verificationCode.id }, data: { consumed: true } });

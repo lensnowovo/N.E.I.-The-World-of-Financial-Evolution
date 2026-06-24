@@ -69,6 +69,7 @@ export async function getCurrentUser() {
       email: true,
       nickname: true,
       role: true,
+      isAdmin: true,
       avatarUrl: true,
       institution: true,
       bio: true,

@@ -1,5 +1,6 @@
 import { PrismaClient } from '@prisma/client';
 import bcrypt from 'bcryptjs';
+import { shouldBootstrapAdmin } from '../lib/admin';
 
 const prisma = new PrismaClient();
 
@@ -21,16 +22,16 @@ async function main() {
 
   const users = await Promise.all([
     prisma.user.create({
-      data: { email: 'vc@pevc.dev', nickname: '清流VC合伙人', role: 'VC', passwordHash: hash },
+      data: { email: 'vc@pevc.dev', nickname: '清流VC合伙人', role: 'VC', passwordHash: hash, isAdmin: shouldBootstrapAdmin('vc@pevc.dev') },
     }),
     prisma.user.create({
-      data: { email: 'pe@pevc.dev', nickname: 'PE研究员小李', role: 'PE', passwordHash: hash },
+      data: { email: 'pe@pevc.dev', nickname: 'PE研究员小李', role: 'PE', passwordHash: hash, isAdmin: shouldBootstrapAdmin('pe@pevc.dev') },
     }),
     prisma.user.create({
-      data: { email: 'fa@pevc.dev', nickname: 'FA-王经理', role: 'FA', passwordHash: hash },
+      data: { email: 'fa@pevc.dev', nickname: 'FA-王经理', role: 'FA', passwordHash: hash, isAdmin: shouldBootstrapAdmin('fa@pevc.dev') },
     }),
     prisma.user.create({
-      data: { email: 'vc2@pevc.dev', nickname: 'AI赛道分析师', role: 'VC', passwordHash: hash },
+      data: { email: 'vc2@pevc.dev', nickname: 'AI赛道分析师', role: 'VC', passwordHash: hash, isAdmin: shouldBootstrapAdmin('vc2@pevc.dev') },
     }),
   ]);
 

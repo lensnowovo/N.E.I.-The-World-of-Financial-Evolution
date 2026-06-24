@@ -7,6 +7,7 @@ import {
 import { prisma } from '@/lib/db';
 import { setSession } from '@/lib/session';
 import { verifyOAuthState } from '@/lib/oauth-state';
+import { shouldBootstrapAdmin } from '@/lib/admin';
 
 /**
  * GET /api/auth/github/callback?code=xxx&state=yyy
@@ -73,13 +74,15 @@ export async function GET(req: NextRequest) {
         // 极少数情况：用户连 /user/emails 都没返回可用邮箱。
         // 用带 githubId 的占位邮箱满足 @unique 约束；这类用户只能走 GitHub 登录。
         const fallbackEmail = `${githubUsername}-${githubId}@github.placeholder`;
+        const createUserEmail = githubEmail || fallbackEmail;
 
         user = await prisma.user.create({
           data: {
-            email: githubEmail || fallbackEmail,
+            email: createUserEmail,
             nickname,
             role: 'VC',
             passwordHash: null,
+            isAdmin: shouldBootstrapAdmin(createUserEmail),
             githubId,
             githubAvatarUrl,
             githubUsername,
