@@ -2,6 +2,11 @@ import { NextResponse } from 'next/server';
 import bcrypt from 'bcryptjs';
 import { prisma } from '@/lib/db';
 import { isEmail, isPassword } from '@/lib/validate';
+import { checkRateLimit, getClientIp } from '@/lib/rate-limit';
+
+// IP 级别限流，防止验证码爆破（密码重置是高价值目标，单独限流）
+const IP_LIMIT = 10;
+const WINDOW_MS = 10 * 60 * 1000;
 
 /**
  * POST /api/auth/reset-password
@@ -15,6 +20,17 @@ import { isEmail, isPassword } from '@/lib/validate';
  */
 export async function POST(req: Request) {
   const { email, code, newPassword } = await req.json();
+
+  // IP 限流优先：防止脚本枚举验证码
+  const ip = getClientIp(req);
+  const ipRl = checkRateLimit(`reset-password:ip:${ip}`, IP_LIMIT, WINDOW_MS);
+  if (!ipRl.ok) {
+    const retryAfterSec = Math.max(1, Math.ceil(ipRl.retryAfter / 1000));
+    return NextResponse.json(
+      { error: '请求过于频繁，请稍后再试', retryAfter: retryAfterSec },
+      { status: 429, headers: { 'Retry-After': String(retryAfterSec) } }
+    );
+  }
 
   if (!isEmail(email)) return NextResponse.json({ error: '邮箱格式不正确' }, { status: 400 });
   if (!/^\d{6}$/.test(String(code || ''))) return NextResponse.json({ error: '验证码格式不正确' }, { status: 400 });

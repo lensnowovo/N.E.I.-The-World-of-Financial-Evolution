@@ -77,3 +77,21 @@ export function checkRateLimit(
   // 达到上限：不递增计数，返回剩余时间
   return { ok: false, retryAfter: existing.expiresAt - now };
 }
+
+/**
+ * 从 Request headers 解析客户端 IP（仅用 web 标准 headers，框架无关）。
+ *
+ * 生产环境（Vercel / 反代后）`x-forwarded-for` 由 CDN 设置，取第一个非空项；
+ * `x-real-ip` 作为兜底。两者都缺失时返回 'unknown'（调用方仍可用其作为限流 key，
+ * 相当于一个「IP 未知」的共享桶 —— 比「完全不限」安全）。
+ */
+export function getClientIp(req: Request): string {
+  const xff = req.headers.get('x-forwarded-for');
+  if (xff) {
+    const first = xff.split(',')[0]?.trim();
+    if (first) return first;
+  }
+  const realIp = req.headers.get('x-real-ip');
+  if (realIp) return realIp.trim();
+  return 'unknown';
+}

@@ -80,7 +80,7 @@
         "Verify in browser using agent-browser: calling verify-email 4 times for the same email returns 429 on the 4th"
       ],
       "priority": 5,
-      "passes": false,
+      "passes": true,
       "notes": "",
       "retryCount": 0,
       "blocked": false
