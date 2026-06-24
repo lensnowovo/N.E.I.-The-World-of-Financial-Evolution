@@ -6,15 +6,22 @@ import {
 } from '@/lib/github-oauth';
 import { prisma } from '@/lib/db';
 import { setSession } from '@/lib/session';
+import { verifyOAuthState } from '@/lib/oauth-state';
 
 /**
- * GET /api/auth/github/callback?code=xxx
+ * GET /api/auth/github/callback?code=xxx&state=yyy
  *
  * GitHub redirects the user here after they authorize the app.
- * We exchange the code for a token, fetch the GitHub profile,
- * find-or-create a User in our DB, and set a session cookie.
+ * 我们先校验 `state` 是否与发起时写入的 cookie 匹配（CSRF 防护），
+ * 通过后再交换 code、find-or-create User、设置 session cookie。
  */
 export async function GET(req: NextRequest) {
+  // 0. CSRF 校验：state 必须与发起时写入的 cookie 严格匹配 + 签名有效
+  const stateOk = await verifyOAuthState(req.nextUrl.searchParams.get('state'));
+  if (!stateOk) {
+    return NextResponse.redirect(new URL('/login?error=invalid_state', req.url));
+  }
+
   const code = req.nextUrl.searchParams.get('code');
   if (!code) {
     return NextResponse.redirect(new URL('/login?error=missing_code', req.url));
