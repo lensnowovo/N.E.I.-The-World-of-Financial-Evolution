@@ -34,25 +34,28 @@ export default async function PostDetailPage({
   const id = parseInt((await params).id, 10);
   if (Number.isNaN(id)) notFound();
 
-  const post = await prisma.post.findUnique({
-    where: { id },
-    include: {
-      author: { select: { id: true, nickname: true, role: true, avatarUrl: true } },
-      attachments: { orderBy: { createdAt: 'asc' } },
-      skillAsset: true,
-      _count: { select: { comments: true, stars: true } },
-    },
-  });
+  // 并行取 post 与当前用户——省一轮串行 DB 往返（详情页慢的主因之一是串行查询 + Neon 冷启动）
+  const [post, me] = await Promise.all([
+    prisma.post.findUnique({
+      where: { id },
+      include: {
+        author: { select: { id: true, nickname: true, role: true, avatarUrl: true } },
+        attachments: { orderBy: { createdAt: 'asc' } },
+        skillAsset: true,
+        _count: { select: { comments: true, stars: true } },
+      },
+    }),
+    getCurrentUser(),
+  ]);
   if (!post || post.status !== POST_STATUS.PUBLISHED || post.deletedAt) notFound();
 
-  const me = await getCurrentUser();
   const uid = me?.id ?? null;
   // 作者本人或管理员可编辑（US-013）
   const canEdit = me ? canEditPost(me.id, { userId: post.author.id }, me.isAdmin) : false;
 
-  // Start the non-critical write early, but always await it before the serverless
-  // request finishes so a rejected Prisma promise cannot escape the render.
-  const viewCountUpdate = incrementViewCount(id);
+  // viewCount 自增是 non-critical 写：fire-and-forget，不阻塞渲染。
+  // serverless 函数返回后该 promise 可能被回收，最多少计一次浏览，可接受。
+  void incrementViewCount(id).catch(() => {});
 
   let starred = false;
   let hasApiKey = false;
@@ -60,12 +63,9 @@ export default async function PostDetailPage({
     const [starRow, apiKeyConfigured] = await Promise.all([
       prisma.postFavorite.findUnique({ where: { userId_postId: { userId: uid, postId: id } } }),
       getHasApiKey(uid),
-      viewCountUpdate,
     ]);
     starred = !!starRow;
     hasApiKey = apiKeyConfigured;
-  } else {
-    await viewCountUpdate;
   }
 
   const tagContent: string[] = (() => {
