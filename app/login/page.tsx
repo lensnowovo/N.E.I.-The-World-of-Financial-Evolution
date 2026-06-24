@@ -13,7 +13,15 @@ type Mode = 'password' | 'code';
 export default function LoginPage() {
   const router = useRouter();
   const params = useSearchParams();
-  const next = params.get('next') || '/';
+  // 安全校验：next 仅允许站内路径（单个 / 开头）。
+  // 排除 `//evil.com`（协议相对，浏览器会当作 https://evil.com）与 `\/evil.com` /
+  // `/\evil.com`（反斜杠在部分浏览器会被规范化为 //，等价于协议相对）。
+  // 不合规一律回退到首页，防止 open redirect。
+  const rawNext = params.get('next') || '/';
+  const next =
+    rawNext.startsWith('/') && !rawNext.startsWith('//') && !rawNext.includes('\\')
+      ? rawNext
+      : '/';
 
   const [mode, setMode] = useState<Mode>('password');
   const [email, setEmail] = useState('');

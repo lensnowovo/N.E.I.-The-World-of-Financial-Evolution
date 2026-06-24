@@ -43,9 +43,10 @@ export async function POST(req: Request) {
   });
   if (!verificationCode) return NextResponse.json({ error: '验证码无效或已过期' }, { status: 400 });
 
-  // 用户必须存在（重置不是注册）
+  // 用户必须存在（重置不是注册）。用户枚举模糊（US-007）：不再返回 "该邮箱未注册"，
+  // 改为与「验证码无效」完全一致的通用错误 + 状态码，避免通过响应差异探测邮箱是否注册。
   const user = await prisma.user.findUnique({ where: { email } });
-  if (!user) return NextResponse.json({ error: '该邮箱未注册' }, { status: 404 });
+  if (!user) return NextResponse.json({ error: '验证码无效或已过期' }, { status: 400 });
 
   const passwordHash = await bcrypt.hash(newPassword, 10);
   await prisma.$transaction([

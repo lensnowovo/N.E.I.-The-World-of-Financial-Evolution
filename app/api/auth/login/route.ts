@@ -38,7 +38,13 @@ export async function POST(req: Request) {
   if (!user) {
     const limited = onAuthFail();
     if (limited) return limited;
-    return NextResponse.json({ error: '账号不存在' }, { status: 404 });
+    // 用户枚举模糊（US-007）：账号不存在时不再返回 "账号不存在"，
+    // 改为按当前登录模式返回与「凭证错误」完全一致的通用错误 + 状态码，
+    // 使攻击者无法通过响应差异判断邮箱是否已注册。
+    if (mode === 'code') {
+      return NextResponse.json({ error: '验证码无效或已过期' }, { status: 400 });
+    }
+    return NextResponse.json({ error: '邮箱或密码错误' }, { status: 401 });
   }
 
   if (mode === 'code') {

@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server';
+import { randomInt } from 'node:crypto';
 import { prisma } from '@/lib/db';
 import { isEmail } from '@/lib/validate';
 import { sendVerificationEmail } from '@/lib/email';
@@ -36,8 +37,9 @@ export async function POST(req: Request) {
     );
   }
 
-  // Generate 6-digit code
-  const code = String(Math.floor(100000 + Math.random() * 900000));
+  // Generate 6-digit code —— 必须用 CSPRNG（crypto.randomInt），Math.random() 非密码学安全，
+  // 可被预测从而在理论上构造出有效验证码（US-007）
+  const code = String(randomInt(100000, 1000000));
 
   await prisma.verificationCode.create({
     data: {
