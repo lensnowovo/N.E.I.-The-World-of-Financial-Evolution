@@ -4,6 +4,7 @@ import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { z } from 'zod';
 import { prisma } from '@/lib/db';
 import { buildFeedWhere } from '@/lib/feed';
+import { stripHtml } from '@/lib/validate';
 import { POST_STATUS } from '@/lib/status';
 import { extractPlainText } from '@/lib/skill-text';
 
@@ -13,7 +14,7 @@ export const maxDuration = 60;
 /**
  * N.E.I. MCP Server
  *
- * 让用户的 AI 客户端通过 MCP 协议搜索和获取 N.E.I. 上的 skill。
+ * 让用户的 AI 客户端通过 MCP 协议搜索、获取、应用、收藏 N.E.I. 上的 skill。
  * 鉴权：Authorization: Bearer nei_xxx
  *
  * 安全说明：uid 通过 per-request 闭包传入 tool handlers，避免模块级全局变量
@@ -34,85 +35,212 @@ async function getUidFromRequest(req: Request): Promise<number | null> {
   return user?.id ?? null;
 }
 
+/** 把 tagContent（JSON string）安全解析成 string[] */
+function safeJsonArray(raw: string | null): string[] {
+  try {
+    const arr = JSON.parse(raw || '[]');
+    return Array.isArray(arr) ? arr.filter((x): x is string => typeof x === 'string') : [];
+  } catch {
+    return [];
+  }
+}
+
+/** 从 body 里截取 query 命中片段（去 HTML，前后各带一点上下文），像搜索 snippet */
+function makeSnippet(html: string, query: string): string | null {
+  if (!query) return null;
+  const text = stripHtml(html);
+  const idx = text.toLowerCase().indexOf(query.toLowerCase());
+  if (idx < 0) return null;
+  const start = Math.max(0, idx - 40);
+  const end = Math.min(text.length, idx + query.length + 60);
+  return (start > 0 ? '…' : '') + text.slice(start, end) + (end < text.length ? '…' : '');
+}
+
 // 每次请求都新建 handler，把 uid 通过闭包传入 tool handlers，杜绝跨请求串号
 function makeHandler(uid: number) {
   return createMcpHandler(
     async (server: McpServer) => {
+      // ============ search_skills（增强：多筛选 + 排序 + 游标 + 富返回 + snippet）============
       server.tool(
         'search_skills',
-        '搜索 N.E.I. 上的公开 Skill（Prompt / 模板 / 工作流等）',
+        '搜索 N.E.I. 上的公开 Skill（Prompt / 模板 / 工作流等）。返回带摘要、热度、标签和命中片段。',
         {
-          query: z.string().optional().describe('搜索关键词'),
-          scene: z.string().optional().describe('工作场景'),
-          skillType: z.string().optional().describe('Skill 类型'),
-          limit: z.number().optional().default(10).describe('返回条数'),
+          query: z.string().optional().describe('搜索关键词（标题 / 正文 / 作者）'),
+          scene: z.string().optional().describe('工作场景，如 screening / financial / ic'),
+          skillType: z.string().optional().describe('Skill 类型，如 prompt / workflow / agent-skill'),
+          industry: z.string().optional().describe('行业赛道，如 ai-saas / biotech'),
+          tags: z.array(z.string()).optional().describe('工作内容标签（多选，AND 关系）'),
+          author: z.string().optional().describe('作者昵称（模糊匹配）'),
+          sort: z.enum(['latest', 'popular']).optional().describe('排序：latest 最新 / popular 最热（默认）'),
+          limit: z.number().optional().default(10).describe('返回条数（最大 30）'),
+          cursor: z.number().optional().describe('游标分页：传入上一页最后一条的 id'),
         },
         async (args) => {
-          // 记录调用日志（fire-and-forget）
           void prisma.mcpCallLog.create({ data: { userId: uid, tool: 'search_skills' } }).catch(() => {});
 
           const where = buildFeedWhere({
             q: args.query || '',
             scene: args.scene,
             skill: args.skillType,
+            industry: args.industry,
           });
-          const posts = await prisma.post.findMany({
+          if (args.author) {
+            where.author = { ...(where.author || {}), nickname: { contains: args.author } };
+          }
+          if (args.cursor) {
+            where.id = { lt: args.cursor };
+          }
+
+          const cap = Math.min(args.limit || 10, 30);
+          // 多取一些以便 tags 内存过滤后仍有 cap 条
+          let posts = await prisma.post.findMany({
             where,
             include: {
               author: { select: { nickname: true } },
               skillAsset: { select: { assetType: true, originalAuthor: true } },
+              _count: { select: { stars: true, comments: true } },
             },
-            orderBy: { createdAt: 'desc' },
-            take: Math.min(args.limit || 10, 20),
+            orderBy: { id: 'desc' },
+            take: args.tags?.length ? cap + 20 : cap,
           });
+
+          // tags（tagContent）内存 AND 过滤
+          if (args.tags && args.tags.length > 0) {
+            posts = posts.filter((p) => {
+              const arr = safeJsonArray(p.tagContent);
+              return args.tags!.every((t) => arr.includes(t));
+            });
+          }
+
+          // 排序
+          const score = (p: (typeof posts)[number]) =>
+            (p.viewCount || 0) + p._count.stars * 5 + p._count.comments * 3;
+          const sorted =
+            args.sort === 'latest'
+              ? posts
+              : [...posts].sort((a, b) => score(b) - score(a));
+
+          const items = sorted.slice(0, cap).map((p) => ({
+            id: p.id,
+            title: p.title,
+            scene: p.tagScene,
+            type: p.skillAsset?.assetType ?? null,
+            author: p.skillAsset?.originalAuthor || p.author.nickname,
+            excerpt: stripHtml(p.body).slice(0, 120),
+            snippet: args.query ? makeSnippet(p.body, args.query) : null,
+            tags: safeJsonArray(p.tagContent),
+            viewCount: p.viewCount,
+            stars: p._count.stars,
+            updatedAt: p.updatedAt.toISOString(),
+          }));
+
+          const nextCursor = items.length === cap ? items[items.length - 1]?.id ?? null : null;
+
           return {
-            content: [{
-              type: 'text' as const,
-              text: JSON.stringify(posts.map((p) => ({
-                id: p.id,
-                title: p.title,
-                scene: p.tagScene,
-                type: p.skillAsset?.assetType ?? null,
-                author: p.skillAsset?.originalAuthor || p.author.nickname,
-                excerpt: p.body.replace(/<[^>]*>/g, '').slice(0, 100),
-              })), null, 2),
-            }],
+            content: [
+              {
+                type: 'text' as const,
+                text: JSON.stringify({ items, nextCursor, count: items.length }, null, 2),
+              },
+            ],
           };
         },
       );
 
+      // ============ get_skill（不变）============
       server.tool(
         'get_skill',
         '获取某个 Skill 的完整 Prompt / 内容原文',
         { id: z.number().describe('Skill ID') },
         async (args) => {
-          // 记录调用日志（fire-and-forget）
-          void prisma.mcpCallLog.create({ data: { userId: uid, postId: args.id, tool: 'get_skill' } }).catch(() => {});
+          void prisma.mcpCallLog
+            .create({ data: { userId: uid, postId: args.id, tool: 'get_skill' } })
+            .catch(() => {});
 
           const post = await prisma.post.findUnique({
             where: { id: args.id },
-            select: { title: true, body: true, tagScene: true, status: true, deletedAt: true,
-              skillAsset: { select: { assetType: true, sourceUrl: true } } },
+            select: {
+              title: true,
+              body: true,
+              tagScene: true,
+              status: true,
+              deletedAt: true,
+              skillAsset: { select: { assetType: true, sourceUrl: true } },
+            },
           });
           if (!post || post.status !== POST_STATUS.PUBLISHED || post.deletedAt) {
             return { content: [{ type: 'text' as const, text: '未找到该 Skill' }] };
           }
           const text = extractPlainText(post.body);
           return {
-            content: [{
-              type: 'text' as const,
-              text: `# ${post.title}\n场景：${post.tagScene}\n类型：${post.skillAsset?.assetType ?? '未知'}\n\n---\n\n${text}`,
-            }],
+            content: [
+              {
+                type: 'text' as const,
+                text: `# ${post.title}\n场景：${post.tagScene}\n类型：${post.skillAsset?.assetType ?? '未知'}\n\n---\n\n${text}`,
+              },
+            ],
           };
         },
       );
 
+      // ============ apply_skill（新：填好 context 的 prompt，客户端执行，平台零成本）============
+      server.tool(
+        'apply_skill',
+        '把 Skill 的 Prompt 模板填入你给的上下文，返回「填好的完整 Prompt」交给你的 AI 客户端直接执行。平台不消耗 AI 额度，执行用你自己客户端的模型。',
+        {
+          id: z.number().describe('Skill ID'),
+          context: z
+            .record(z.string())
+            .optional()
+            .describe('占位符到值的映射，例如 {"[填入赛道名]": "合成生物学", "[阶段]": "Pre-A"}。key 通常是 prompt 里的 [填入xxx] / [xxx]'),
+        },
+        async (args) => {
+          void prisma.mcpCallLog
+            .create({ data: { userId: uid, postId: args.id, tool: 'apply_skill' } })
+            .catch(() => {});
+
+          const post = await prisma.post.findUnique({
+            where: { id: args.id },
+            select: { title: true, body: true, status: true, deletedAt: true },
+          });
+          if (!post || post.status !== POST_STATUS.PUBLISHED || post.deletedAt) {
+            return { content: [{ type: 'text' as const, text: '未找到该 Skill' }] };
+          }
+
+          let promptText = extractPlainText(post.body);
+          const ctx = args.context || {};
+          for (const [key, value] of Object.entries(ctx)) {
+            if (value) {
+              const escaped = key.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+              promptText = promptText.replace(new RegExp(escaped, 'g'), value);
+            }
+          }
+
+          const unfilled = [...promptText.matchAll(/\[([^\]]{2,30})\]/g)]
+            .map((m) => m[1])
+            .filter((s) => !/^\s*$/.test(s));
+          const hint =
+            unfilled.length > 0
+              ? `\n\n（提示：仍有 ${unfilled.length} 处占位符未填：${[...new Set(unfilled)].slice(0, 8).map((s) => `[${s}]`).join(' ')}。可再调用 apply_skill 补全。）`
+              : '';
+
+          return {
+            content: [
+              {
+                type: 'text' as const,
+                text: `# ${post.title}\n\n以下是填好你上下文的 Prompt，请直接用你的 AI 执行：\n\n---\n\n${promptText}${hint}`,
+              },
+            ],
+          };
+        },
+      );
+
+      // ============ list_my_skills（增强：摘要 / 热度 / 标签 / 更新时间 / 收藏时间）============
       server.tool(
         'list_my_skills',
-        '列出你收藏的 Skill',
+        '列出你收藏的 Skill（带摘要、热度、标签和更新时间，方便区分每条是干嘛的）',
         {},
         async () => {
-          // 记录调用日志（fire-and-forget）
           void prisma.mcpCallLog.create({ data: { userId: uid, tool: 'list_my_skills' } }).catch(() => {});
 
           const favs = await prisma.postFavorite.findMany({
@@ -122,28 +250,89 @@ function makeHandler(uid: number) {
                 include: {
                   author: { select: { nickname: true } },
                   skillAsset: { select: { assetType: true, originalAuthor: true } },
+                  _count: { select: { stars: true, comments: true } },
                 },
               },
             },
             orderBy: [{ sortOrder: 'asc' }, { createdAt: 'desc' }],
             take: 50,
           });
+
           const skills = favs
-            .filter((f) => f.post.status === POST_STATUS.PUBLISHED)
+            .filter((f) => f.post.status === POST_STATUS.PUBLISHED && !f.post.deletedAt)
             .map((f) => ({
               id: f.post.id,
               title: f.post.title,
               scene: f.post.tagScene,
               type: f.post.skillAsset?.assetType ?? null,
               author: f.post.skillAsset?.originalAuthor || f.post.author.nickname,
+              excerpt: stripHtml(f.post.body).slice(0, 120),
+              tags: safeJsonArray(f.post.tagContent),
+              viewCount: f.post.viewCount,
+              stars: f.post._count.stars,
+              updatedAt: f.post.updatedAt.toISOString(),
+              favoritedAt: f.createdAt.toISOString(),
             }));
+
           return {
-            content: [{
-              type: 'text' as const,
-              text: skills.length > 0
-                ? `你收藏了 ${skills.length} 个 Skill：\n${JSON.stringify(skills, null, 2)}`
-                : '你还没有收藏任何 Skill。请到 N.E.I. 网站发现并收藏。',
-            }],
+            content: [
+              {
+                type: 'text' as const,
+                text:
+                  skills.length > 0
+                    ? `你收藏了 ${skills.length} 个 Skill：\n${JSON.stringify(skills, null, 2)}`
+                    : '你还没有收藏任何 Skill。请到 N.E.I. 网站发现并收藏，或用 favorite_skill 工具收藏。',
+              },
+            ],
+          };
+        },
+      );
+
+      // ============ favorite_skill（新：写）============
+      server.tool(
+        'favorite_skill',
+        '收藏一个 Skill（加入你的 Skill Library，list_my_skills 可见）。重复收藏幂等。',
+        { id: z.number().describe('Skill ID') },
+        async (args) => {
+          void prisma.mcpCallLog
+            .create({ data: { userId: uid, postId: args.id, tool: 'favorite_skill' } })
+            .catch(() => {});
+
+          const post = await prisma.post.findUnique({
+            where: { id: args.id },
+            select: { id: true, title: true, status: true, deletedAt: true },
+          });
+          if (!post || post.status !== POST_STATUS.PUBLISHED || post.deletedAt) {
+            return { content: [{ type: 'text' as const, text: '未找到该 Skill，无法收藏' }] };
+          }
+          await prisma.postFavorite.upsert({
+            where: { userId_postId: { userId: uid, postId: args.id } },
+            create: { userId: uid, postId: args.id },
+            update: {},
+          });
+          return {
+            content: [
+              { type: 'text' as const, text: `✓ 已收藏《${post.title}》（#${args.id}）` },
+            ],
+          };
+        },
+      );
+
+      // ============ unfavorite_skill（新：写）============
+      server.tool(
+        'unfavorite_skill',
+        '取消收藏一个 Skill',
+        { id: z.number().describe('Skill ID') },
+        async (args) => {
+          void prisma.mcpCallLog
+            .create({ data: { userId: uid, postId: args.id, tool: 'unfavorite_skill' } })
+            .catch(() => {});
+
+          await prisma.postFavorite.deleteMany({
+            where: { userId: uid, postId: args.id },
+          });
+          return {
+            content: [{ type: 'text' as const, text: `已取消收藏 Skill #${args.id}` }],
           };
         },
       );
@@ -157,7 +346,7 @@ function makeHandler(uid: number) {
 }
 
 function unauthorizedResponse(): Response {
-  return new Response(JSON.stringify({ error: 'Unauthorized' }), {
+  return new Response(JSON.stringify({ error: 'invalid_token', message: 'Unauthorized' }), {
     status: 401,
     headers: { 'Content-Type': 'application/json' },
   });
