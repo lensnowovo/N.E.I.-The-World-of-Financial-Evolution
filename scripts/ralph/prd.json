@@ -32,7 +32,7 @@
         "Verify in browser using agent-browser: a post with `<img src=x onerror=alert(1)>` and `<a href='javascript:alert(1)'>` renders without executing any script"
       ],
       "priority": 2,
-      "passes": false,
+      "passes": true,
       "notes": "",
       "retryCount": 0,
       "blocked": false

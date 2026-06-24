@@ -2,6 +2,7 @@
 - MCP 工具鉴权：`app/api/mcp/route.ts` 通过 `getUidFromRequest(req)` 解析 Bearer token（sha256 哈希后比对 `User.mcpTokenHash`），uid 必须通过 per-request 闭包传入 tool handlers，**绝不**用模块级全局变量（否则并发请求会串号）
 - 本项目无独立 typecheck script，统一用 `npx tsc --noEmit` 做静态校验；改完代码只需跑这一条
 - `createMcpHandler(initializeServer)` 的 `initializeServer` 回调在每次 POST 请求都会被调用（内部为每请求新建 McpServer + transport），所以在 POST/GET/DELETE 入口处按 uid 重建 handler 是安全的，且天然形成闭包隔离
+- `sanitizeHtml`（lib/validate.ts）走「白名单标签 + 每标签属性白名单（a.href / img.src / img.alt）+ URL scheme 过滤」；post.body 在写入(POST /api/posts) 与渲染(app/posts/[id]/page.tsx 的 safeBody) 两层都过，改 body 渲染/编辑接口时务必维持此不变量
 
 ---
 
@@ -16,4 +17,21 @@
   - 陷阱：写对象 shorthand `where: { userId }` 时 TS strict 会报 TS18004（"No value exists in scope for the shorthand property"），因为函数参数叫 `uid` 不叫 `userId`；要么显式 `userId: uid`，要么把参数命名为 userId
   - pattern：mcp-handler 库内部每请求都新建 McpServer + transport 并调用 `initializeServer`，因此 per-request 闭包是解决 MCP 并发隔离的标准姿势，不需要 AsyncLocalStorage
   - 上下文：`User.mcpTokenHash` 字段存 token 的 sha256 hex；token 以 `nei_` 前缀开头，明文不入库
+---
+## 2026-06-24 17:12 - US-002
+- 重写 lib/validate.ts 的 sanitizeHtml：
+  - 整块移除 script/style/iframe/object/embed/svg/math/template/noscript/form/frame/applet/head（含内部内容）+ 未闭合的孤立开标签兜底
+  - 移除 HTML 注释 / CDATA / PI / doctype（IE 条件注释等注入面）
+  - 逐标签重建：未知标签整段丢弃；已知标签按白名单 a.href / img.src / img.alt 保留属性，其余（含所有 on* 事件处理器，无论引号形式）一律剥离
+  - href/src 过滤：解码 HTML 实体 + 去空白后拒绝 javascript:/vbscript:/data: scheme（含大小写/实体/前导控制字符混淆）
+  - 输出属性值重新 escapeAttr，避免二次注入
+- 在 app/posts/[id]/page.tsx 渲染路径加 defense-in-depth：fetch post 后 safeBody = sanitizeHtml(post.body)，excerpt / preSplit(promptParts) / 非提示词正文渲染(原 line 199)均基于 safeBody；提示词 part.html 因派生自 preSplit 也自动安全。CopyPromptButton/PreCopyButton 的 bodyHtml 仍是 post.body（仅 regex 提取文本复制，不渲染 HTML，无 XSS 面，故保留原值）
+- 更改的文件：lib/validate.ts、app/posts/[id]/page.tsx
+- 类型检查：`npx tsc --noEmit` 通过（EXIT=0）
+- 浏览器验证（acceptanceCriteria 第 5 条）：本地无 DATABASE_URL 无法跑实际渲染，需部署后人工验证。已在脑内过 6 类 payload：<img src=x onerror=alert(1)> / <a href=javascript:...> / 实体混淆 / data: / 注释 / 大小写，均被中和
+- **未来迭代的学习：**
+  - 陷阱：原 sanitizeHtml 用 `\son\w+="..."` 只覆盖引号形式的 on*，且 `javascript:` 全文 replace 会误伤正文里出现的字面量 "javascript:" 文本；正确姿势是「属性白名单」（不在白名单一律丢）而非「黑名单剥离」
+  - 陷阱：TAG_RE 用 `[^>]*` 匹配属性段，遇到属性值里含 `>` 会过早截断 —— 但这对安全是「向更保守方向」偏差（解析到的属性更少），不会产生绕过；相反，浏览器解析可能看到更多，所以白名单 + 重建比黑名单更稳
+  - pattern：dangerouslySetInnerHTML 的内容必须在「写入时」和「渲染时」至少一处过 sanitizeHtml；本次两层都过（POST /api/posts 写入时 + page.tsx 渲染时），覆盖 DB legacy 数据
+  - 上下文：post.body 的下游消费者：page.tsx 正文 dangerouslySetInnerHTML（需 sanitize）、excerpt 标签剥离（无 XSS 面）、preSplit/promptParts（派生自 body，渲染时用 dangerouslySetInnerHTML）、CopyPromptButton/PreCopyButton 仅 regex 提取文本（无 XSS 面）
 ---
