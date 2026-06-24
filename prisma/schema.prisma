@@ -68,6 +68,7 @@ model Post {
   viewCount    Int      @default(0)
   commentCount Int      @default(0)
   deletedAt    DateTime? // 软删除标记；null = 未删除，非 null = 已删除（不公开可见）
+  featured     Boolean  @default(false) // 管理员精选标记；US-012，首页 FeaturedWorkflows 读此字段
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt
 

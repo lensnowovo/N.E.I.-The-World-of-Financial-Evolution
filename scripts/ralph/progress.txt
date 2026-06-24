@@ -11,6 +11,7 @@
 - 用户枚举模糊：登录/重置/发码等鉴权接口，账号不存在时不能返回 "账号不存在"/"未注册"，必须返回与「凭证错误」完全一致的文案 + 状态码（如密码模式 → "邮箱或密码错误" 401；验证码模式 → "验证码无效或已过期" 400）。否则攻击者可枚举探测已注册邮箱
 - 管理员判断：用 `getCurrentUser()` 返回的 `isAdmin` 字段（lib/session.ts select 已含）；首批 admin 通过 `ADMIN_BOOTSTRAP_EMAILS` env（逗号分隔）引导，收敛到 `lib/admin.ts` 的 `shouldBootstrapAdmin(email)`，仅在用户 **创建** 路径（register/github-callback 新建/seed）调用 —— 已存在用户登录不应被升级为 admin
 - 软删除过滤：Post.deletedAt 是软删标记（null = 活，非 null = 已删）。所有公开 Post 查询必须过滤 `deletedAt: null`：findMany/count/groupBy 直接进 `where`；findUnique 走 `where: { id }` 不能加非唯一字段，改为「fetch 后 `|| post.deletedAt` 当作未找到」；若 findUnique 用了 `select`（非 include），必须把 `deletedAt: true` 加进 select 否则 tsc 报字段不存在。列表查询统一收敛到 `lib/feed.ts` 的 `buildFeedWhere`（已带过滤）；owner-only 视图（profile posts tab owner 分支 / dashboard 收藏列表）按需求可不过滤，让作者看到自己删掉的
+- 管理员 API 守卫：收敛到 `lib/auth-guard.ts` 的 `requireAdmin()`，返回 `{ user: SessionUser } | NextResponse`。调用方 `const g = await requireAdmin(); if (g instanceof NextResponse) return g;` 后即可在 g.user 上拿 admin 身份。语义：未登录 → 401（与项目其他写接口一致），已登录非管理员 → 403。isAdmin 来自 getCurrentUser select，守卫本身不查 DB
 
 ---
 
@@ -164,4 +165,65 @@
   - pattern：profile 页的 owner-only 数据（star/fav tab、收藏列表、owner 的 posts tab 含草稿）**不应**加 deletedAt 过滤 —— owner 有权看到自己删掉的（否则作者删帖后无法在控制台恢复/查看）。只过滤「非 owner 可见」路径：非主人 postCount/posts tab/receivedLikes（公开数据）
   - 上下文：US-010 (PATCH) 和 US-011 (DELETE) 会新增帖子写路径；DELETE 的 handler 把 deletedAt 设成 now，PATCH 需在 fetch 时不要被 deletedAt 过滤掉（PATCH/DELETE 的 findUnique **不能**加 `|| post.deletedAt` 早返回，否则作者无法编辑/删除已软删的帖 —— 但 DELETE 应在「已软删」时返回 404 防重复删，PATCH 同理。具体语义留给 US-010/US-011 实现）
   - 上下文：US-012 会再加 Post.featured 字段（本 sprint 第三处 schema 变更）；改 schema 后 prisma generate 的 EPERM 在本仓库 Windows 环境下基本必现，可忽略（只要 index.d.ts 含新字段即视为生成成功）
+---
+
+## 2026-06-24 21:00 - US-010
+- 新增 lib/post-auth.ts：`canEditPost(uid, post, isAdmin)` 纯函数 —— post 为 null 返回 false；否则 `isAdmin || post.userId === uid`。不查 DB，调用方负责从 getCurrentUser 传入 isAdmin
+- app/api/posts/[id]/route.ts 新增 PATCH handler：
+  - getCurrentUser 鉴权（未登录 401）
+  - findUnique select { id, userId, deletedAt, status }，post 不存在或 `post.deletedAt` → 404（软删后 PATCH 返回 404，与 acceptance 一致）
+  - canEditPost 校验：非作者且非管理员 → 403
+  - 复用 POST /api/posts 的校验规则（title 5-100 / body 1-50000 / tagScene 必填 / tagIndustry / tagSkill / tagContent ≤3）+ sanitizeHtml(body)
+  - update 的 data 只含可编辑字段（title/body/tagScene/tagIndustry/tagContent/tagSkill），**userId 与 status 不从请求体读取**，防篡改
+- 更改的文件：lib/post-auth.ts（新增）、app/api/posts/[id]/route.ts
+- 类型检查：`npx tsc --noEmit` 通过（EXIT=0）
+- 浏览器验证：本 story 无 "Verify in browser" 验收项；鉴权/校验逻辑已由 tsc + 代码审查覆盖。US-013 会加 UI 入口，届时再端到端验证
+- **未来迭代的学习：**
+  - pattern：PATCH/DELETE 的 post 查询不应像公开 GET 那样把 `deletedAt` 合并进 `||` 早返回当作未找到的统一分支 —— 要分开判断语义。公开 GET：`!post || deletedAt` → 404「不存在」；作者/管理员 PATCH/DELETE：deletedAt 也要 404（软删后不可再编辑，DELETE 防重复删）。结论殊途同归但语义来源不同
+  - pattern：编辑/删除类「写」接口的鉴权应收敛到纯函数 helper（canEditPost），签名 `(uid, post, isAdmin)` —— isAdmin 由调用方从 getCurrentUser 传入，helper 不查 DB，保持 pure & 可单元测试。这与 lib/admin.ts 的 `shouldBootstrapAdmin(email)` 同一风格
+  - 陷阱：「no userId/status tampering」的关键是在 update.data 中**只显式列出可编辑字段**，绝不能 `data: { ...reqBody }` 解构展开；即便客户端在 body 里塞了 `userId`/`status`/`deletedAt`/`featured`，因为不在 update.data 白名单里，自动被忽略
+  - 陷阱：`getCurrentUser()` 返回的对象已含 `isAdmin`（US-008 加的 select），无需再单独查 user 表；写接口需要同时拿 uid + isAdmin 时优先用 getCurrentUser 而不是 getSessionUid
+  - 上下文：US-011 (DELETE) 会复用同一 canEditPost helper + 同一 lib/post-auth.ts；DELETE handler 的差异仅是 update.data 改为 `{ deletedAt: new Date() }`，且「已软删」返回 404 防重复删。US-013 的编辑 UI 会调用本 PATCH 接口，表单需回填当前 title/body/tags 全字段（本 PATCH 要求字段完整，非 partial update）
+---
+
+## 2026-06-24 21:25 - US-011
+- app/api/posts/[id]/route.ts 新增 DELETE handler：
+  - getCurrentUser 鉴权（未登录 401）
+  - findUnique select { id, userId, deletedAt }，post 不存在或 `post.deletedAt` → 404（已软删/不存在都 404，防重复删）
+  - canEditPost 校验：非作者且非管理员 → 403
+  - `prisma.post.update({ data: { deletedAt: new Date() } })` 软删；**不级联**删除 comments/favorites（保留以便恢复）
+  - 返回 200 `{ id }`
+- 复用 US-010 的 `canEditPost` helper + 同一 lib/post-auth.ts；与 PATCH handler 共享 findUnique→软删检查→canEditPost 三段式鉴权 pattern
+- 更改的文件：app/api/posts/[id]/route.ts
+- 类型检查：`npx tsc --noEmit` 通过（EXIT=0）
+- 浏览器验证（acceptanceCriteria 第 4 条「作者删除后从 feed 消失」）：本地无 DATABASE_URL 无法跑实际 HTTP，需部署后人工验证。已脑演：(a) 作者删除自己的 post → update deletedAt=now → US-009 的 13 处 deletedAt:null 过滤生效，feed/search/skills-map/profile 等公开视图均不再返回；(b) 已软删 post 再次 DELETE → post.deletedAt 真值 → 404 防重复删；(c) 非作者非管理员 → canEditPost=false → 403；(d) comments/favorites 记录不动，外键无 cascade（prisma 默认），可从 DB 恢复
+- **未来迭代的学习：**
+  - pattern：DELETE handler 与 PATCH handler 共享相同的「findUnique(含 deletedAt) → 软删检查 404 → canEditPost 403」三段式鉴权骨架。下次加新的作者/管理员写接口（如未来的 pin/archive）应复制这套骨架，只改最后一步的 update.data
+  - pattern：软删语义下，comments/favorites 与 post 的外键关系**不**设 cascade —— Prisma 默认行为是 Restrict（删 post 会因外键报错），但我们从不真删 post 行（只设 deletedAt），所以关系天然保留。US-014 的 admin 控制台「show soft-deleted」视图因此能看到完整关联数据
+  - 陷阱：DELETE 的 findUnique **不能**像公开 GET 那样把 status !== 'published' 合并进 404 判断 —— 作者可能想删除草稿（虽然 UI 上未必提供入口），但语义上 DELETE 应允许删除任何非软删状态的 post。本实现只检查 `!post || post.deletedAt`，不限制 status
+  - 上下文：US-014 的 admin 控制台会调用本 DELETE 接口做软删；US-013 的编辑 UI 也应在确认「已软删」时不显示删除/编辑入口（DELETE 返回 404，UI 应 graceful 处理）
+---
+
+## 2026-06-24 21:50 - US-012
+- prisma/schema.prisma Post 模型新增 `featured Boolean @default(false)`（放在 deletedAt 后、createdAt 前）。**未加 `@@index([featured])`**：@default(false) 决定绝大多数行同值，b-tree 索引选择性极差，反而拖慢写入；US-015 的 `where: { featured: true, deletedAt: null }` 即便在中等数据量下顺序扫也够快
+- 新增 lib/auth-guard.ts：`requireAdmin()` 返回 `{ user: SessionUser } | NextResponse`。语义：未登录 → 401（与项目 PATCH/DELETE 一致），已登录非管理员 → 403。isAdmin 直接读 getCurrentUser 的 select（US-008 起 select 已含），守卫不查 DB
+- 新增 app/api/admin/posts/[id]/feature/route.ts PATCH handler：
+  - parseInt NaN → 400
+  - requireAdmin() 守卫（401/403）
+  - body.featured 用 `Boolean(data.featured)` 强转（即便客户端传 "false" 字符串或 0 也正确归一化为 bool）
+  - findUnique 查 post 不存在 → 404；**已软删的帖子允许 toggle featured**（管理员语义 —— 公开查询因 US-009 的 deletedAt:null 过滤即便 featured=true 也不会展示，无副作用；且若未来管理员恢复帖子，featured 状态自然生效，符合预期）
+  - prisma.post.update 设 featured；返回 `{ id, featured }`
+- 更改的文件：prisma/schema.prisma、lib/auth-guard.ts（新增）、app/api/admin/posts/[id]/feature/route.ts（新增）
+- 校验：
+  - `DATABASE_URL=... npx prisma validate`：🚀 valid
+  - `npx prisma generate`：报 EPERM（query_engine-windows.dll.node 被占用），但 `$PostPayload` scalars 已含 `featured: boolean`（grep 命中 line 4389），tsc 能识别新字段 —— 同 US-008/US-009 的 Windows EPERM 陷阱
+  - `npx tsc --noEmit`：EXIT=0
+- 浏览器验证：本 story 无 "Verify in browser" 验收项；守卫 + 字段类型 + handler 逻辑已由 tsc + 代码审查覆盖。US-014 的 admin 控制台会调用本接口，届时端到端验证
+- **未来迭代的学习：**
+  - pattern：admin-only API 守卫统一用 `requireAdmin()` 的「返回 union 类型，instanceof NextResponse 早返回」模式，比 throw + try/catch 更符合 Next.js Route Handler 的函数式风格，TS 也能在 instanceof 分支后正确收窄类型（g.user 自动可用）
+  - pattern：Boolean 字段 + @default(false) 不要无脑加 index —— 选择性 (selectivity) 太低，b-tree 帮不上查询反而增加写入开销。只在 `featured: true` 占比接近 50% 或组合索引能覆盖多个查询条件时才加
+  - 陷阱：req.json() 在 body 为空/非法 JSON 时会 throw，导致 route handler 500；用 `await req.json().catch(() => ({}))` 兜底，再 Boolean(data.featured) 强转，比 try/catch 包整个 handler 更简洁
+  - 陷阱：findUnique with `select: { id: true }` 只取 id 字段是合法的最小投影；若后续 handler 需要 deletedAt/status 判定，需扩展 select（不能假设默认带全标量 —— findUnique + select 的语义和 include 不同，见 US-009 的同名陷阱）
+  - 上下文：US-015 会让 components/home/FeaturedWorkflows.tsx 改读 `prisma.post.findMany({ where: { featured: true, deletedAt: null, status: 'published' } })`，本 story 提供的 featured 字段是前提
+  - 上下文：US-014 admin 控制台会调用本 PATCH 接口做 feature/unfeature；前端切换按钮需把当前 featured 状态作为 body 传 `{ featured: !current }`
 ---
