@@ -22,6 +22,16 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
     return NextResponse.json({ error: '内容不存在' }, { status: 404 });
   }
 
-  await prisma.post.update({ where: { id }, data: { featured } });
-  return NextResponse.json({ id, featured });
+  // 精选时排到末尾（max+1，新精选的出现在首页最后）；取消精选时归零
+  let featuredOrder = 0;
+  if (featured) {
+    const agg = await prisma.post.aggregate({
+      where: { featured: true },
+      _max: { featuredOrder: true },
+    });
+    featuredOrder = (agg._max.featuredOrder ?? 0) + 1;
+  }
+
+  await prisma.post.update({ where: { id }, data: { featured, featuredOrder } });
+  return NextResponse.json({ id, featured, featuredOrder });
 }

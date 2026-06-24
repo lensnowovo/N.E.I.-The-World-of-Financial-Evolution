@@ -32,7 +32,7 @@ async function getFeaturedPosts(): Promise<FeaturedPost[]> {
       tagContent: true,
       tagSkill: true,
     },
-    orderBy: { createdAt: 'desc' },
+    orderBy: [{ featuredOrder: 'asc' }, { createdAt: 'desc' }],
     take: MAX_FEATURED,
   });
   return rows;

@@ -4,45 +4,92 @@ import Link from 'next/link';
 import { redirect } from 'next/navigation';
 import { prisma } from '@/lib/db';
 import { getCurrentUser } from '@/lib/session';
-import { AdminConsoleClient, type AdminPostItem } from './AdminConsoleClient';
-import { MetricsView } from '@/components/admin/MetricsView';
+import {
+  AdminConsoleClient,
+  type AdminPostItem,
+  type OverviewStats,
+  type McpStats,
+} from './AdminConsoleClient';
 
-// /admin —— 管理员内容控制台
-// 鉴权：未登录 → /login?next=/admin；已登录非管理员 → /?error=forbidden
-// （requireAdmin() 守卫是 API 路由专用返回 NextResponse 的形态；server page
-//  用 redirect 表达同一语义，见 lib/auth-guard.ts 顶部注释）
+// /admin —— 管理员控制台（多 tab：概览 / 内容审核 / MCP 状态 / 我的发布 / 数据）
 export default async function AdminPage() {
   const me = await getCurrentUser();
   if (!me) redirect('/login?next=/admin');
   if (!me.isAdmin) redirect('/?error=forbidden');
 
-  // 列出所有帖子（含软删），按 createdAt desc
-  // 不加 deletedAt 过滤 —— 管理员需要看到软删的帖子以便审核/恢复
-  const rows = await prisma.post.findMany({
-    select: {
-      id: true,
-      title: true,
-      status: true,
-      tagScene: true,
-      featured: true,
-      deletedAt: true,
-      createdAt: true,
-      author: { select: { id: true, nickname: true } },
-    },
-    orderBy: { createdAt: 'desc' },
-    take: 200,
-  });
+  const now = new Date();
+  const todayStart = new Date(now);
+  todayStart.setUTCHours(0, 0, 0, 0);
 
-  const items: AdminPostItem[] = rows.map((r) => ({
+  const postSelect = {
+    id: true,
+    title: true,
+    status: true,
+    tagScene: true,
+    featured: true,
+    featuredOrder: true,
+    deletedAt: true,
+    createdAt: true,
+    author: { select: { id: true, nickname: true } },
+  } as const;
+
+  const [
+    rows, myRows,
+    [totalPosts, totalUsers, totalMcpCalls, featuredCount],
+    [todayPosts, todayUsers, todayMcp],
+    mcpByTool, mcpRecent, tokenUsers,
+  ] = await Promise.all([
+    prisma.post.findMany({ select: postSelect, orderBy: { createdAt: 'desc' }, take: 200 }),
+    prisma.post.findMany({ where: { userId: me.id }, select: postSelect, orderBy: { createdAt: 'desc' }, take: 50 }),
+    Promise.all([
+      prisma.post.count({ where: { deletedAt: null } }),
+      prisma.user.count(),
+      prisma.mcpCallLog.count(),
+      prisma.post.count({ where: { featured: true, deletedAt: null } }),
+    ]),
+    Promise.all([
+      prisma.post.count({ where: { createdAt: { gte: todayStart }, deletedAt: null } }),
+      prisma.user.count({ where: { createdAt: { gte: todayStart } } }),
+      prisma.mcpCallLog.count({ where: { createdAt: { gte: todayStart } } }),
+    ]),
+    prisma.mcpCallLog.groupBy({ by: ['tool'], _count: true, orderBy: { _count: { tool: 'desc' } }, take: 10 }),
+    prisma.mcpCallLog.findMany({
+      orderBy: { createdAt: 'desc' }, take: 12,
+      select: { tool: true, postId: true, createdAt: true, user: { select: { nickname: true } } },
+    }),
+    prisma.user.count({ where: { mcpTokenHash: { not: null } } }),
+  ]);
+
+  const mapItem = (r: typeof rows[number]): AdminPostItem => ({
     id: r.id,
     title: r.title,
     status: r.status,
     tagScene: r.tagScene,
     featured: r.featured,
+    featuredOrder: r.featuredOrder,
     deletedAt: r.deletedAt?.toISOString() ?? null,
     createdAt: r.createdAt.toISOString(),
     author: { id: r.author.id, nickname: r.author.nickname },
-  }));
+  });
+
+  const items: AdminPostItem[] = rows.map(mapItem);
+  const myPosts: AdminPostItem[] = myRows.map(mapItem);
+
+  const overview: OverviewStats = {
+    totalPosts, totalUsers, totalMcpCalls, featuredCount,
+    todayPosts, todayUsers, todayMcp,
+  };
+
+  const mcp: McpStats = {
+    tokenUsers,
+    byTool: mcpByTool.map((t) => ({ tool: t.tool, count: t._count })),
+    recent: mcpRecent.map((r) => ({
+      tool: r.tool,
+      postId: r.postId,
+      nickname: r.user?.nickname ?? '未知',
+      createdAt: r.createdAt.toISOString(),
+    })),
+  };
 
   const activeCount = items.filter((i) => !i.deletedAt).length;
   const deletedCount = items.length - activeCount;
@@ -56,22 +103,21 @@ export default async function AdminPage() {
         <div className="flex items-baseline gap-3 flex-wrap">
           <h1 className="font-serif text-3xl text-ink-brown">管理员控制台</h1>
           <span className="font-mono text-sm text-sepia">
-            {activeCount} 活跃 · {deletedCount} 已软删
+            {activeCount} 活跃 · {deletedCount} 已软删 · {overview.featuredCount} 精选
           </span>
         </div>
         <p className="mt-2 font-sans text-xs text-leather">
-          内容审核：软删除与精选管理。所有操作调用 US-011 的 DELETE 与 US-012 的 PATCH feature 接口。
+          内容审核 · 精选排序 · MCP 状态 · 数据监控
         </p>
       </div>
 
-      <AdminConsoleClient initialItems={items} adminId={me.id} />
-
-      {/* —— 数据指标（流量 + 服务器压力，见决策 2）—— */}
-      <div className="mt-12 pt-8 border-t border-paper-edge">
-        <h2 className="font-serif text-2xl text-ink-brown mb-1">站点数据</h2>
-        <p className="font-sans text-xs text-leather mb-6">实时观测流量变化与服务器压力，提前预判维护需求。</p>
-        <MetricsView />
-      </div>
+      <AdminConsoleClient
+        initialItems={items}
+        myPosts={myPosts}
+        overview={overview}
+        mcp={mcp}
+        adminId={me.id}
+      />
     </div>
   );
 }
