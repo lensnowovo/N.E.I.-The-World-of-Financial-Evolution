@@ -18,7 +18,7 @@ export async function POST(req: Request) {
   if (!uid) return NextResponse.json({ error: '请先登录' }, { status: 401 });
 
   if (!isAiEnabled()) {
-    return NextResponse.json({ error: 'AI 转写未启用（未配置 ANTHROPIC_API_KEY）' }, { status: 503 });
+    return NextResponse.json({ error: 'AI 转写未启用（未配置 GLM_API_KEY）' }, { status: 503 });
   }
 
   const { url } = await req.json();

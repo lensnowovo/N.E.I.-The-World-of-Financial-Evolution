@@ -1,23 +1,21 @@
 /**
- * AI 转写：GitHub URL → 结构化 skill 资产字段。
+ * AI 能力（GLM / 智谱）：
  *
- * 流程：解析 GitHub URL → raw.githubusercontent.com 抓原文 → 喂给 Claude →
- * 返回 { title, body, branch, tagSkill, tagScene, tagContent, ... }。
+ * 1. transcribeSkill —— GitHub URL → 结构化 skill 资产字段（给「从 GitHub 导入」用）。
+ *    流程：解析 GitHub URL → raw.githubusercontent.com 抓原文 → GLM 转写 →
+ *    返回 { title, body, branch, tagSkill, tagScene, tagContent, ... }。
  *
- * AI 输出的分类标签严格落在 lib/tags.ts 的封闭枚举内（system prompt 喂完整枚举），
- * 保证预填后能通过 POST /api/posts 的校验。
+ * 2. suggestPublish —— 「智能发布辅助」。用户在发帖时写了标题/正文，
+ *    AI 据此建议 标签 / 摘要 / 占位符，用户 review 后应用。
+ *
+ * 分类标签严格落在 lib/tags.ts 的封闭枚举内（system prompt 喂完整枚举），
+ * 保证 AI 输出能直接通过 POST /api/posts 校验。
  */
-import Anthropic from '@anthropic-ai/sdk';
-import { SCENE_TAGS, INDUSTRY_TAGS, CONTENT_TAGS, SKILL_TAGS } from '@/lib/tags';
-
-let _client: Anthropic | null = null;
-function client(): Anthropic {
-  if (!_client) _client = new Anthropic();
-  return _client;
-}
+import { glmChat, parseJsonLoose, isGlmEnabled } from './glm';
+import { SCENE_TAGS, INDUSTRY_TAGS, CONTENT_TAGS, SKILL_TAGS } from './tags';
 
 export function isAiEnabled(): boolean {
-  return !!process.env.ANTHROPIC_API_KEY;
+  return isGlmEnabled();
 }
 
 export type TranscribedSkill = {
@@ -90,11 +88,11 @@ const SYSTEM_PROMPT = `你是一个 PEVC（私募股权/风险投资）Skill 资
 类型：${SKILL_TAGS.map((t) => `${t.value}(${t.label})`).join('、')}
 
 重要：tagSkill 和 tagScene 必须严格用上面列出的 value（英文），不要用中文 label。
-只返回 JSON，不要任何解释或 markdown 代码块标记。`;
+只返回 JSON 对象，不要任何解释或 markdown 代码块标记。`;
 
 export async function transcribeSkill(url: string): Promise<TranscribedSkill> {
   if (!isAiEnabled()) {
-    throw new Error('AI 转写未配置：需要设置 ANTHROPIC_API_KEY');
+    throw new Error('AI 转写未配置：需要设置 GLM_API_KEY');
   }
 
   const fetched = await fetchGitHubContent(url);
@@ -105,23 +103,18 @@ export async function transcribeSkill(url: string): Promise<TranscribedSkill> {
   // 限制输入长度，避免超大文件
   const content = fetched.text.slice(0, 30000);
 
-  const response = await client().messages.create({
-    model: 'claude-opus-4-8',
-    max_tokens: 4000,
-    thinking: { type: 'adaptive' },
-    system: SYSTEM_PROMPT,
+  const text = await glmChat({
+    jsonMode: true,
+    temperature: 0.5,
+    maxTokens: 4000,
     messages: [
+      { role: 'system', content: SYSTEM_PROMPT },
       {
         role: 'user',
         content: `源文件名：${fetched.fileName}\n源链接：${url}\n\n--- 原文开始 ---\n${content}\n--- 原文结束 ---`,
       },
     ],
   });
-
-  const text = response.content
-    .filter((b): b is Anthropic.TextBlock => b.type === 'text')
-    .map((b) => b.text)
-    .join('');
 
   const parsed = parseJsonLoose(text);
 
@@ -169,23 +162,6 @@ function extractOriginalAuthor(url: string): string | null {
   return owner.charAt(0).toUpperCase() + owner.slice(1);
 }
 
-/** 容错 JSON 解析（去掉可能的 markdown 标记和前后噪音） */
-function parseJsonLoose(s: string): Record<string, unknown> {
-  let t = s.trim();
-  // 去掉 ```json ... ``` 包裹
-  const fence = t.match(/```(?:json)?\s*([\s\S]*?)```/);
-  if (fence) t = fence[1].trim();
-  // 找第一个 { 到最后一个 }
-  const start = t.indexOf('{');
-  const end = t.lastIndexOf('}');
-  if (start >= 0 && end > start) t = t.slice(start, end + 1);
-  try {
-    return JSON.parse(t);
-  } catch {
-    return {};
-  }
-}
-
 /** 把抓来的 GitHub 原文内容也返回（给接口存为附件用） */
 export async function transcribeWithSource(url: string): Promise<{
   skill: TranscribedSkill;
@@ -194,4 +170,98 @@ export async function transcribeWithSource(url: string): Promise<{
   const skill = await transcribeSkill(url);
   const sourceContent = await fetchGitHubContent(url);
   return { skill, sourceContent };
+}
+
+/* ============================================================
+   智能发布辅助 suggestPublish
+   ============================================================ */
+
+export type PublishSuggestion = {
+  title: string;
+  scene: string; // tagScene value
+  industry: string | null;
+  contents: string[]; // tagContent values, 0-3
+  summary: string; // HTML 摘要正文（适合贴进介绍/正文）
+  branch: 'prompt' | 'file' | 'method';
+  placeholders: { name: string; desc: string }[]; // 仅 prompt 分支有意义：[占位符] 名 + 说明
+};
+
+const ASSIST_SYSTEM_PROMPT = `你是一个 PEVC（私募股权/风险投资）Skill 发布助手。用户正在发布一个 Skill（提示词 / 文件 / 方法论），已经写了标题和正文，你来帮他补全元信息，让分类更准、介绍更清楚。
+
+输出必须是严格的 JSON，字段如下：
+- title: 如果用户给的标题不够好（太短/太空泛），给一个 5-50 字的中文标题建议；够好就原样返回。
+- scene: 工作场景，必须从这些里选一个：${SCENE_TAGS.map((t) => t.value).join(' / ')}
+- industry: 行业（选填），从这些里选或 null：${INDUSTRY_TAGS.map((t) => t.value).join(' / ')}
+- contents: 工作内容标签数组，0-3 个，从这些里选：${CONTENT_TAGS.map((t) => t.value).join(' / ')}
+- summary: 一段 80-200 字的中文摘要，HTML 格式（用 <p>），说清楚这个 Skill 解决什么问题、怎么用。直接可用，不要客套。
+- placeholders: 仅当 branch 为 prompt 时有意义。识别正文里用方括号 [像这样] 标出的、需要使用者替换的变量，给每个一个对象 { name: 原始占位符(含方括号), desc: 一句话说明该填什么 }。若 branch 不是 prompt，返回空数组 []。
+
+标签说明（value → 含义）：
+场景：${SCENE_TAGS.map((t) => `${t.value}(${t.label})`).join('、')}
+内容：${CONTENT_TAGS.map((t) => `${t.value}(${t.label})`).join('、')}
+行业：${INDUSTRY_TAGS.map((t) => `${t.value}(${t.label})`).join('、')}
+
+重要：scene / contents / industry 必须严格用上面列出的 value（英文），不要用中文 label。
+只返回 JSON 对象，不要任何解释或 markdown 标记。`;
+
+/**
+ * 根据用户已写的标题 + 正文，建议补全字段。
+ * 调用方负责把正文转成纯文本（去 HTML）再传入。
+ */
+export async function suggestPublish(input: {
+  title?: string;
+  body: string; // 纯文本正文
+  branch: 'prompt' | 'file' | 'method';
+}): Promise<PublishSuggestion> {
+  if (!isAiEnabled()) {
+    throw new Error('AI 辅助未配置：需要设置 GLM_API_KEY');
+  }
+
+  const trimmedBody = input.body.slice(0, 12000);
+
+  const text = await glmChat({
+    jsonMode: true,
+    temperature: 0.5,
+    maxTokens: 2000,
+    messages: [
+      { role: 'system', content: ASSIST_SYSTEM_PROMPT },
+      {
+        role: 'user',
+        content: `分支：${input.branch}\n用户标题：${input.title?.trim() || '（未填）'}\n\n--- 正文开始 ---\n${trimmedBody}\n--- 正文结束 ---`,
+      },
+    ],
+  });
+
+  const parsed = parseJsonLoose(text);
+
+  const scene = SCENE_TAGS.some((t) => t.value === parsed.scene) ? String(parsed.scene) : '';
+  const industry =
+    typeof parsed.industry === 'string' && INDUSTRY_TAGS.some((t) => t.value === parsed.industry)
+      ? parsed.industry
+      : null;
+  const contents = Array.isArray(parsed.contents)
+    ? parsed.contents.filter((c: unknown) => CONTENT_TAGS.some((t) => t.value === c)).slice(0, 3).map(String)
+    : [];
+  const placeholders = Array.isArray(parsed.placeholders)
+    ? parsed.placeholders
+        .map((p: unknown) => {
+          if (!p || typeof p !== 'object') return null;
+          const obj = p as Record<string, unknown>;
+          const name = String(obj.name || '').trim();
+          if (!name) return null;
+          return { name: name.slice(0, 60), desc: String(obj.desc || '').slice(0, 200) };
+        })
+        .filter((p): p is { name: string; desc: string } => !!p)
+        .slice(0, 12)
+    : [];
+
+  return {
+    title: String(parsed.title || '').slice(0, 100) || (input.title?.trim() || ''),
+    scene,
+    industry,
+    contents,
+    summary: String(parsed.summary || '').slice(0, 2000),
+    branch: input.branch,
+    placeholders,
+  };
 }

@@ -4,6 +4,7 @@ import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { cn } from '@/lib/cn';
 import { RichEditor } from '@/components/RichEditor';
+import { AiAssistPanel } from '@/components/publish/AiAssistPanel';
 import {
   AttachmentUploader,
   type UploadedFile,
@@ -183,6 +184,15 @@ export function PublishForm({ currentUser }: { currentUser: CurrentUser }) {
   const assetType = resolveAssetType();
   const assetHelper = branch ? ASSET_TYPE_HELPERS[assetType] : null;
 
+  // 智能发布辅助用的纯文本正文（prompt 分支本来就是纯文本；file/method 是富文本去标签）
+  const bodyText =
+    branch === 'prompt' ? promptText
+      : branch === 'file' ? stripHtml(fileIntro)
+        : branch === 'method' ? stripHtml(methodBody)
+          : '';
+  // file/method 的正文是介绍/方法，摘要可写入；prompt 的正文即提示词本身，不写摘要
+  const canApplySummary = branch === 'file' || branch === 'method';
+
   // ============ 首屏：分支选择 ============
   if (!branch) {
     return (
@@ -321,6 +331,27 @@ export function PublishForm({ currentUser }: { currentUser: CurrentUser }) {
             <AttachmentUploader files={files} onChange={setFiles} />
           </Section>
         </>
+      )}
+
+      {/* ===== 智能发布辅助（写完正文后，AI 建议标题/分类/摘要/占位符）===== */}
+      {branch && (
+        <AiAssistPanel
+          branch={branch}
+          title={title}
+          bodyText={bodyText}
+          canApplySummary={canApplySummary}
+          currentScene={scene}
+          currentIndustry={industry}
+          currentContents={contents}
+          onApplyTitle={(s) => setTitle(s)}
+          onApplyScene={(s) => setScene(s)}
+          onApplyIndustry={(s) => setIndustry(s || '')}
+          onApplyContents={(vals) => setContents(vals)}
+          onApplySummary={(html) => {
+            if (branch === 'file') setFileIntro((prev) => `${html}${prev ? `\n${prev}` : ''}`);
+            else if (branch === 'method') setMethodBody((prev) => `${html}${prev ? `\n${prev}` : ''}`);
+          }}
+        />
       )}
 
       {/* ===== 用在哪个环节（场景，必填，带示例）===== */}
@@ -473,6 +504,18 @@ function escapeHtml(s: string): string {
     .replace(/&/g, '&amp;')
     .replace(/</g, '&lt;')
     .replace(/>/g, '&gt;');
+}
+
+/** 富文本转纯文本（给 AI 辅助喂正文用） */
+function stripHtml(html: string): string {
+  return html
+    .replace(/<[^>]*>/g, ' ')
+    .replace(/&nbsp;/g, ' ')
+    .replace(/&lt;/g, '<')
+    .replace(/&gt;/g, '>')
+    .replace(/&amp;/g, '&')
+    .replace(/\s+/g, ' ')
+    .trim();
 }
 
 function branchLabel(b: Branch): string {
