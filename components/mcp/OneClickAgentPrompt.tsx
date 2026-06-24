@@ -59,9 +59,9 @@ export function OneClickAgentPrompt({
   return (
     <div className="my-4">
       <div className="relative bg-vellum/60 rounded-md p-4 pr-14">
-        <pre className="font-mono text-sm text-ink-brown whitespace-pre-wrap break-words leading-relaxed">
+        <div className="font-mono text-sm text-ink-brown whitespace-pre-wrap break-words leading-relaxed">
           {prompt}
-        </pre>
+        </div>
         <button
           type="button"
           onClick={onCopy}
