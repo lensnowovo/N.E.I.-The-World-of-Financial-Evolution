@@ -230,7 +230,7 @@
         "Verify in browser using agent-browser: admin can soft-delete and feature a post; non-admin is blocked"
       ],
       "priority": 14,
-      "passes": false,
+      "passes": true,
       "notes": "",
       "retryCount": 0,
       "blocked": false
@@ -247,7 +247,7 @@
         "Verify in browser using agent-browser: featuring a post via admin console makes it appear in the section"
       ],
       "priority": 15,
-      "passes": false,
+      "passes": true,
       "notes": "",
       "retryCount": 0,
       "blocked": false

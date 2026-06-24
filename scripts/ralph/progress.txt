@@ -259,3 +259,47 @@
   - 上下文：US-014 的 /admin 控制台会调用 DELETE + feature API；不会调用本 edit 入口（管理员 content moderation 一般是删除/精选而非改写正文）。但 PATCH 路由已开放给管理员，若未来需要 admin inline 编辑也能直接复用
   - 上下文：US-015 的 FeaturedWorkflows 会改读 DB featured 帖；与本 story 无依赖
 ---
+
+## 2026-06-24 23:05 - US-014
+- 新增 app/admin/page.tsx（server component, force-dynamic）：
+  - getCurrentUser → 未登录 redirect `/login?next=/admin`；已登录非管理员 redirect `/?error=forbidden`（requireAdmin 是 API 路由形态返回 NextResponse，server page 用 redirect 表达同一语义 —— 见 lib/auth-guard.ts 顶部注释）
+  - findMany 不加 deletedAt 过滤，take 200（管理员需看到软删的帖子以便审核）；select 含 featured（US-012）/deletedAt（US-009）/status/tagScene/author
+  - 序列化成 AdminPostItem[]（Date → ISO string，便于传给 client component；Next.js 不会自动序列化 Date 跨 server→client 边界）
+  - 顶部活跃/已软删计数 + 返回首页链接 + AdminConsoleClient
+- 新增 app/admin/AdminConsoleClient.tsx（client component）：
+  - useState 持有 items（本地副本，便于 optimistic update）/ showDeleted（默认 false，仅显示活跃帖）/ busyId（操作中禁用按钮）/ toast（2.5s 自动消失）
+  - onDelete：`window.confirm` 二次确认 → DELETE `/api/posts/[id]` → 成功后本地把 deletedAt 设为 now（无需 refetch，US-011 的 DELETE 只改 deletedAt 一个字段）
+  - onToggleFeatured：PATCH `/api/admin/posts/[id]/feature` body `{ featured: !current }` → 成功后本地切换 featured 字段
+  - 已软删的帖子：opacity-60 + 「已软删」红色 chip + 显示删除时间戳；精选/删除按钮 disabled + title 提示「已软删的帖子不可精选（公开视图不展示）」
+  - 每行显示：id / 状态（草稿/待审/已发布/已拒）/ 场景（sceneLabel）/ 作者昵称（link 到 profile）/ 创建时间；admin 是作者时加「（你的帖子）」标记便于辨识
+  - toast 区分 ok/false 着色（green-50/red-50）；空列表友好提示
+- 更改的文件：app/admin/page.tsx（新增）、app/admin/AdminConsoleClient.tsx（新增）
+- 类型检查：`npx tsc --noEmit` EXIT=0
+- 浏览器验证（acceptanceCriteria 第 5 条「admin 可软删/精选；非管理员被拒」）：本地无 DATABASE_URL 无法跑实际 HTTP，需部署后人工验证。已脑演：(a) admin 访问 /admin → getCurrentUser().isAdmin=true → 渲染列表；(b) 非管理员 → redirect `/?error=forbidden` ✓；(c) 未登录 → redirect `/login?next=/admin` ✓；(d) 点击「删除」→ confirm → DELETE 返回 200 → 本地 deletedAt=now → UI 灰化 + 显示「已软删」+ 取消勾选 showDeleted 时该行消失（filter !deletedAt 生效）✓；(e) 点击「精选」→ PATCH feature 返回 `{id, featured:true}` → 本地 featured=true → 显示「精选」chip + 按钮文案变「取消精选」✓；(f) 已软删帖子的精选/删除按钮 disabled，无法重复操作 ✓
+- **未来迭代的学习：**
+  - pattern：server page 的 admin 守卫不能用 lib/auth-guard.ts 的 `requireAdmin()`（它返回 NextResponse，是 API 路由专用）；server page 的「拒绝」语义是 `redirect()`，与 dashboard 页 `if (!me) redirect('/login?next=...')` 同一姿势。两者形成对仗：API → NextResponse（401/403），page → redirect（302）。未来加 admin server action 时第三种姿势是 `revalidatePath` + 返回 `{ error }`
+  - pattern：server → client 跨边界传 Date 必须先 `.toISOString()`（或 .getTime()）。Next.js 不会自动序列化 Date 实例（JSON.stringify 默认行为），传原始 Date 会在 RSC payload 里报类型错。本次把所有 Date 字段在 server 端先序列化成 string，client 端 `new Date(iso)` 反序列化显示
+  - pattern：list + action 的 admin console 用「server 拉初始数据 + client 持本地副本 + optimistic update」最简单 —— 不用 router.refresh() 重拉（省一次 DB 往返 + 闪烁），因为 delete/feature 都只改单个字段，本地 patch 即可保证 UI 一致。如果未来加 create/edit 这种影响排序或分页的操作，再考虑 router.refresh()
+  - pattern：`window.confirm()` 在 'use client' 组件里是合法的（仅 client runtime），无需 typeof window 守卫（但写了也无害）；用于「破坏性操作二次确认」是 MVP 最简姿势，未来可换自定义 Modal
+  - 陷阱：tailwind 自定义颜色（如 ink-brown）+ accent-* 工具类要确认颜色在 theme 里 —— 本项目 tailwind.config.ts line 28 `'ink-brown': 'var(--ink-brown)'`，所以 `accent-ink-brown` 编译为 `accent-color: var(--ink-brown)`，checkbox/radio 能着色
+  - 陷阱：删除按钮 + 精选按钮在已软删帖子上的 disabled 不能仅靠 UI 隐藏 —— 要保留按钮但 disabled + title 提示，让管理员明确看到「这个帖子已软删，无法再操作」，而不是看不到按钮误以为漏渲染
+  - 上下文：US-015 的 FeaturedWorkflows 会改读 prisma featured:true, deletedAt:null；本 story 的「精选」操作产生的 featured 帖，US-015 实施后即可在首页看到。即本 story 提供「写入」侧，US-015 提供「读取」侧
+---
+
+## 2026-06-24 23:40 - US-015
+- 重写 components/home/FeaturedWorkflows.tsx：从静态 WORKFLOWS 数组改为 async server component，prisma.post.findMany({ where: { featured: true, deletedAt: null, status: 'published' } }) 取最多 6 条；按 createdAt desc 排序
+- 卡片字段映射：title → post.title；scene → sceneLabel(post.tagScene)；skill 图标 → post.tagSkill ?? 'workflow'；右上 skill 文本 → skillLabel(skill)；description → stripHtml(body).slice(0,100) 摘要；tags → parseContentTags(tagContent) 取前 3 个用 contentLabel；href → /posts/[id]（实际帖子详情）
+- 空状态：posts.length === 0 时渲染 dashed border + "暂无精选工作流 / 管理员精选后将在此展示" 占位卡片；保留 section header + "查看全部工作流程 →" 链接（仍指向 /?skill=workflow 全局过滤）
+- 保留原 card 样式（min-h-48 / border-paper-edge / bg-vellum / hover:border-sepia + shadow-card / font-serif 标题 / border-t 分隔的 footer 文案），footer 文案从「查看相关 Skill」改为「阅读全文」匹配新语义
+- 更改的文件：components/home/FeaturedWorkflows.tsx
+- 类型检查：`npx tsc --noEmit` EXIT=0
+- 浏览器验证（acceptanceCriteria 第 5 条「通过 admin 控制台精选后出现在首页」）：本地无 DATABASE_URL 无法跑实际渲染，需部署后人工验证。已脑演：(a) admin 在 /admin 点击「精选」→ PATCH /api/admin/posts/[id]/feature 返回 {featured:true} → 帖子 featured=true；(b) 首页 SSR 时 FeaturedWorkflows 调 prisma findMany where featured:true 命中该帖 → 渲染卡片；(c) 取消精选 → featured=false → 不在 findMany 结果 → 卡片消失；(d) 软删的精选帖因 deletedAt:null 过滤不展示（即便 featured=true）；(e) 草稿帖因 status:'published' 过滤不展示；(f) 全部帖子都未精选时 → 渲染空状态占位卡片，不报错
+- **未来迭代的学习：**
+  - pattern：Next.js App Router 的 async server component 在 JSX 里直接 `<Comp />` 渲染即可（React 19 / Next 15 自动 await），调用方无需改；改同步 → async 不破坏调用点。HomePage 的 `<FeaturedWorkflows />` 因此无需改动
+  - pattern：featured 列表查询的 where 三件套 `{ featured: true, deletedAt: null, status: 'published' }` 是「公开精选内容」的固定过滤形态 —— featured 是管理员显式标记，deletedAt + status 是公开可见性约束。任何「公开精选/置顶」类展示位都应复用这套 where，避免展示软删/草稿内容
+  - pattern：stripHtml(body).slice(0, N) 是项目 excerpt 的标准姿势（lib/feed.ts fetchFeed 也是这么干），N 按卡片大小调整（feed 卡片 160，本精选小卡 100）
+  - 陷阱：tagContent 在 DB 里是 JSON string（不是数组），必须 JSON.parse + Array.isArray 兜底 + 元素类型 filter；直接 spread 会把字符串当 iterable 拆成字符
+  - 陷阱：tagSkill 是 nullable（普通帖可以没 asset 类型）。SkillIcon 接受任意 string 但 GLYPHS 只认 7 个 key，未命中会 fallback 到 prompt 图标 —— 这里用 `?? 'workflow'` 显式归一为 workflow 图标保持视觉一致（精选工作流即便没绑 skillAsset 也展示 workflow 图标）
+  - 上下文：本 story 是 Sprint 0.x 的最后一个 US，完成 FeaturedWorkflows 数据驱动闭环；与 US-012（featured 字段 + API）、US-014（admin 控制台「精选」按钮）形成写入→读取完整链路
+  - 上下文：未来若要让非 admin 也能 curated（如特邀编辑），扩展 shouldBootstrapAdmin 同模式的 EDITOR_BOOTSTRAP_EMAILS + User.isEditor 字段；但本 sprint 范围内只支持 admin
+---
