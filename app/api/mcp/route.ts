@@ -172,11 +172,23 @@ function makeHandler(uid: number) {
             return { content: [{ type: 'text' as const, text: '未找到该 Skill' }] };
           }
           const text = extractPlainText(post.body);
+          // 提取占位符（apply_skill 用这些 key 做精确替换，显式列出避免调用方猜错 key）
+          const placeholders = [
+            ...new Set(
+              [...text.matchAll(/\[([^\]]{2,30})\]/g)]
+                .map((m) => `[${m[1]}]`)
+                .filter((s) => !/^\[\s*\]$/.test(s)),
+            ),
+          ];
           return {
             content: [
               {
                 type: 'text' as const,
-                text: `# ${post.title}\n场景：${post.tagScene}\n类型：${post.skillAsset?.assetType ?? '未知'}\n\n---\n\n${text}`,
+                text:
+                  `# ${post.title}\n场景：${post.tagScene}\n类型：${post.skillAsset?.assetType ?? '未知'}\n\n---\n\n${text}` +
+                  (placeholders.length
+                    ? `\n\n---\n\n**占位符**（apply_skill 时传这些 key 做精确替换）：\n${placeholders.join('  ')}`
+                    : ''),
               },
             ],
           };
