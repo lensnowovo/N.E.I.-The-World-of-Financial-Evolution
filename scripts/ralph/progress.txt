@@ -35,3 +35,13 @@
   - pattern：dangerouslySetInnerHTML 的内容必须在「写入时」和「渲染时」至少一处过 sanitizeHtml；本次两层都过（POST /api/posts 写入时 + page.tsx 渲染时），覆盖 DB legacy 数据
   - 上下文：post.body 的下游消费者：page.tsx 正文 dangerouslySetInnerHTML（需 sanitize）、excerpt 标签剥离（无 XSS 面）、preSplit/promptParts（派生自 body，渲染时用 dangerouslySetInnerHTML）、CopyPromptButton/PreCopyButton 仅 regex 提取文本（无 XSS 面）
 ---
+## 2026-06-24 17:30 - US-003
+- 新增 `lib/secret.ts`：集中处理 SESSION_SECRET 解析。生产环境（NODE_ENV==='production'）下未设置或仍为默认值 `dev-secret-change-me` 时在 module load 即抛错；开发环境回退默认值
+- `lib/session.ts` 与 `lib/crypto.ts` 删除各自 `process.env.SESSION_SECRET || 'dev-secret-change-me'`，改为 `import { SESSION_SECRET } from './secret'`，共享同一份带守卫的 secret
+- 更改的文件：lib/secret.ts（新增）、lib/session.ts、lib/crypto.ts
+- 类型检查：`npx tsc --noEmit` 通过（EXIT=0）
+- **未来迭代的学习：**
+  - pattern：全局密钥/单例类常量应收敛到一个 `lib/secret.ts`（或类似 module），并在生产环境做 fail-fast；避免每个文件各自 `process.env.X || '默认'`（复制粘贴 = 漏校验）
+  - 陷阱：在 Next.js 中，route handler / server component 首次被 import 时即触发 module-level 代码执行；所以 `lib/secret.ts` 顶层的 `resolveSecret()` 会在任何生产请求 handler 加载时立即抛出，无需额外 hook（fail-fast 自然生效）
+  - 上下文：SESSION_SECRET 同时用于 (a) session cookie 的 HMAC 签名（lib/session.ts）(b) API-key AES-256-GCM 密钥派生（lib/crypto.ts 经 scrypt）；任一被泄露/默认化都会让用户会话和加密的 LLM 凭据都可伪造
+---

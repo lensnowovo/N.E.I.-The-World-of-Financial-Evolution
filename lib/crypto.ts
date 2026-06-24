@@ -1,4 +1,5 @@
 import crypto from 'node:crypto';
+import { SESSION_SECRET } from './secret';
 
 /**
  * API key 加密存储。
@@ -7,7 +8,7 @@ import crypto from 'node:crypto';
  * 密文格式：base64(iv) + ':' + base64(authTag) + ':' + base64(ciphertext)
  */
 
-const SECRET = process.env.SESSION_SECRET || 'dev-secret-change-me';
+const SECRET = SESSION_SECRET;
 const KEY = crypto.scryptSync(SECRET, 'nei-exec-key', 32);
 
 export function encryptApiKey(plain: string): string {

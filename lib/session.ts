@@ -1,10 +1,11 @@
 import { cookies } from 'next/headers';
 import crypto from 'crypto';
 import { prisma } from './db';
+import { SESSION_SECRET } from './secret';
 
 // 简单的 HMAC 签名 cookie session（MVP 自实现，避免引入额外依赖）
 // payload: { uid, exp }
-const SECRET = process.env.SESSION_SECRET || 'dev-secret-change-me';
+const SECRET = SESSION_SECRET;
 const COOKIE_NAME = 'pevc_session';
 const MAX_AGE = 60 * 60 * 24 * 30; // 30 天
 
