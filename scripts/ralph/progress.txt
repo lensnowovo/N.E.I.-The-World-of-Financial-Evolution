@@ -6,6 +6,7 @@
 - rate limiting：所有限流收敛到 `lib/rate-limit.ts` 的 `checkRateLimit(key, limit, windowMs)`（纯内存固定窗口，无依赖，懒过期 + 60s 周期清理）；返回 `retryAfter` 单位是毫秒，写 HTTP Retry-After 头需 Math.ceil(/1000)。key 自带命名空间如 `verify-email:email:${email}`
 - 客户端 IP：用 `lib/rate-limit.ts` 的 `getClientIp(req)`（纯 header 解析，无 next 依赖），取 `x-forwarded-for` 第一项，兜底 `x-real-ip`，缺失返回 `'unknown'`（共享桶，比不限流安全）
 - rate-limit 维度与限额约定：verify-email = email 3/10min + IP 10/10min；login = email **失败** 5/15min（只在认证失败路径计数，成功登录不计）；register / reset-password = IP 10/10min。429 响应统一带 `Retry-After` 头（秒）+ body `{ error, retryAfter }`
+- OAuth/CSRF state：收敛到 `lib/oauth-state.ts` 的 `issueOAuthState()`/`verifyOAuthState()`（HMAC 签名 token 复用 SESSION_SECRET，短期 one-shot cookie `pevc_oauth_state`，SameSite=Lax）。需要做 CSRF 防护的第三方跳转回跳场景都走这套
 
 ---
 
@@ -80,4 +81,22 @@
   - 陷阱：email 作为限流 key 必须 `toLowerCase()`，否则 `a@x.com` 和 `A@x.com` 是两个独立桶，等于限额翻倍
   - 陷阱：`Retry-After` 头单位是秒，body 里 `retryAfter` 也用秒保持一致；从 checkRateLimit 的毫秒转换用 `Math.max(1, Math.ceil(/1000))` 保证至少 1 秒
   - 上下文：login 的「用户不存在」返回 404 + 明确文案（账号不存在）会泄露用户是否注册，US-007 会把它改成与密码错不可区分的通用错误；本 story 不动文案，只在失败路径挂限流
+---
+
+## 2026-06-24 17:55 - US-006
+- 新增 lib/oauth-state.ts：HMAC 签名的 one-shot OAuth state token（payload = {nonce, exp}，base64url(payload).base64url(hmac)），签名 key 复用 SESSION_SECRET（与 session/crypto 同一密钥派生链）
+  - `issueOAuthState()`：生成随机 nonce + 10min 过期，写短期 cookie（pevc_oauth_state，httpOnly + sameSite=lax + secure in prod），返回 token
+  - `verifyOAuthState(queryState)`：先清 cookie（one-shot 防重放）；queryState 与 cookie 必须严格相等（crypto.timingSafeEqual 常量时间比较）；再校验签名 + 过期
+- app/api/auth/github/route.ts：发起 OAuth 时先 `const state = await issueOAuthState()`，把 `&state=${encodeURIComponent(state)}` 拼到 GitHub authorize URL
+- app/api/auth/github/callback/route.ts：入口最先调用 `verifyOAuthState(req.nextUrl.searchParams.get('state'))`，失败直接 redirect `/login?error=invalid_state`，code 校验移到 state 之后
+- 更改的文件：lib/oauth-state.ts（新增）、app/api/auth/github/route.ts、app/api/auth/github/callback/route.ts
+- 类型检查：`npx tsc --noEmit` 通过（EXIT=0）
+- 浏览器验证（acceptanceCriteria 第 4 条「篡改 state 被拒」）：本地无 DATABASE_URL 但 OAuth 不依赖 DB，理论上可起 dev 跑；但 GitHub OAuth 需真实 GITHUB_CLIENT_ID + redirect 配置，本地不便完整跑。需部署后人工验证。已脑演：(a) 正常流程 — issue 写 cookie + 拼 state，回调时 query.state === cookie.value 且签名有效 → 通过；(b) 篡改 state — query 与 cookie 不等 → timingSafeEqual 失败 → redirect /login?error=invalid_state ✓；(c) 攻击者构造请求无 cookie — cookie 缺失 → false → invalid_state ✓；(d) 旧 state 重放 — cookie 已被上次 verify 清掉 → false ✓
+- **未来迭代的学习：**
+  - pattern：OAuth/CSRF state 的「签名 + cookie↔query 配对」是标准姿势 —— 签名只证明 state 来自本服务器，相等比较才证明浏览器拿到的就是本服务器发出的那份（防 CSRF 攻击者凭空构造一个合法 state）。两层都要有
+  - pattern：state cookie 必须是 `sameSite: 'lax'`（GitHub 回调是顶级 GET 导航，lax 会被发送；strict 会被拒导致 OAuth 永远失败）。httpOnly 防止 JS 偷读。短 maxAge + verify 后立即清掉 → 一次性，防重放
+  - pattern：HMAC 签名与 session cookie 同密钥派生链（SESSION_SECRET）是安全的 —— 两者的「用途域」不重叠（session 是长期身份 cookie，oauth state 是一次性 CSRF token），且密钥已通过 US-003 做了生产 fail-fast 守卫
+  - 陷阱：`crypto.timingSafeEqual` 要求两个 Buffer 等长，否则抛错；先 `if (a.length !== b.length) return false` 再比较，避免异常路径泄露长度信息
+  - 陷阱：cookie 的 `maxAge: 0` 是「立即删除」的标准姿势（不是「session cookie」）；写空值 + maxAge=0 双保险，适配不同浏览器
+  - 上下文：US-007 会顺带处理 login redirect 校验 / verify-code CSPRNG / 用户枚举模糊 —— 本 story 只动 github OAuth 两条路由，不动 login UI 和 verify-email 路由
 ---

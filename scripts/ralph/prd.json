@@ -96,7 +96,7 @@
         "Verify in browser using agent-browser: normal GitHub login completes; a callback with a tampered state is rejected"
       ],
       "priority": 6,
-      "passes": false,
+      "passes": true,
       "notes": "",
       "retryCount": 0,
       "blocked": false
