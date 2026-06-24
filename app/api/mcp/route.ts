@@ -190,7 +190,7 @@ function makeHandler(uid: number) {
         {
           id: z.number().describe('Skill ID'),
           context: z
-            .record(z.string())
+            .record(z.string(), z.string())
             .optional()
             .describe('占位符到值的映射，例如 {"[填入赛道名]": "合成生物学", "[阶段]": "Pre-A"}。key 通常是 prompt 里的 [填入xxx] / [xxx]'),
         },
