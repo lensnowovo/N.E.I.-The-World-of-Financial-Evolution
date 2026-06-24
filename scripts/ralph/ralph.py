@@ -16,6 +16,8 @@ import dashboard
 # 配置
 MAX_ITERATIONS = 200
 TIMEOUT_SECONDS = 30 * 60
+# Windows: 隐藏子进程控制台窗口，避免每轮 claude.exe 弹黑窗；非 Windows 为 0（无标志）
+POPEN_CREATIONFLAGS = getattr(subprocess, "CREATE_NO_WINDOW", 0)
 
 # Agent 选择：支持 "claude"（默认）或 "codex"
 # 用法：python ralph.py [codex]
@@ -86,7 +88,8 @@ def run_developer(iteration: int) -> bool:
     try:
         process = subprocess.Popen(
             cmd,
-            cwd=str(PROJECT_ROOT)
+            cwd=str(PROJECT_ROOT),
+            creationflags=POPEN_CREATIONFLAGS
         )
 
         start_time = time.time()
@@ -134,7 +137,8 @@ def run_validator(iteration: int, current_story_id: str | None = None) -> None:
     try:
         process = subprocess.Popen(
             cmd,
-            cwd=str(PROJECT_ROOT)
+            cwd=str(PROJECT_ROOT),
+            creationflags=POPEN_CREATIONFLAGS
         )
 
         start_time = time.time()
@@ -225,7 +229,8 @@ def main():
                 cwd=str(frontend_dir),
                 shell=True,
                 stdout=subprocess.DEVNULL,
-                stderr=subprocess.DEVNULL
+                stderr=subprocess.DEVNULL,
+                creationflags=POPEN_CREATIONFLAGS
             )
             time.sleep(3) # 等待启动完成
         except Exception as e:
