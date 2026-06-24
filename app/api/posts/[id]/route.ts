@@ -14,7 +14,7 @@ export async function GET(_req: Request, { params }: { params: Promise<{ id: str
       _count: { select: { comments: true, stars: true } },
     },
   });
-  if (!post || post.status !== 'published') {
+  if (!post || post.status !== 'published' || post.deletedAt) {
     return NextResponse.json({ error: '内容不存在或未发布' }, { status: 404 });
   }
 

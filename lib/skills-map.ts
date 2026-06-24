@@ -21,7 +21,7 @@ export type SkillsMapStats = {
 
 export async function getSkillsMap() {
   const posts = await prisma.post.findMany({
-    where: { status: POST_STATUS.PUBLISHED, skillAsset: { isNot: null } },
+    where: { status: POST_STATUS.PUBLISHED, deletedAt: null, skillAsset: { isNot: null } },
     include: {
       author: { select: { id: true, nickname: true, role: true, avatarUrl: true } },
       skillAsset: true,

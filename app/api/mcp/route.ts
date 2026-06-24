@@ -91,10 +91,10 @@ function makeHandler(uid: number) {
 
           const post = await prisma.post.findUnique({
             where: { id: args.id },
-            select: { title: true, body: true, tagScene: true, status: true,
+            select: { title: true, body: true, tagScene: true, status: true, deletedAt: true,
               skillAsset: { select: { assetType: true, sourceUrl: true } } },
           });
-          if (!post || post.status !== POST_STATUS.PUBLISHED) {
+          if (!post || post.status !== POST_STATUS.PUBLISHED || post.deletedAt) {
             return { content: [{ type: 'text' as const, text: '未找到该 Skill' }] };
           }
           const text = extractPlainText(post.body);

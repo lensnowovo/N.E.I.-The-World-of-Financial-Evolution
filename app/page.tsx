@@ -22,11 +22,12 @@ export default async function HomePage({ searchParams }: { searchParams: Promise
   const [items, totalSkills, workflowCount] = await Promise.all([
     fetchFeed(query, uid),
     prisma.post.count({
-      where: { status: POST_STATUS.PUBLISHED, skillAsset: { isNot: null } },
+      where: { status: POST_STATUS.PUBLISHED, deletedAt: null, skillAsset: { isNot: null } },
     }),
     prisma.post.count({
       where: {
         status: POST_STATUS.PUBLISHED,
+        deletedAt: null,
         skillAsset: { is: { assetType: 'workflow' } },
       },
     }),

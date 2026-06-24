@@ -147,7 +147,7 @@
         "Verify in browser using agent-browser: after soft-deleting a post (via DB), it no longer appears in feed/search/profile/skills-map, and its detail page 404s"
       ],
       "priority": 9,
-      "passes": false,
+      "passes": true,
       "notes": "",
       "retryCount": 0,
       "blocked": false

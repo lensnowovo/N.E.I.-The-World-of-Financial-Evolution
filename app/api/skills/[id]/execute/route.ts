@@ -28,9 +28,9 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
   // 查 post
   const post = await prisma.post.findUnique({
     where: { id },
-    select: { body: true, status: true, title: true },
+    select: { body: true, status: true, title: true, deletedAt: true },
   });
-  if (!post || post.status !== POST_STATUS.PUBLISHED) {
+  if (!post || post.status !== POST_STATUS.PUBLISHED || post.deletedAt) {
     return Response.json({ error: '内容不存在' }, { status: 404 });
   }
 

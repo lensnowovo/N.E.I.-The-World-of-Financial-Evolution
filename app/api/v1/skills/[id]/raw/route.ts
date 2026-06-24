@@ -24,7 +24,7 @@ export async function GET(req: Request, { params }: { params: Promise<{ id: stri
       skillAsset: { select: { assetType: true } },
     },
   });
-  if (!post || post.status !== POST_STATUS.PUBLISHED) {
+  if (!post || post.status !== POST_STATUS.PUBLISHED || post.deletedAt) {
     return NextResponse.json({ error: '内容不存在或未发布' }, { status: 404 });
   }
 

@@ -73,7 +73,7 @@ export default async function DashboardPage() {
   // Get titles for top skills
   const topPostIds = topSkillsLogs.map((s) => s.postId!).filter(Boolean);
   const topPosts = topPostIds.length > 0
-    ? await prisma.post.findMany({ where: { id: { in: topPostIds } }, select: { id: true, title: true } })
+    ? await prisma.post.findMany({ where: { id: { in: topPostIds }, deletedAt: null }, select: { id: true, title: true } })
     : [];
   const titleMap = new Map(topPosts.map((p) => [p.id, p.title]));
 

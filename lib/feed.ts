@@ -31,7 +31,7 @@ export type FeedQuery = {
  */
 export function buildFeedWhere(query: Pick<FeedQuery, 'scene' | 'industry' | 'skill' | 'role' | 'time' | 'q'>) {
   const { scene, industry, skill, role, time, q } = query;
-  const where: any = { status: POST_STATUS.PUBLISHED };
+  const where: any = { status: POST_STATUS.PUBLISHED, deletedAt: null };
   if (scene && sceneVals.includes(scene)) where.tagScene = scene;
   if (industry && industryVals.includes(industry)) where.tagIndustry = industry;
   if (skill && skillVals.includes(skill)) where.tagSkill = skill;

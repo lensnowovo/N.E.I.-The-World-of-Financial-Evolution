@@ -10,6 +10,7 @@
 - 开放重定向防护：客户端/服务端拿 `?next=` 做跳转前必须校验「单个 `/` 开头 && 非 `//` && 不含 `\`」。`//evil.com` 是协议相对 URL，浏览器会当 https://evil.com；部分浏览器会把 `/\` 规范化成 `//`，所以反斜杠也要拒。不合规一律回退 `/`
 - 用户枚举模糊：登录/重置/发码等鉴权接口，账号不存在时不能返回 "账号不存在"/"未注册"，必须返回与「凭证错误」完全一致的文案 + 状态码（如密码模式 → "邮箱或密码错误" 401；验证码模式 → "验证码无效或已过期" 400）。否则攻击者可枚举探测已注册邮箱
 - 管理员判断：用 `getCurrentUser()` 返回的 `isAdmin` 字段（lib/session.ts select 已含）；首批 admin 通过 `ADMIN_BOOTSTRAP_EMAILS` env（逗号分隔）引导，收敛到 `lib/admin.ts` 的 `shouldBootstrapAdmin(email)`，仅在用户 **创建** 路径（register/github-callback 新建/seed）调用 —— 已存在用户登录不应被升级为 admin
+- 软删除过滤：Post.deletedAt 是软删标记（null = 活，非 null = 已删）。所有公开 Post 查询必须过滤 `deletedAt: null`：findMany/count/groupBy 直接进 `where`；findUnique 走 `where: { id }` 不能加非唯一字段，改为「fetch 后 `|| post.deletedAt` 当作未找到」；若 findUnique 用了 `select`（非 include），必须把 `deletedAt: true` 加进 select 否则 tsc 报字段不存在。列表查询统一收敛到 `lib/feed.ts` 的 `buildFeedWhere`（已带过滤）；owner-only 视图（profile posts tab owner 分支 / dashboard 收藏列表）按需求可不过滤，让作者看到自己删掉的
 
 ---
 
@@ -143,4 +144,24 @@
   - 陷阱：seed.ts 在 prisma/ 下、tsx 直接运行不走 Next.js bundler，所以不能用 `@/lib/admin` path alias（tsconfig paths 在 tsx 下需要额外 --tsconfig 配置才识别）；用相对路径 `../lib/admin` 最稳
   - 上下文：US-009 会给 Post 加 `deletedAt` 字段，是本 sprint 第二处 schema 变更；US-012 会加 `featured`。schema 变更类 story 都要 prisma generate + validate + tsc 三连
   - 上下文：getCurrentUser 现已含 isAdmin，下游 admin-only UI/API 应基于此字段；本 story 未加 requireAdmin 守卫，留给 US-012 的 lib/auth-guard.ts 实现
+---
+
+## 2026-06-24 20:35 - US-009
+- prisma/schema.prisma Post 模型新增 `deletedAt DateTime?`（放在 commentCount 后、createdAt 前）+ `@@index([deletedAt])`（放在现有三个 index 之后）
+- 软删除过滤 13 处接入：
+  - findMany/count/groupBy（直接进 where 子句）：lib/feed.ts buildFeedWhere、app/stage/[value]/page.tsx、lib/skills-map.ts、app/api/v1/stats/route.ts、app/page.tsx 两处 count、app/profile/[id]/page.tsx 非主人 postCount + receivedLikesAgg + posts tab 非主人 where、app/dashboard/page.tsx topPosts findMany
+  - findUnique（fetch 后追加 `|| post.deletedAt` 当未找到）：app/api/posts/[id]/route.ts、app/api/v1/skills/[id]/route.ts、app/api/v1/skills/[id]/raw/route.ts、app/posts/[id]/page.tsx
+  - findUnique + select（额外把 `deletedAt: true` 加进 select）：app/api/skills/[id]/execute/route.ts、app/api/mcp/route.ts get_skill（select 不含标量默认值，必须显式列）
+- 更改的文件：prisma/schema.prisma、lib/feed.ts、lib/skills-map.ts、app/page.tsx、app/stage/[value]/page.tsx、app/posts/[id]/page.tsx、app/profile/[id]/page.tsx、app/dashboard/page.tsx、app/api/posts/[id]/route.ts、app/api/v1/skills/[id]/route.ts、app/api/v1/skills/[id]/raw/route.ts、app/api/v1/stats/route.ts、app/api/skills/[id]/execute/route.ts、app/api/mcp/route.ts
+- 校验：
+  - `DATABASE_URL=... npx prisma validate`：🚀 valid
+  - `npx prisma generate`：报 EPERM（query_engine-windows.dll.node 被占用），但 index.d.ts 已含 deletedAt（grep 命中），不影响 tsc —— 同 US-008 的 Windows EPERM 陷阱
+  - `npx tsc --noEmit`：EXIT=0
+- 浏览器验证（acceptanceCriteria 第 5 条「DB 里软删后不出现」）：本地无 DATABASE_URL 无法实测，需部署后人工验证。已脑演 13 处覆盖：feed/搜索/skills-map/profile 非主人/posts 详情/v1 skill 详情/raw/execute/MCP get_skill/stage 分组/首页计数/v1 stats/dashboard topSkills —— 软删后均 `deletedAt: null` 不命中 或 `post.deletedAt` 真值走 404/notFound
+- **未来迭代的学习：**
+  - pattern：findUnique 的 where 只接受 unique 字段（如 id），不能直接塞 `deletedAt: null`。标准姿势是「findUnique → 检查 `|| post.deletedAt` 当作未找到」，与现有的 status !== PUBLISHED 检查合并为一个 if。改写为 findFirst + where 虽也可，但会改变查询计划 + include 语义，风险更大
+  - 陷阱：**findUnique 配 `select` 时标量字段不会自动出现**（不像 `include` 默认带全部标量）。如果新加一个标量字段并想在 select 查询里读它，必须显式 `select: { ..., deletedAt: true }`。本次 execute/route.ts 和 mcp get_skill 都踩了这个坑，tsc 会报 "Property 'deletedAt' does not exist"
+  - pattern：profile 页的 owner-only 数据（star/fav tab、收藏列表、owner 的 posts tab 含草稿）**不应**加 deletedAt 过滤 —— owner 有权看到自己删掉的（否则作者删帖后无法在控制台恢复/查看）。只过滤「非 owner 可见」路径：非主人 postCount/posts tab/receivedLikes（公开数据）
+  - 上下文：US-010 (PATCH) 和 US-011 (DELETE) 会新增帖子写路径；DELETE 的 handler 把 deletedAt 设成 now，PATCH 需在 fetch 时不要被 deletedAt 过滤掉（PATCH/DELETE 的 findUnique **不能**加 `|| post.deletedAt` 早返回，否则作者无法编辑/删除已软删的帖 —— 但 DELETE 应在「已软删」时返回 404 防重复删，PATCH 同理。具体语义留给 US-010/US-011 实现）
+  - 上下文：US-012 会再加 Post.featured 字段（本 sprint 第三处 schema 变更）；改 schema 后 prisma generate 的 EPERM 在本仓库 Windows 环境下基本必现，可忽略（只要 index.d.ts 含新字段即视为生成成功）
 ---

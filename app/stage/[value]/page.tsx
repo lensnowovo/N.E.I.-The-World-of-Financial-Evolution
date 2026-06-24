@@ -41,7 +41,7 @@ export default async function StagePage({
 
   // 查询该阶段所有场景的内容
   let posts = await prisma.post.findMany({
-    where: { status: POST_STATUS.PUBLISHED, tagScene: { in: [...scenes] } },
+    where: { status: POST_STATUS.PUBLISHED, deletedAt: null, tagScene: { in: [...scenes] } },
     include: {
       author: { select: { id: true, nickname: true, role: true, avatarUrl: true } },
       _count: { select: { comments: true, stars: true, attachments: true } },

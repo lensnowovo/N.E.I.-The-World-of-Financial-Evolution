@@ -50,13 +50,13 @@ export default async function ProfilePage({
   const [postCount, starCount, favCount, receivedLikesAgg, followersCount, followingCount, myFollowRow] =
     await Promise.all([
       prisma.post.count({
-        where: isOwner ? { userId: id } : { userId: id, status: 'published' },
+        where: isOwner ? { userId: id } : { userId: id, status: 'published', deletedAt: null },
       }),
       isOwner ? prisma.postFavorite.count({ where: { userId: id } }) : Promise.resolve(0),
       isOwner ? prisma.postFavorite.count({ where: { userId: id } }) : Promise.resolve(0),
-      // 该用户所有已发布卷收到的点赞合计
+      // 该用户所有已发布卷收到的点赞合计（对外公开，需排除软删除帖）
       prisma.postFavorite.count({
-        where: { post: { userId: id, status: 'published' } },
+        where: { post: { userId: id, status: 'published', deletedAt: null } },
       }),
       // 粉丝数
       prisma.userFollow.count({ where: { followeeId: id } }),
@@ -75,7 +75,7 @@ export default async function ProfilePage({
   /* —— 取该 Tab 对应的内容 —— */
   let posts: any[] = [];
   if (tab === 'posts') {
-    const where = isOwner ? { userId: id } : { userId: id, status: 'published' };
+    const where = isOwner ? { userId: id } : { userId: id, status: 'published', deletedAt: null };
     posts = await prisma.post.findMany({
       where,
       include: {

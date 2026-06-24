@@ -10,7 +10,7 @@ import { SCENE_TAGS, SKILL_TAGS } from '@/lib/tags';
  * 调用方能用来展示「这里有多少内容」「哪个场景最丰富」。
  */
 export async function GET() {
-  const where = { status: POST_STATUS.PUBLISHED, skillAsset: { isNot: null } };
+  const where = { status: POST_STATUS.PUBLISHED, deletedAt: null, skillAsset: { isNot: null } };
 
   const [totalSkills, bySceneRaw, bySkillRaw] = await Promise.all([
     prisma.post.count({ where }),

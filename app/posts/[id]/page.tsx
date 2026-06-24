@@ -42,7 +42,7 @@ export default async function PostDetailPage({
       _count: { select: { comments: true, stars: true } },
     },
   });
-  if (!post || post.status !== POST_STATUS.PUBLISHED) notFound();
+  if (!post || post.status !== POST_STATUS.PUBLISHED || post.deletedAt) notFound();
 
   const me = await getCurrentUser();
   const uid = me?.id ?? null;
