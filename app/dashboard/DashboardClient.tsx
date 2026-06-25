@@ -26,6 +26,14 @@ type Stats = {
   sleeping: { postId: number; title: string }[];
 };
 
+type OverviewStats = {
+  favoriteCount: number;
+  publishedCount: number;
+  receivedFavoritesCount: number;
+  viewSum: number;
+  mcpCallsCount: number;
+};
+
 const SCENE_LABELS: Record<string, string> = {
   sourcing: '项目发现', screening: '初筛判断', 'industry-research': '行业研究',
   'business-dd': '商业尽调', financial: '财务分析', legal: '法务合规',
@@ -35,17 +43,19 @@ const SCENE_LABELS: Record<string, string> = {
 export function DashboardClient({
   initialItems,
   initialStats,
+  overviewStats,
   hasMcpToken,
   hasApiKey,
   userId,
 }: {
   initialItems: FavItem[];
   initialStats: Stats;
+  overviewStats: OverviewStats;
   hasMcpToken: boolean;
   hasApiKey: boolean;
   userId: number;
 }) {
-  const [tab, setTab] = useState<'skills' | 'connect'>('skills');
+  const [tab, setTab] = useState<'overview' | 'stars' | 'mine' | 'mcp'>('overview');
   const [items, setItems] = useState(initialItems);
   const [stats] = useState(initialStats);
   const [mcpToken, setMcpToken] = useState('');
@@ -102,8 +112,10 @@ export function DashboardClient({
       {/* Tabs */}
       <div className="flex items-center gap-1 mb-6 border-b border-paper-edge">
         {([
-          ['skills', 'Skill 库'],
-          ['connect', '连接状态'],
+          ['overview', '概览'],
+          ['stars', '我的收藏'],
+          ['mine', '我的发布'],
+          ['mcp', 'MCP 连接'],
         ] as const).map(([key, label]) => (
           <button
             key={key}
@@ -121,8 +133,27 @@ export function DashboardClient({
         ))}
       </div>
 
-      {/* Tab: Skill 库（含使用统计） */}
-      {tab === 'skills' && (
+      {/* Tab: 概览（5 个数据卡片） */}
+      {tab === 'overview' && (
+        <div className="space-y-6">
+          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3">
+            <StatCard label="我的收藏" value={overviewStats.favoriteCount} />
+            <StatCard label="我的发布" value={overviewStats.publishedCount} />
+            <StatCard label="被收藏" value={overviewStats.receivedFavoritesCount} accent="wax-red" />
+            <StatCard label="被浏览" value={overviewStats.viewSum} />
+            <StatCard label="MCP 调用" value={overviewStats.mcpCallsCount} />
+          </div>
+          <div className="border border-paper-edge bg-vellum rounded-md py-10 px-8 text-center">
+            <p className="font-serif italic text-leather text-lg mb-2">欢迎来到你的控制台</p>
+            <p className="font-sans text-sm text-sepia">
+              在「我的收藏」管理 Skill 库，在「我的发布」维护你的帖子，在「MCP 连接」配置 AI 客户端访问。
+            </p>
+          </div>
+        </div>
+      )}
+
+      {/* Tab: 我的收藏（沿用原 Skill 库内容，含使用统计） */}
+      {tab === 'stars' && (
         <div>
           {/* 使用统计（紧凑横条） */}
           {stats.totalCalls > 0 && (
@@ -197,8 +228,16 @@ export function DashboardClient({
         </div>
       )}
 
-      {/* Tab: 连接状态 */}
-      {tab === 'connect' && (
+      {/* Tab: 我的发布（DASH-002 将实现完整列表 + 编辑/删除入口） */}
+      {tab === 'mine' && (
+        <div className="border border-paper-edge bg-vellum rounded-md py-14 px-8 text-center">
+          <p className="font-serif italic text-leather text-lg mb-2">我的发布</p>
+          <p className="font-sans text-sm text-sepia">即将上线：在这里管理你发布的 Skill。</p>
+        </div>
+      )}
+
+      {/* Tab: MCP 连接（沿用原 connect 内容） */}
+      {tab === 'mcp' && (
         <div className="space-y-6">
           {/* MCP */}
           <div className="rounded-lg border-2 border-gilded/40 bg-gilded/5 p-5">
@@ -261,6 +300,25 @@ export function DashboardClient({
           </Link>
         </div>
       )}
+    </div>
+  );
+}
+
+function StatCard({
+  label,
+  value,
+  accent,
+}: {
+  label: string;
+  value: number;
+  accent?: 'wax-red';
+}) {
+  return (
+    <div className="border border-paper-edge bg-vellum rounded-md p-4 text-center">
+      <p className={cn('font-serif text-2xl num-osf', accent === 'wax-red' ? 'text-wax-red' : 'text-ink-brown')}>
+        {value}
+      </p>
+      <p className="font-sans text-xs text-sepia mt-1">{label}</p>
     </div>
   );
 }

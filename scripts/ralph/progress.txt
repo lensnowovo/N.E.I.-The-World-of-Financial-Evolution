@@ -578,3 +578,32 @@
   - 上下文：未来若要加 rate limit（防恶意刷举报），可复用 lib/rate-limit.ts 的 checkRateLimit，按 uid 维度限流（如每用户每天最多 10 条举报）。本 story 不加避免误伤正常用户，依赖登录门槛（401）做基础防刷
   - 上下文：Sprint 1x 至此全部 11 个 story 完成（SEC-001~SEC-011），MCP 安全体系闭环：schema 字段 → MCP 准入过滤 → 安全前缀 → GLM 扫描 → 管理员审核 → Token 溯源 → 调用日志 → 编辑重审 → 举报机制
 ---
+
+## 2026-06-25 21:30 - DASH-001
+- app/dashboard/page.tsx：server 端 Promise.all 新增 5 个概览统计查询（favoriteCount / publishedCount / receivedFavoritesAgg / viewSumAgg / mcpCallsCount），组成 overviewStats prop 传给 client
+  - 收藏数：postFavorite.count({ where: { userId: uid } })
+  - 发布数：post.count({ where: { userId: uid, status: PUBLISHED, deletedAt: null } })（严格过滤软删 + published，符合 codebase patterns）
+  - 被收藏数：postFavorite.count({ where: { post: { userId: uid, status: PUBLISHED, deletedAt: null } } })（聚合关系过滤，复用 app/profile/[id]/page.tsx receivedLikesAgg 同姿势）
+  - 被浏览数：post.aggregate({ where: ..., _sum: { viewCount: true } })（Prisma aggregate，_sum.viewCount 可能为 null → `|| 0` 兜底）
+  - MCP 调用数：mcpCallLog.count({ where: { userId: uid } })（与已有 totalCalls 等价，但保留为 overviewStats 独立字段避免语义耦合）
+- app/dashboard/DashboardClient.tsx：
+  - tab state 从 `'skills' | 'connect'` 重构为 `'overview' | 'stars' | 'mine' | 'mcp'`，默认 tab 改为 'overview'
+  - tab 导航改为 4 个：概览 / 我的收藏 / 我的发布 / MCP 连接
+  - 新增 overview tab：5 个 StatCard（我的收藏/我的发布/被收藏 wax-red 强调/被浏览/MCP 调用）+ 一段引导文案；响应式 grid（2 列 mobile / 3 列 sm / 5 列 lg）
+  - 原 skills tab 内容**不动**，仅 key 从 'skills' 改成 'stars'（PRD 明确要求"复用现有 skills 内容(收藏列表)，不重写"）
+  - 新增 'mine' tab 占位（DASH-002 会实现完整列表 + 编辑/删除入口）
+  - 原 'connect' tab 内容（MCP token + API key form）原样移到 'mcp' tab（避免破坏现有功能，DASH-003 会重写 mcp tab 增强：tokenCreatedAt/tokenLastUsedAt + 调用历史）
+  - 新增 StatCard 子组件：紧凑卡片，font-serif 大数字 + num-osf + 小标签；accent='wax-red' 用 wax-red 色（用于被收藏强调）
+- 更改的文件：app/dashboard/page.tsx、app/dashboard/DashboardClient.tsx
+- 类型检查：`npx tsc --noEmit` EXIT=0（无输出 = 通过；overviewStats prop 类型对齐，StatCard 类型完备）
+- 浏览器验证：本 story 无 "Verify in browser" 验收项；5 个统计查询语句已对齐 acceptanceCriteria 第 2 条的字段映射 + props 传递路径（server 端查 → client 只渲染），需部署后人工验证：（a）登录用户进 /dashboard 看到默认概览 tab；（b）5 个数字符合实际数据（可去 Neon 直查对比）；（c）切到「我的收藏」看到与原 skills tab 完全相同的列表（FavRow + 排序 + 备注不变）；（d）切到「MCP 连接」看到原 connect tab 的 token + API key form 不变；（e）「我的发布」显示占位
+- **未来迭代的学习：**
+  - pattern：4 tab 重构的标准姿势 —— server page 只加统计查询，client component 改 tab 类型 + 导航数组 + 加新 tab JSX，原 tab 内容**原样复用**只改 key（避免重写带来回归风险）。新 tab（mine/mcp 增强）留给后续 story 实现
+  - pattern：Prisma aggregate 求和 `_sum.field` 返回 `T | null`（空表时为 null），消费时必须 `|| 0` 兜底，否则 num-osf 渲染会报 null。本次 viewSum 走 `viewSumAgg._sum.viewCount || 0`
+  - pattern：聚合「我的帖被收藏总数」用 `postFavorite.count({ where: { post: { userId: me, ... } } })` 而非两段查询（先查我的 postId 再 count favorite）—— 单 SQL JOIN 比两次 round-trip 高效，且与 app/profile/[id]/page.tsx 的 receivedLikesAgg 同 pattern，codebase 一致
+  - 陷阱：原 'connect' tab 包含 MCP token + API key form 两块功能，PRD 把 connect 改名 mcp 时不能直接删 —— API key form 也是用户配置数据。本 story 把整段 connect 内容（含 API key）原样移到 mcp tab，等 DASH-003 增强（加 tokenCreatedAt/调用历史）；API key form 后续是否拆出另议
+  - 陷阱：StatCard 的 accent prop 必须用字面量联合 `'wax-red'` 而非 `string`，否则 cn() 的条件分支失去类型守护；本次 accent === 'wax-red' 精确比较，未来加新色（如 'moss'）扩展联合类型即可
+  - 上下文：DASH-002（我的发布 tab）会在 'mine' 分支替换占位为 post 列表 + 编辑/删除入口；server page 需要再 Promise.all 新增 myPosts 查询
+  - 上下文：DASH-003（MCP 连接 tab 增强）会扩展 userWithKey select 加上 tokenCreatedAt / tokenLastUsedAt（SEC-008 已有字段），并新增 mcpCallLog.findMany 取最近 10 条调用历史；server page 再次扩展 Promise.all
+  - 上下文：UPLOAD-001/002 是发布表单 + AI 接口，与 dashboard 无关，可独立推进
+---

@@ -19,6 +19,47 @@ export default async function DashboardPage() {
   const hasApiKey = !!userWithKey?.apiKeyEnc;
   const hasMcpToken = !!userWithKey?.mcpTokenHash;
 
+  // DASH-001 概览统计：5 个数据卡片（server 端查好一次性传给 client）
+  const [
+    favoriteCount,
+    publishedCount,
+    receivedFavoritesAgg,
+    viewSumAgg,
+    mcpCallsCount,
+  ] = await Promise.all([
+    // 1. 我的收藏数
+    prisma.postFavorite.count({ where: { userId: uid } }),
+    // 2. 我的发布数（仅 published + 未软删）
+    prisma.post.count({
+      where: { userId: uid, status: POST_STATUS.PUBLISHED, deletedAt: null },
+    }),
+    // 3. 被收藏数：我的帖被收藏的总数（聚合 postFavorite join post where userId=me）
+    prisma.postFavorite.count({
+      where: {
+        post: {
+          userId: uid,
+          status: POST_STATUS.PUBLISHED,
+          deletedAt: null,
+        },
+      },
+    }),
+    // 4. 被浏览数：我的帖 viewCount 求和
+    prisma.post.aggregate({
+      where: { userId: uid, status: POST_STATUS.PUBLISHED, deletedAt: null },
+      _sum: { viewCount: true },
+    }),
+    // 5. MCP 调用数
+    prisma.mcpCallLog.count({ where: { userId: uid } }),
+  ]);
+
+  const overviewStats = {
+    favoriteCount,
+    publishedCount,
+    receivedFavoritesCount: receivedFavoritesAgg,
+    viewSum: viewSumAgg._sum.viewCount || 0,
+    mcpCallsCount,
+  };
+
   // 收藏列表（带 sortOrder + note）
   const favs = await prisma.postFavorite.findMany({
     where: { userId: uid },
@@ -104,6 +145,7 @@ export default async function DashboardPage() {
       <DashboardClient
         initialItems={items}
         initialStats={stats}
+        overviewStats={overviewStats}
         hasMcpToken={hasMcpToken}
         hasApiKey={hasApiKey}
         userId={uid}
