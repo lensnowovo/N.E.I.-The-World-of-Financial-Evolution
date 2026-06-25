@@ -14,10 +14,32 @@ export default async function DashboardPage() {
 
   const userWithKey = await prisma.user.findUnique({
     where: { id: uid },
-    select: { apiKeyEnc: true, mcpTokenHash: true },
+    select: {
+      apiKeyEnc: true,
+      mcpTokenHash: true,
+      tokenCreatedAt: true,
+      tokenLastUsedAt: true,
+    },
   });
   const hasApiKey = !!userWithKey?.apiKeyEnc;
   const hasMcpToken = !!userWithKey?.mcpTokenHash;
+  const mcpTokenCreatedAt = userWithKey?.tokenCreatedAt?.toISOString() ?? null;
+  const mcpTokenLastUsedAt = userWithKey?.tokenLastUsedAt?.toISOString() ?? null;
+
+  // DASH-003 MCP 调用历史：最近 10 条（server 端查好传给 client）
+  const mcpCallLogsRaw = await prisma.mcpCallLog.findMany({
+    where: { userId: uid },
+    orderBy: { createdAt: 'desc' },
+    take: 10,
+    select: { id: true, tool: true, postId: true, clientName: true, createdAt: true },
+  });
+  const mcpCallLogs = mcpCallLogsRaw.map((l) => ({
+    id: l.id,
+    tool: l.tool,
+    postId: l.postId,
+    clientName: l.clientName,
+    createdAt: l.createdAt.toISOString(),
+  }));
 
   // DASH-001 概览统计：5 个数据卡片（server 端查好一次性传给 client）
   const [
@@ -170,6 +192,9 @@ export default async function DashboardPage() {
         myPosts={myPosts}
         hasMcpToken={hasMcpToken}
         hasApiKey={hasApiKey}
+        mcpTokenCreatedAt={mcpTokenCreatedAt}
+        mcpTokenLastUsedAt={mcpTokenLastUsedAt}
+        mcpCallLogs={mcpCallLogs}
         userId={uid}
       />
     </div>

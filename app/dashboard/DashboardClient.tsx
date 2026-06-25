@@ -43,6 +43,14 @@ type MyPost = {
   updatedAt: string;
 };
 
+type McpCallLog = {
+  id: number;
+  tool: string;
+  postId: number | null;
+  clientName: string | null;
+  createdAt: string;
+};
+
 const SCENE_LABELS: Record<string, string> = {
   sourcing: '项目发现', screening: '初筛判断', 'industry-research': '行业研究',
   'business-dd': '商业尽调', financial: '财务分析', legal: '法务合规',
@@ -56,6 +64,9 @@ export function DashboardClient({
   myPosts,
   hasMcpToken,
   hasApiKey,
+  mcpTokenCreatedAt,
+  mcpTokenLastUsedAt,
+  mcpCallLogs,
   userId,
 }: {
   initialItems: FavItem[];
@@ -64,6 +75,9 @@ export function DashboardClient({
   myPosts: MyPost[];
   hasMcpToken: boolean;
   hasApiKey: boolean;
+  mcpTokenCreatedAt: string | null;
+  mcpTokenLastUsedAt: string | null;
+  mcpCallLogs: McpCallLog[];
   userId: number;
 }) {
   const [tab, setTab] = useState<'overview' | 'stars' | 'mine' | 'mcp'>('overview');
@@ -71,9 +85,41 @@ export function DashboardClient({
   const [stats] = useState(initialStats);
   const [mcpToken, setMcpToken] = useState('');
   const [mcpGenerating, setMcpGenerating] = useState(false);
+  // DASH-003: token 状态跟随服务端传入；生成/撤销后本地翻转
+  const [mcpActive, setMcpActive] = useState(hasMcpToken);
+  const [mcpRevoking, setMcpRevoking] = useState(false);
   const [apiKey, setApiKey] = useState('');
   const [keySaving, setKeySaving] = useState(false);
   const [msg, setMsg] = useState<{ ok: boolean; text: string } | null>(null);
+
+  // 生成 / 重新生成 MCP token
+  const generateMcpToken = useCallback(async () => {
+    setMcpGenerating(true);
+    try {
+      const r = await fetch('/api/users/me/mcp-token', { method: 'POST' });
+      const d = await r.json();
+      if (r.ok) {
+        setMcpToken(d.token);
+        setMcpActive(true);
+      }
+    } finally {
+      setMcpGenerating(false);
+    }
+  }, []);
+
+  // 撤销 MCP token
+  const revokeMcpToken = useCallback(async () => {
+    setMcpRevoking(true);
+    try {
+      const r = await fetch('/api/users/me/mcp-token', { method: 'DELETE' });
+      if (r.ok) {
+        setMcpActive(false);
+        setMcpToken('');
+      }
+    } finally {
+      setMcpRevoking(false);
+    }
+  }, []);
 
   // Group by scene
   const grouped = new Map<string, FavItem[]>();
@@ -261,7 +307,7 @@ export function DashboardClient({
         </div>
       )}
 
-      {/* Tab: MCP 连接（沿用原 connect 内容） */}
+      {/* Tab: MCP 连接（DASH-003：token 状态 + 生成/撤销 + 调用历史） */}
       {tab === 'mcp' && (
         <div className="space-y-6">
           {/* MCP */}
@@ -270,28 +316,67 @@ export function DashboardClient({
             {mcpToken ? (
               <div className="space-y-2">
                 <div className="p-3 rounded border border-gilded bg-vellum">
-                  <p className="font-sans text-xs text-leather mb-1">MCP Token（只显示一次）：</p>
+                  <p className="font-sans text-xs text-leather mb-1">MCP Token（只显示一次，请立即复制保存）：</p>
                   <code className="font-mono text-sm text-ink-brown break-all">{mcpToken}</code>
                 </div>
                 <Button type="button" variant="secondary" onClick={() => navigator.clipboard.writeText(mcpToken)}>复制 Token</Button>
                 <Link href="/mcp" className="ml-2 inline-flex items-center h-9 px-4 border border-paper-edge text-sm font-serif rounded-sm">配置指南 →</Link>
               </div>
-            ) : hasMcpToken ? (
-              <div className="flex items-center gap-3">
-                <span className="inline-flex items-center gap-1.5 h-9 px-4 border border-moss/40 bg-moss/5 text-moss text-sm font-sans rounded-sm">
-                  ✓ 已配置
-                </span>
-                <button type="button" onClick={async () => { setMcpGenerating(true); const r = await fetch('/api/users/me/mcp-token', { method: 'POST' }); const d = await r.json(); setMcpGenerating(false); if (r.ok) setMcpToken(d.token); }} disabled={mcpGenerating} className="text-sm text-wax-red hover:underline font-sans">
-                  {mcpGenerating ? '生成中…' : '重新生成'}
-                </button>
-                <Link href="/mcp" className="text-sm text-leather hover:text-ink-brown font-serif italic">配置指南 →</Link>
+            ) : mcpActive ? (
+              <div className="space-y-3">
+                <div className="flex items-center gap-3 flex-wrap">
+                  <span className="inline-flex items-center gap-1.5 h-9 px-4 border border-moss/40 bg-moss/5 text-moss text-sm font-sans rounded-sm">
+                    ✓ 已配置
+                  </span>
+                  <Button type="button" onClick={generateMcpToken} disabled={mcpGenerating} variant="secondary">
+                    {mcpGenerating ? '生成中…' : '重新生成'}
+                  </Button>
+                  <button
+                    type="button"
+                    onClick={revokeMcpToken}
+                    disabled={mcpRevoking}
+                    className="text-sm text-wax-red hover:underline font-sans disabled:opacity-50"
+                  >
+                    {mcpRevoking ? '撤销中…' : '撤销 Token'}
+                  </button>
+                  <Link href="/mcp" className="text-sm text-leather hover:text-ink-brown font-serif italic">配置指南 →</Link>
+                </div>
+                {/* Token 元信息 */}
+                <div className="flex flex-wrap gap-x-6 gap-y-1 text-xs">
+                  {mcpTokenCreatedAt && (
+                    <span className="font-sans text-sepia">
+                      创建时间：<span className="font-mono text-leather">{formatTime(mcpTokenCreatedAt)}</span>
+                    </span>
+                  )}
+                  {mcpTokenLastUsedAt ? (
+                    <span className="font-sans text-sepia">
+                      最近使用：<span className="font-mono text-leather">{formatTime(mcpTokenLastUsedAt)}</span>
+                    </span>
+                  ) : (
+                    <span className="font-sans text-sepia italic">尚未使用</span>
+                  )}
+                </div>
               </div>
             ) : (
               <div>
                 <p className="font-sans text-xs text-leather mb-3">让你的 AI 客户端直接搜索和调用 N.E.I. 的 Skill</p>
-                <Button type="button" onClick={async () => { setMcpGenerating(true); const r = await fetch('/api/users/me/mcp-token', { method: 'POST' }); const d = await r.json(); setMcpGenerating(false); if (r.ok) setMcpToken(d.token); }} disabled={mcpGenerating}>
+                <Button type="button" onClick={generateMcpToken} disabled={mcpGenerating}>
                   {mcpGenerating ? '生成中…' : '生成 MCP Token'}
                 </Button>
+              </div>
+            )}
+          </div>
+
+          {/* MCP 调用历史（最近 10 条） */}
+          <div className="rounded-lg border border-paper-edge bg-vellum/40 p-5">
+            <h3 className="font-serif text-base text-ink-brown mb-3">最近调用</h3>
+            {mcpCallLogs.length === 0 ? (
+              <p className="font-sans text-sm text-sepia italic">还没有 MCP 调用记录。配置 Token 后通过 AI 客户端调用 Skill 会出现在这里。</p>
+            ) : (
+              <div className="space-y-1.5">
+                {mcpCallLogs.map((log) => (
+                  <McpCallLogRow key={log.id} log={log} />
+                ))}
               </div>
             )}
           </div>
@@ -448,6 +533,38 @@ function MyPostRow({ post }: { post: MyPost }) {
           编辑
         </Link>
       </div>
+    </div>
+  );
+}
+
+function McpCallLogRow({ log }: { log: McpCallLog }) {
+  const toolLabel = log.tool === 'search_skills'
+    ? '搜索 Skill'
+    : log.tool === 'get_skill'
+      ? '获取详情'
+      : log.tool === 'list_my_skills'
+        ? '列出收藏'
+        : log.tool;
+  return (
+    <div className="flex items-center gap-3 text-xs py-1 border-b border-paper-edge/50 last:border-b-0">
+      {/* 工具 */}
+      <span className="font-mono text-leather shrink-0 w-24 truncate">{toolLabel}</span>
+      {/* Post 链接 */}
+      {log.postId ? (
+        <Link href={`/posts/${log.postId}`} className="text-ink-brown hover:text-wax-red underline shrink-0">
+          #{log.postId}
+        </Link>
+      ) : (
+        <span className="font-sans text-sepia/60 shrink-0">—</span>
+      )}
+      {/* 客户端 */}
+      {log.clientName && (
+        <span className="font-sans text-sepia truncate flex-1 min-w-0 hidden sm:inline" title={log.clientName}>
+          {log.clientName}
+        </span>
+      )}
+      {/* 时间 */}
+      <span className="font-mono text-sepia shrink-0 ml-auto">{formatTime(log.createdAt)}</span>
     </div>
   );
 }

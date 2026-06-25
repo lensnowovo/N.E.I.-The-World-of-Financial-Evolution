@@ -626,3 +626,25 @@
   - 上下文：DASH-003 会复用本 story 的 props 模式扩展 user select（tokenCreatedAt/tokenLastUsedAt）+ mcpCallLog.findMany 取最近 10 条调用历史；myPosts 查询不影响 DASH-003 的查询逻辑，两者独立
   - 上下文：tsconfig 未开 noUnusedLocals，DashboardClient 原有 `useEffect` import 未使用但不会 fail typecheck；本 story 不动该 import 避免无关 diff
 ---
+
+## 2026-06-25 14:50 - DASH-003
+- MCP 连接 tab 重构：token 状态(已配置/未配置) + 生成/重新生成/撤销 三个按钮 + 创建时间/最近使用时间显示 + 最近 10 条调用历史
+- app/dashboard/page.tsx：扩展 user select 加 tokenCreatedAt/tokenLastUsedAt；新增 mcpCallLog.findMany (where userId=me orderBy createdAt desc take 10, select tool/postId/clientName/createdAt) 转 ISO 字符串后通过 props 传给 client
+- app/dashboard/DashboardClient.tsx：
+  - 新增 McpCallLog type + 3 个 props (mcpTokenCreatedAt / mcpTokenLastUsedAt / mcpCallLogs)
+  - 新增 mcpActive / mcpRevoking 本地 state（生成/撤销后翻转，避免依赖 server refresh）
+  - 抽 generateMcpToken / revokeMcpToken 两个 useCallback，撤销调 DELETE /api/users/me/mcp-token（之前 UI 只能生成不能撤销）
+  - 已配置分支新增元信息行：创建时间、最近使用（无则显示「尚未使用」）
+  - 新增独立「最近调用」卡片，复用 mcpCallLogs，空态文案提示去配置 Token
+  - 新增 McpCallLogRow 子组件：tool 列做中文 label 映射(search_skills→搜索 Skill / get_skill→获取详情 / list_my_skills→列出收藏)，postId 渲染成可点链接，clientName title 兜底长名，时间走 formatTime
+- 更改的文件：app/dashboard/page.tsx、app/dashboard/DashboardClient.tsx
+- 类型检查：`npx tsc --noEmit` 通过（EXIT=0）
+- 浏览器验证：本地无 DATABASE_URL，UI/调用历史需部署后人工验证；代码实现符合 acceptanceCriteria 4 条描述
+- **未来迭代的学习：**
+  - pattern：server 端 ISO 字符串 + client 直接消费的模式贯穿整个 dashboard（myPosts/overviewStats 都是这套）；新加字段首选沿此路径，避免 client 再加 fetch
+  - pattern：UI 局部状态翻转（mcpActive）配合服务端初始值，避免每次生成/撤销后整页 refresh —— POST 成功设 true、DELETE 成功设 false；明文 token 仅 setMcpToken（只显示一次，刷新后消失符合语义）
+  - 陷阱：撤销按钮若复用 generateMcpToken 那种「成功后 setMcpToken(d.token)」会出错（DELETE 无返回 token），所以 revoke 单独写一个 handler；POST/DELETE 响应 shape 不同
+  - 上下文：McpCallLog 的 tool 字段是 mcp-handler 注册的三个工具名(search_skills/get_skill/list_my_skills)，未来加新工具时 McpCallLogRow 的中文映射需同步更新
+  - 上下文：/api/users/me/mcp-token 的 POST 会同时更新 tokenCreatedAt，但不会更新 tokenLastUsedAt（后者在 MCP 鉴权成功时由 /api/mcp/route.ts 写入）—— UI 显示「尚未使用」时反映这一不变量
+---
+
