@@ -70,6 +70,11 @@ model Post {
   deletedAt    DateTime? // 软删除标记；null = 未删除，非 null = 已删除（不公开可见）
   featured     Boolean  @default(false) // 管理员精选标记；US-012，首页 FeaturedWorkflows 读此字段
   featuredOrder Int    @default(0)      // 精选排序（管理员拖拽控制首页顺序；0 = 默认按时间）
+  // --- Sprint 1x MCP 安全字段（SEC-001）---
+  mcpApproved   Boolean  @default(false) // 是否允许进 MCP；只有 true 的 skill 才通过 app/api/mcp/route.ts 返回
+  reviewFlag    String?  // 审核标记/原因（GLM 安全扫描或人工标记，管理员可见）
+  securityLevel String   @default("safe") // safe | suspicious | reject（GLM 安全扫描结论）
+  version       Int      @default(1) // skill 版本；编辑触发 +1 且 mcpApproved=false（防 Rug Pull，见 SEC-010）
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt
 
