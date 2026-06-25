@@ -50,7 +50,7 @@ export default async function ProfilePage({
   const [postCount, starCount, favCount, receivedLikesAgg, followersCount, followingCount, myFollowRow] =
     await Promise.all([
       prisma.post.count({
-        where: isOwner ? { userId: id } : { userId: id, status: 'published', deletedAt: null },
+        where: isOwner ? { userId: id, deletedAt: null } : { userId: id, status: 'published', deletedAt: null },
       }),
       isOwner ? prisma.postFavorite.count({ where: { userId: id } }) : Promise.resolve(0),
       isOwner ? prisma.postFavorite.count({ where: { userId: id } }) : Promise.resolve(0),
