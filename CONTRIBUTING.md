@@ -1,6 +1,10 @@
 # Contributing to N.E.I. / nei-pevc.com
 
-欢迎参与 N.E.I.。这个项目面向 PE / VC / FA / 产业投资等一级市场从业者，目标是把高频投资工作流沉淀成可搜索、可收藏、可通过 MCP 调用的 AI Skill 与 Workflow。
+欢迎参与 N.E.I. / `nei-pevc.com`。
+
+N.E.I. 是 New Era Investor 的缩写，是由 jammyssy 发起和组建的新一代投资人社群，目前已经聚集 500+ 位关注一级市场、AI 工具、投资工作流和机构效率提升的从业者与实践者。
+
+`nei-pevc.com` 是 N.E.I. 社群生态下的 PEVC AI 产品线，面向 PE / VC / FA / 产业投资等一级市场从业者，目标是把高频投资工作流沉淀成可搜索、可收藏、可通过 MCP 调用的 AI Skill 与 Workflow。
 
 如果你是第一次用 GitHub，不用紧张。你不需要一开始就会写代码，也可以贡献内容、场景和使用反馈。
 
