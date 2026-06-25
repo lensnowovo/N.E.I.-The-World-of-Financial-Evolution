@@ -25,7 +25,6 @@ model User {
   githubId        String?   @unique
   githubAvatarUrl String?
   githubUsername  String?
-  isAdmin      Boolean  @default(false)
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt
 
