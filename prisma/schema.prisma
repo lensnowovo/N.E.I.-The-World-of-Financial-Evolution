@@ -176,15 +176,19 @@ model PostFavorite {
 
 // ---------- MCP 调用日志 ----------
 model McpCallLog {
-  id        Int      @id @default(autoincrement())
-  userId    Int
-  postId    Int?
-  tool      String
-  createdAt DateTime @default(now())
+  id         Int      @id @default(autoincrement())
+  userId     Int
+  postId     Int?
+  tool       String
+  createdAt  DateTime @default(now())
+  clientName String? // SEC-009: 调用方 User-Agent，便于溯源哪个客户端
+  latencyMs  Int? // SEC-009: tool 执行耗时（毫秒）
+  requestId  String? // SEC-009: 同请求多 tool 共享的随机 id（crypto.randomUUID）
 
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@index([userId])
+  @@index([requestId])
 }
 
 // ---------- API 观测样本（管理员 dashboard「服务器压力」用）----------
