@@ -90,18 +90,24 @@ const SYSTEM_PROMPT = `你是一个 PEVC（私募股权/风险投资）Skill 资
 重要：tagSkill 和 tagScene 必须严格用上面列出的 value（英文），不要用中文 label。
 只返回 JSON 对象，不要任何解释或 markdown 代码块标记。`;
 
-export async function transcribeSkill(url: string): Promise<TranscribedSkill> {
+/**
+ * 把一段内容文本喂给 GLM，按 SYSTEM_PROMPT 生成结构化 skill 资产字段。
+ * 内部共享函数：被 transcribeSkill（GitHub URL 抓取）和 transcribeUploadedFile（前端直接上传 .md 内容）复用。
+ *
+ * sourceLabel 是给 GLM 看的来源说明行（如 "源链接：https://..." 或 "来源：用户本地上传"），
+ * 不影响输出结构，仅用于让模型理解内容来源。
+ */
+async function runTranscription(
+  content: string,
+  fileName: string,
+  sourceLabel: string,
+): Promise<Omit<TranscribedSkill, 'originalAuthor'>> {
   if (!isAiEnabled()) {
     throw new Error('AI 转写未配置：需要设置 GLM_API_KEY');
   }
 
-  const fetched = await fetchGitHubContent(url);
-  if (!fetched) {
-    throw new Error('无法获取 GitHub 内容，请确认是公开仓库的文件链接');
-  }
-
   // 限制输入长度，避免超大文件
-  const content = fetched.text.slice(0, 30000);
+  const trimmed = content.slice(0, 30000);
 
   const text = await glmChat({
     jsonMode: true,
@@ -111,7 +117,7 @@ export async function transcribeSkill(url: string): Promise<TranscribedSkill> {
       { role: 'system', content: SYSTEM_PROMPT },
       {
         role: 'user',
-        content: `源文件名：${fetched.fileName}\n源链接：${url}\n\n--- 原文开始 ---\n${content}\n--- 原文结束 ---`,
+        content: `源文件名：${fileName}\n${sourceLabel}\n\n--- 原文开始 ---\n${trimmed}\n--- 原文结束 ---`,
       },
     ],
   });
@@ -149,8 +155,31 @@ export async function transcribeSkill(url: string): Promise<TranscribedSkill> {
     tagContent,
     installHint: parsed.installHint ? String(parsed.installHint).slice(0, 2000) : null,
     shouldAttach: !!parsed.shouldAttach,
-    originalAuthor: extractOriginalAuthor(url),
   };
+}
+
+export async function transcribeSkill(url: string): Promise<TranscribedSkill> {
+  const fetched = await fetchGitHubContent(url);
+  if (!fetched) {
+    throw new Error('无法获取 GitHub 内容，请确认是公开仓库的文件链接');
+  }
+
+  const base = await runTranscription(fetched.text, fetched.fileName, `源链接：${url}`);
+  return { ...base, originalAuthor: extractOriginalAuthor(url) };
+}
+
+/**
+ * 用户本地上传的 .md / .markdown / .txt 文件 → GLM 读内容 → 结构化 skill 资产字段。
+ * 与 transcribeSkill 同一套 SYSTEM_PROMPT 与校验兜底逻辑，仅来源不同：
+   - 没有 GitHub 抓取步骤（content 由前端 FileReader 读好后直接传入）
+   - originalAuthor 留空（上传文件没有可推断的原作者）
+ */
+export async function transcribeUploadedFile(
+  content: string,
+  fileName: string,
+): Promise<TranscribedSkill> {
+  const base = await runTranscription(content, fileName, '来源：用户本地上传');
+  return { ...base, originalAuthor: null };
 }
 
 /** 从 GitHub URL 提取 owner 并友好化作为原作者 */
@@ -170,6 +199,21 @@ export async function transcribeWithSource(url: string): Promise<{
   const skill = await transcribeSkill(url);
   const sourceContent = await fetchGitHubContent(url);
   return { skill, sourceContent };
+}
+
+/**
+ * 上传文件版本的 transcribeWithSource：把前端传来的原文一并返回，
+ * 让 route handler 决定是否存为附件（与 transcribeWithSource 对称）。
+ */
+export async function transcribeUploadedWithSource(
+  content: string,
+  fileName: string,
+): Promise<{
+  skill: TranscribedSkill;
+  sourceContent: { text: string; fileName: string };
+}> {
+  const skill = await transcribeUploadedFile(content, fileName);
+  return { skill, sourceContent: { text: content, fileName } };
 }
 
 /* ============================================================
