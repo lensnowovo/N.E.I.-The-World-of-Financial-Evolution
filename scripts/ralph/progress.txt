@@ -324,3 +324,21 @@
   - 上下文：SEC-003 会在 app/api/mcp/route.ts 的 5 个 tool 查询 where 都加 `mcpApproved: true`。SEC-004 会新建 lib/mcp-safety.ts 包裹 MCP 返回内容。SEC-006 会在发帖流程调 GLM 写入 securityLevel + reviewFlag。SEC-007 会在 /admin 控制台加 mcpApproved 切换按钮。SEC-010 会在 PATCH 帖子时 `version: { increment: 1 }` + `mcpApproved: false`
   - 陷阱：4 字段未加 `@@index` —— mcpApproved 选择性低（绝大多数待审=false，少数审核通过=true），b-tree 帮不上查询；SEC-003 的 MCP where 即便全表扫也够快（Sprint 1x 量级）。若未来 skill 池过万再考虑组合索引（mcpApproved, deletedAt, status）
 ---
+
+## 2026-06-25 11:46 - SEC-002
+- 新增 scripts/migrate-mcp-approved.ts：把满足「author email = library@pevc.local OR featured=true」且 published 且未软删且当前 mcpApproved=false 的 post 批量设 mcpApproved=true
+- 实现要点：
+  - 查 library 用户 id → 构造 where（OR [{userId: libId}, {featured: true}] AND published AND deletedAt:null AND mcpApproved:false）
+  - findMany 先打印候选清单（含 id/title/featured 命中维度计数）便于审计
+  - updateMany 用同一 where 批量更新 → 幂等（where 含 mcpApproved:false，已 true 的不会被动）
+  - 未找到 library 账号时 graceful 降级：仅按 featured=true 迁移（warn 提示）
+- 更改的文件：scripts/migrate-mcp-approved.ts（新增）
+- 校验：`npx tsc --noEmit` EXIT=0
+- 浏览器验证：本 story 是一次性数据迁移脚本，无 "Verify in browser" 验收项；幂等性 + 不误改由 where 子句保证（mcpApproved:false + OR library-user/featured 条件）。需部署后在 Neon 上 `set -a; source .env.local; set +a && npx tsx scripts/migrate-mcp-approved.ts` 人工验证更新行数
+- **未来迭代的学习：**
+  - pattern：所有 import-* 脚本（import-skills / import-batch2/3/4 / import-pharma-skill / import-storm / import-mcp-setup-prompt）统一用 `library@pevc.local` 作为搬运者账号 —— 这是「官方/可信来源」的稳定标识。未来新增导入脚本应保持这一约定，否则 SEC-002 的迁移逻辑会漏判
+  - pattern：Prisma updateMany 配 where 做「批量条件更新」是最简洁的幂等迁移姿势 —— where 自带「未满足条件的不动」语义，不需要先 select-then-loop-update。配合 findMany（同 where）做前置打印，便于审计与回滚
+  - 陷阱：OR 子句里引用 library userId 前必须先确认 library 用户存在（findUnique）；若 library 账号尚未 seed 进 DB，`OR: [{userId: undefined}]` 会被 Prisma 拒绝（类型错）或被忽略（运行时），所以用 `...(libraryUser ? [...] : [])` 条件 spread 兜底
+  - 陷阱：批量迁移脚本不要忘了 `status: 'published'` 与 `deletedAt: null` 过滤 —— 草稿/已拒/软删的帖子即便 author 是 library 也不应进 MCP（前者未公开，后者已下架）。codebase 的 deletedAt 软删 pattern（见顶部 Codebase Patterns）在这类批量更新里同样必须遵守
+  - 上下文：SEC-003 会在 MCP route 的 5 个 tool 查询 where 都加 `mcpApproved: true`；本 story 的迁移脚本保证现有官方 skill 在 SEC-003 上线后仍可被 MCP 返回（否则全部被过滤 → MCP 空）。两个 story 强耦合，部署时 SEC-002 必须先于 SEC-003 跑
+---
