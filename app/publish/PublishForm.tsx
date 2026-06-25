@@ -304,17 +304,23 @@ export function PublishForm({ currentUser }: { currentUser: CurrentUser }) {
             }
           }}
           className={cn(
-            'rounded border-2 border-dashed p-6 text-center transition-colors',
+            'w-full rounded-md border-2 border-dashed px-6 py-8 text-center transition-colors',
             dragOver
               ? 'border-ink-brown bg-parchment'
-              : 'border-paper-edge bg-vellum/40 hover:border-sepia',
+              : 'border-paper-edge bg-vellum hover:border-sepia',
             uploading && 'opacity-60 pointer-events-none',
           )}
         >
-          <p className="font-serif text-sm text-leather mb-1">
-            {uploading ? 'AI 读取中…' : '把 SKILL.md / .md / .txt 拖到这里'}
+          <div className="flex justify-center mb-3 text-leather" aria-hidden="true">
+            <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5">
+              <path d="M12 16V4M12 4l-4 4M12 4l4 4" strokeLinecap="round" strokeLinejoin="round" />
+              <path d="M4 16v2a2 2 0 002 2h12a2 2 0 002-2v-2" strokeLinecap="round" strokeLinejoin="round" />
+            </svg>
+          </div>
+          <p className="font-serif text-base text-ink-brown mb-1">
+            {uploading ? 'AI 读取中…' : '把 SKILL.md 拖到这里'}
           </p>
-          <p className="font-serif italic text-[11px] text-sepia mb-3">
+          <p className="font-serif italic text-xs text-sepia mb-3">
             AI 会读内容自动填好标题、分类和介绍，你 review 后再发布
           </p>
           <label

@@ -213,6 +213,9 @@ export async function transcribeUploadedWithSource(
   sourceContent: { text: string; fileName: string };
 }> {
   const skill = await transcribeUploadedFile(content, fileName);
+  // 用户主动上传文件（.md/.txt）→ 一定是 file 分支（文件型 skill），
+  // 不让 AI 自由判 branch（曾出现 SKILL.md 被误判成 prompt）
+  skill.branch = 'file';
   return { skill, sourceContent: { text: content, fileName } };
 }
 
