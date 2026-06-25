@@ -216,6 +216,8 @@ export async function transcribeUploadedWithSource(
   // 用户主动上传文件（.md/.txt）→ 一定是 file 分支（文件型 skill），
   // 不让 AI 自由判 branch（曾出现 SKILL.md 被误判成 prompt）
   skill.branch = 'file';
+  // 上传的文件本身就是 skill 资产，必须存为附件（让用户能下载原文）
+  skill.shouldAttach = true;
   return { skill, sourceContent: { text: content, fileName } };
 }
 
