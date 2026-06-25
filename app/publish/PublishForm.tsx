@@ -518,6 +518,20 @@ function stripHtml(html: string): string {
     .trim();
 }
 
+/** Promise 包装的 FileReader.readAsText，UTF-8 解码本地 .md/.txt 文件 */
+function readFileAsText(file: File): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => {
+      const result = reader.result;
+      if (typeof result === 'string') resolve(result);
+      else reject(new Error('文件读取失败'));
+    };
+    reader.onerror = () => reject(reader.error || new Error('文件读取失败'));
+    reader.readAsText(file, 'utf-8');
+  });
+}
+
 function branchLabel(b: Branch): string {
   return b === 'prompt' ? '提示词' : b === 'file' ? 'Skill 文件' : '方法论';
 }
@@ -548,6 +562,10 @@ function BranchPicker({
   const [importing, setImporting] = useState(false);
   const [importErr, setImportErr] = useState('');
 
+  // —— 上传 SKILL.md 自动填 ——
+  const [uploading, setUploading] = useState(false);
+  const [uploadErr, setUploadErr] = useState('');
+
   const onImport = async () => {
     setImportErr('');
     const url = ghUrl.trim();
@@ -571,6 +589,43 @@ function BranchPicker({
       setImporting(false);
     }
   };
+
+  /** 选本地 .md/.markdown/.txt 文件 → FileReader 读文本 → POST /api/ai/transcribe-file → 预填表单 */
+  const onFilePick = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    setUploadErr('');
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    // 大小校验，防上传超大文件卡住 AI 转写
+    if (file.size > 1024 * 1024) {
+      setUploadErr('文件过大，请控制在 1MB 以内');
+      e.target.value = '';
+      return;
+    }
+
+    setUploading(true);
+    try {
+      const content = await readFileAsText(file);
+      const res = await fetch('/api/ai/transcribe-file', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ content, fileName: file.name }),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        setUploadErr(data.error || '读取失败');
+        return;
+      }
+      onTranscribe(data);
+    } catch {
+      setUploadErr('网络错误，请重试');
+    } finally {
+      setUploading(false);
+      e.target.value = ''; // 清空 input 让用户能重选同一文件
+    }
+  };
+
+  const busy = importing || uploading;
 
   const cards: {
     branch: Branch;
@@ -657,7 +712,7 @@ function BranchPicker({
           <button
             type="button"
             onClick={onImport}
-            disabled={importing || !ghUrl.trim()}
+            disabled={busy || !ghUrl.trim()}
             className="inline-flex items-center gap-1.5 h-10 px-5 bg-gilded text-vellum hover:bg-ink-brown disabled:opacity-50 disabled:cursor-not-allowed font-serif text-sm rounded-sm transition-colors shrink-0"
           >
             {importing ? 'AI 转写中…' : 'AI 导入'}
@@ -668,6 +723,39 @@ function BranchPicker({
         )}
         <p className="mt-2 font-serif italic text-[11px] text-sepia">
           贴一个公开的 GitHub 文件链接，AI 会抓取内容并自动填好标题、分类和介绍，你 review 后再发布
+        </p>
+      </div>
+
+      {/* —— 或者：上传本地 SKILL.md / .md / .txt 文件 —— */}
+      <div className="mt-4">
+        <div className="flex items-center gap-3 mb-4">
+          <span className="flex-1 h-px bg-paper-edge" />
+          <span className="font-serif italic text-xs text-sepia">或者，上传本地文件自动填</span>
+          <span className="flex-1 h-px bg-paper-edge" />
+        </div>
+        <label
+          className={cn(
+            'flex items-center justify-center gap-1.5 h-10 px-5 rounded-sm cursor-pointer transition-colors',
+            'border border-paper-edge bg-vellum text-leather hover:border-ink-brown hover:text-ink-brown',
+            busy && 'opacity-50 cursor-not-allowed',
+          )}
+        >
+          <span className="font-serif text-sm">
+            {uploading ? 'AI 读取中…' : '选择 .md / .markdown / .txt 文件'}
+          </span>
+          <input
+            type="file"
+            accept=".md,.markdown,.txt"
+            className="hidden"
+            onChange={onFilePick}
+            disabled={busy}
+          />
+        </label>
+        {uploadErr && (
+          <p className="mt-2 font-sans text-xs text-wax-red">{uploadErr}</p>
+        )}
+        <p className="mt-2 font-serif italic text-[11px] text-sepia">
+          选一个本地 SKILL.md / .md / .txt，AI 会读内容自动填好标题、分类和介绍，你 review 后再发布
         </p>
       </div>
     </div>

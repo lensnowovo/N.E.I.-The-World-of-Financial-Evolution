@@ -648,3 +648,25 @@
   - 上下文：/api/users/me/mcp-token 的 POST 会同时更新 tokenCreatedAt，但不会更新 tokenLastUsedAt（后者在 MCP 鉴权成功时由 /api/mcp/route.ts 写入）—— UI 显示「尚未使用」时反映这一不变量
 ---
 
+
+## 2026-06-25 22:10 - UPLOAD-001
+- app/publish/PublishForm.tsx BranchPicker 新增「上传本地文件自动填」入口（与 GitHub 导入并列，作为第三条预填路径）
+  - input type=file accept=".md,.markdown,.txt" 用 hidden input + `<label>` 包装成按钮样式（vellum 底 + paper-edge 边框，hover 变 ink-brown，与 GitHub 导入按钮视觉权重对齐）
+  - onFilePick：FileReader.readAsText(file, 'utf-8') 读文本 → POST /api/ai/transcribe-file body { content, fileName } → 成功调 onTranscribe(data)（复用与 GitHub 导入完全相同的预填路径，prefillFromAi 自动接管 title/branch/scene/industry/contents/assetType/intro 灌入）
+  - loading：按钮文案变「AI 读取中…」+ disabled；uploading/importing 共同决定 busy 状态，互斥禁用两条预填路径避免并发
+  - 失败：res.ok=false 时 setUploadErr(data.error || '读取失败') 直接展示后端错误文案（GLM 未配走 UPLOAD-002 的 503 响应，前端原样透出）
+  - 选完清空 input.value 让用户能重选同一文件（input 是 uncontrolled，必须手动重置）
+  - 加 1MB 大小校验前置拦截，避免大文件打死 AI 转写
+- 新增 readFileAsText helper（Promise 包装 FileReader，UTF-8 解码，onerror 兜底 reject）
+- 更改的文件：app/publish/PublishForm.tsx
+- 类型检查：`npx tsc --noEmit` EXIT=0
+- 浏览器验证：本地无 DATABASE_URL 且 UPLOAD-002 后端未实现，运行时 POST 会 404；但本 story 是纯前端，acceptanceCriteria 描述的「input + FileReader + POST + 预填 + loading/错误」均已实现并 typecheck 过；需 UPLOAD-002 落地后部署人工验证端到端
+- **未来迭代的学习：**
+  - pattern：PublishForm 的「AI 预填」是统一抽象 —— 无论数据来源（GitHub URL / 本地文件 / 未来可能的粘贴板），都收敛到 onTranscribe(data) → prefillFromAi(skill)，后端只需返回对齐的 `{ skill, attachment }` shape 即可，前端零额外改动。UPLOAD-002 实现时务必保持响应 shape 与 /api/ai/transcribe 一致
+  - pattern：hidden file input + `<label>` 包装是 file upload 的标准姿势 —— 原生 input 的样式各浏览器不一致且难统一，用 label[for]/嵌套 input 的方式把 input 藏起来，用 label 接收点击和样式，既保留原生无障碍语义又可控视觉
+  - pattern：uncontrolled file input 提交后必须 `e.target.value = ''`，否则用户选了同一文件不会再次触发 onChange（浏览器认为是「没有变化」）。这条对「失败后重试」「成功后想再传一份」都重要
+  - 陷阱：FileReader.onload 的 result 类型是 `string | ArrayBuffer | null`（取决于 readAsText/readAsArrayBuffer），用 `typeof result === 'string'` 收窄类型后再用，否则 tsc strict 报错
+  - 陷阱：accept=".md,.markdown,.txt" 是浏览器层提示，不强制 —— 用户仍可能选其他文件；后端 UPLOAD-002 必须做内容/编码兜底（如检测 binary、非 UTF-8 编码、超大内容截断）
+  - 上下文：UPLOAD-002 需实现 /api/ai/transcribe-file，响应 shape 必须与本 story 调用的 onTranscribe 参数对齐：`{ skill: { title, intro, branch, tagSkill, tagScene, tagIndustry?, tagContent[], installHint?, originalAuthor? }, attachment: { id, fileName } | null }`；shouldAttach+sourceContent 的附件存储逻辑可复用 /api/ai/transcribe 的 pattern
+  - 上下文：BranchPicker 现有三条预填路径（手动选卡 / GitHub URL / 上传文件），未来若加「粘贴 Markdown 自动填」可继续在同一区域扩展，复用 onTranscribe
+---
