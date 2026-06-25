@@ -607,3 +607,22 @@
   - 上下文：DASH-003（MCP 连接 tab 增强）会扩展 userWithKey select 加上 tokenCreatedAt / tokenLastUsedAt（SEC-008 已有字段），并新增 mcpCallLog.findMany 取最近 10 条调用历史；server page 再次扩展 Promise.all
   - 上下文：UPLOAD-001/002 是发布表单 + AI 接口，与 dashboard 无关，可独立推进
 ---
+
+## 2026-06-25 09:45 - DASH-002
+- 实现「我的发布」tab：列出当前登录用户 published 且未软删的帖子，每条带标题/场景/浏览数/更新时间 + 「编辑」入口 + 列表底部「删除提示」
+- app/dashboard/page.tsx：新增 `prisma.post.findMany({ where: { userId: uid, status: PUBLISHED, deletedAt: null }, orderBy: { updatedAt: 'desc' }, take: 50 })`，select id/title/tagScene/viewCount/updatedAt，updatedAt 转 ISO 字符串后传给 client（避免 Date 跨网络序列化问题，client 端 formatTime 接收 string）
+- app/dashboard/DashboardClient.tsx：
+  - 新增 `MyPost` 类型 + `myPosts` prop
+  - 替换原 'mine' tab 占位为完整列表：空态引导去 /publish；有数据时渲染 MyPostRow + 底部「联系管理员」删除提示（软删除走 /admin，普通用户没有直接删除接口）
+  - 新增 `MyPostRow` 子组件：标题 Link 到 /posts/[id]（hover wax-red）+ 场景中文（SCENE_LABELS fallback 到原值）+ viewCount + formatTime(updatedAt) + 「编辑」链接到 /posts/[id]/edit（US-013 已有的 EditForm）
+- 更改的文件：app/dashboard/page.tsx、app/dashboard/DashboardClient.tsx
+- 类型检查：`npx tsc --noEmit` EXIT=0
+- 浏览器验证：本 story 无 "Verify in browser" 验收项；删除路径走 /admin 软删（普通用户无直接 DELETE /api/posts/[id] 接口，符合 acceptanceCriteria「软删除走 /admin，普通用户删除提示去 /admin 或显示『联系管理员』」）。需部署后人工验证：登录用户进 /dashboard → 我的发布 tab → 看到自己发的帖列表 + 编辑链接可跳 EditForm
+- **未来迭代的学习：**
+  - pattern：「server 查 → props 传 → client 只渲染」三段式在本 codebase 已是惯例（DASH-001/002 一致）；新增列表数据时 server page 加一个 findMany + map 到纯可序列化 shape（Date → ISO string），client 接 prop 类型对齐即可
+  - pattern：编辑入口统一走 `/posts/[id]/edit`（app/posts/[id]/edit/page.tsx + EditForm，US-013 已落地），鉴权用 canEditPost(me.id, { userId: post.userId }, me.isAdmin) —— 普通用户只能编辑自己的，admin 可编辑任何人的，本 story 只需 Link 过去不需重复鉴权
+  - 陷阱：Prisma `updatedAt` 是 Date 对象，直接传 client component 会因 Next.js RSC 序列化在某些场景报警；安全做法是 `.toISOString()` 显式转字符串，client 端 formatTime 本就接 `Date | string`
+  - 陷阱：普通用户删除帖子在本项目**没有**直接 API（软删只在 /admin 管理后台），所以 acceptanceCriteria 的「删除提示」理解为「告知用户去哪删」而非「直接删」，UX 上用列表底部一行 italic 文案 + Link 到 /admin「联系管理员」处理
+  - 上下文：DASH-003 会复用本 story 的 props 模式扩展 user select（tokenCreatedAt/tokenLastUsedAt）+ mcpCallLog.findMany 取最近 10 条调用历史；myPosts 查询不影响 DASH-003 的查询逻辑，两者独立
+  - 上下文：tsconfig 未开 noUnusedLocals，DashboardClient 原有 `useEffect` import 未使用但不会 fail typecheck；本 story 不动该 import 避免无关 diff
+---
