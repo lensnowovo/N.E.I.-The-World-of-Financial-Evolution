@@ -2,7 +2,13 @@
 
 > 面向 PE / VC / FA / 产业投资人的 AI Skill Hub、Prompt Library 与 MCP 工作流平台。
 
-[访问产品](https://nei-pevc.com) · [MCP 配置指南](https://nei-pevc.com/mcp) · [安全与保密原则](https://nei-pevc.com/security)
+## 官方网站
+
+**Production Site: [https://nei-pevc.com](https://nei-pevc.com)**
+
+[访问产品](https://nei-pevc.com) · [MCP 配置指南](https://nei-pevc.com/mcp) · [安全与保密原则](https://nei-pevc.com/security) · [参与贡献](./CONTRIBUTING.md)
+
+本仓库是 `nei-pevc.com` 的唯一主仓库和正式部署仓库。
 
 N.E.I. 不是一个普通 Prompt 站。它试图把一级市场高频工作——BP 初筛、行业研究、商业尽调、财务分析、IC Memo、投后管理、募资 / LP 沟通——沉淀成可搜索、可收藏、可调用、可复用的 AI Skill 与 Workflow。
 
@@ -226,6 +232,19 @@ npm run build
 ```bash
 npm run smoke:public-posts -- --base https://nei-pevc.com
 ```
+
+---
+
+## 如何参与建设
+
+N.E.I. 欢迎两类贡献：
+
+- **内容贡献**：提交 PEVC 场景下可复用的 Prompt、SKILL.md、Workflow、模板、案例和工具组合。
+- **产品 / 代码贡献**：修复 bug、优化页面、补充 MCP 能力、改进安全与运营工具。
+
+如果你是非工程背景，最推荐的路径是：先在网站投稿或在 GitHub Issue 里描述一个真实工作场景；维护者会把它整理成 Skill / Workflow 或产品需求。
+
+完整贡献方式见：[CONTRIBUTING.md](./CONTRIBUTING.md)。
 
 ---
 

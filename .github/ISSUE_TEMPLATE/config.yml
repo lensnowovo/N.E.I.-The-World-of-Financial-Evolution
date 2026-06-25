@@ -1,0 +1,8 @@
+blank_issues_enabled: true
+contact_links:
+  - name: N.E.I. Production Site
+    url: https://nei-pevc.com
+    about: Visit the public product site.
+  - name: MCP Guide
+    url: https://nei-pevc.com/mcp
+    about: Learn how to connect N.E.I. to your AI client.
