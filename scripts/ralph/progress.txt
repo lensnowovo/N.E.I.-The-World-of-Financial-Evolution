@@ -670,3 +670,18 @@
   - 上下文：UPLOAD-002 需实现 /api/ai/transcribe-file，响应 shape 必须与本 story 调用的 onTranscribe 参数对齐：`{ skill: { title, intro, branch, tagSkill, tagScene, tagIndustry?, tagContent[], installHint?, originalAuthor? }, attachment: { id, fileName } | null }`；shouldAttach+sourceContent 的附件存储逻辑可复用 /api/ai/transcribe 的 pattern
   - 上下文：BranchPicker 现有三条预填路径（手动选卡 / GitHub URL / 上传文件），未来若加「粘贴 Markdown 自动填」可继续在同一区域扩展，复用 onTranscribe
 ---
+
+## 2026-06-25 00:00 - UPLOAD-002
+- 新增 app/api/ai/transcribe-file/route.ts POST：接 { content, fileName }，需登录(getSessionUid)；isAiEnabled 未配返回 503；body 解析失败/空内容/超 200KB 返回 400；调 transcribeUploadedWithSource → 复刻 /api/ai/transcribe 的附件存储逻辑(shouldAttach 时把原文存为 postId=null 的 attachment) → 返回 { skill, attachment: {id, fileName} | null }（shape 与 /api/ai/transcribe 完全对齐，前端 prefillFromAi 直接消费）
+- lib/ai.ts 重构：把 transcribeSkill 中「GLM 调用 + 字段校验/兜底」抽成 private runTranscription(content, fileName, sourceLabel)，transcribeSkill 和新加的 transcribeUploadedFile 都复用它（仅来源描述不同：源链接 vs 本地上传），originalAuthor 在 transcribeSkill 中从 URL 提取、在 transcribeUploadedFile 中强制 null
+- 新增 transcribeUploadedWithSource(content, fileName)：返回 { skill, sourceContent: {text, fileName} }，对称于 transcribeWithSource
+- 更改的文件：lib/ai.ts、app/api/ai/transcribe-file/route.ts（新增）、scripts/ralph/prd.json
+- 类型检查：`npx tsc --noEmit` 通过（EXIT=0）
+- 浏览器验证：本地无 DATABASE_URL 无法跑实际 GLM 调用（也无 GLM_API_KEY），需部署后人工验证。已脑演：(a) 前端 PublishForm onFilePick 已在 UPLOAD-001 实现，POST { content, fileName } → 本接口 → prefillFromAi；(b) shouldAttach=true 时 attachment 回填到 files state，发布时通过 attachmentIds 一并提交
+- **未来迭代的学习：**
+  - pattern：上传文件的 AI 转写与 GitHub URL 转写共用同一套 SYSTEM_PROMPT + 字段校验兜底；新增「内容来源」只需写一个新的入口函数 + 调整 sourceLabel，**不要复制粘贴 GLM 调用 + 校验逻辑**（runTranscription 是单一来源）
+  - pattern：/api/ai/transcribe-file 与 /api/ai/transcribe 的 response shape **必须完全一致**（{ skill, attachment }），因为前端 prefillFromAi 不区分两条路径；附件存储逻辑（shouldAttach 时 saveBuffer + prisma.attachment.create with postId=null）也是复刻
+  - 陷阱：transcribeSkill 的 originalAuthor 是从 GitHub URL owner 提取的，上传文件没有 URL → 必须在 transcribeUploadedFile 显式置 null，否则 runTranscription 不知道来源类型会留下 undefined 字段
+  - 上下文：lib/ai.ts 现有三套 LLM 能力（transcribe / suggest / review-safety），加上本 story 的 transcribeUploadedFile 是第四套；所有 LLM 调用都通过 lib/glm.ts 的 glmChat（jsonMode + temperature + maxTokens），失败抛 Error 给调用方转 HTTP 500
+  - 上下文：前端入口在 app/publish/PublishForm.tsx 的 BranchPicker.onFilePick（UPLOAD-001 已加），accept=".md,.markdown,.txt"，1MB 客户端上限；后端 200KB 文本上限是二次保险（防 base64/编码绕过）
+---
