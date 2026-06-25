@@ -73,8 +73,6 @@ model Post {
   featuredOrder Int    @default(0)      // 精选排序（管理员拖拽控制首页顺序；0 = 默认按时间）
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt
-  deletedAt    DateTime?  // 软删除
-  featured     Boolean   @default(false)  // 精选
 
   author       User           @relation(fields: [userId], references: [id])
   comments     Comment[]
