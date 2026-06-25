@@ -60,6 +60,27 @@ export default async function DashboardPage() {
     mcpCallsCount,
   };
 
+  // DASH-002 我的发布：列出当前用户 published 且未软删的帖子，按 updatedAt desc
+  const myPostsRaw = await prisma.post.findMany({
+    where: { userId: uid, status: POST_STATUS.PUBLISHED, deletedAt: null },
+    select: {
+      id: true,
+      title: true,
+      tagScene: true,
+      viewCount: true,
+      updatedAt: true,
+    },
+    orderBy: { updatedAt: 'desc' },
+    take: 50,
+  });
+  const myPosts = myPostsRaw.map((p) => ({
+    id: p.id,
+    title: p.title,
+    tagScene: p.tagScene,
+    viewCount: p.viewCount,
+    updatedAt: p.updatedAt.toISOString(),
+  }));
+
   // 收藏列表（带 sortOrder + note）
   const favs = await prisma.postFavorite.findMany({
     where: { userId: uid },
@@ -146,6 +167,7 @@ export default async function DashboardPage() {
         initialItems={items}
         initialStats={stats}
         overviewStats={overviewStats}
+        myPosts={myPosts}
         hasMcpToken={hasMcpToken}
         hasApiKey={hasApiKey}
         userId={uid}

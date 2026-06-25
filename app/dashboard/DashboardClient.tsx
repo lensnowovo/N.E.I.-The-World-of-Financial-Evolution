@@ -5,6 +5,7 @@ import Link from 'next/link';
 import { cn } from '@/lib/cn';
 import { Button } from '@/components/ui/Button';
 import { Input } from '@/components/ui/Input';
+import { formatTime } from '@/lib/format';
 
 type FavItem = {
   favoriteId: number;
@@ -34,6 +35,14 @@ type OverviewStats = {
   mcpCallsCount: number;
 };
 
+type MyPost = {
+  id: number;
+  title: string;
+  tagScene: string;
+  viewCount: number;
+  updatedAt: string;
+};
+
 const SCENE_LABELS: Record<string, string> = {
   sourcing: '项目发现', screening: '初筛判断', 'industry-research': '行业研究',
   'business-dd': '商业尽调', financial: '财务分析', legal: '法务合规',
@@ -44,6 +53,7 @@ export function DashboardClient({
   initialItems,
   initialStats,
   overviewStats,
+  myPosts,
   hasMcpToken,
   hasApiKey,
   userId,
@@ -51,6 +61,7 @@ export function DashboardClient({
   initialItems: FavItem[];
   initialStats: Stats;
   overviewStats: OverviewStats;
+  myPosts: MyPost[];
   hasMcpToken: boolean;
   hasApiKey: boolean;
   userId: number;
@@ -228,11 +239,25 @@ export function DashboardClient({
         </div>
       )}
 
-      {/* Tab: 我的发布（DASH-002 将实现完整列表 + 编辑/删除入口） */}
+      {/* Tab: 我的发布（DASH-002：我发的帖 + 编辑入口 / 删除提示） */}
       {tab === 'mine' && (
-        <div className="border border-paper-edge bg-vellum rounded-md py-14 px-8 text-center">
-          <p className="font-serif italic text-leather text-lg mb-2">我的发布</p>
-          <p className="font-sans text-sm text-sepia">即将上线：在这里管理你发布的 Skill。</p>
+        <div>
+          {myPosts.length === 0 ? (
+            <div className="border border-paper-edge bg-vellum rounded-md py-14 px-8 text-center">
+              <p className="font-serif italic text-leather text-lg mb-2">还没有发布内容</p>
+              <p className="font-sans text-sm text-sepia mb-6">分享你的知识，让同行看见你的专业</p>
+              <Link href="/publish" className="inline-flex items-center h-9 px-4 bg-ink-brown text-vellum font-serif text-sm rounded-sm">去发布</Link>
+            </div>
+          ) : (
+            <div className="space-y-2">
+              {myPosts.map((p) => (
+                <MyPostRow key={p.id} post={p} />
+              ))}
+              <p className="mt-4 font-sans text-xs text-sepia italic">
+                需要删除已发布的内容？<Link href="/admin" className="text-leather hover:text-ink-brown underline">联系管理员</Link>，或在帖子详情页右上角操作中提交处理。
+              </p>
+            </div>
+          )}
         </div>
       )}
 
@@ -388,6 +413,41 @@ function FavRow({
       ) : item.note ? (
         <p className="mt-1.5 font-sans text-xs text-leather italic pl-7">💬 {item.note}</p>
       ) : null}
+    </div>
+  );
+}
+
+function MyPostRow({ post }: { post: MyPost }) {
+  const sceneLabel = SCENE_LABELS[post.tagScene] || post.tagScene;
+  return (
+    <div className="border border-paper-edge bg-vellum/60 rounded p-3 hover:border-sepia transition-colors">
+      <div className="flex items-center gap-3">
+        {/* 标题 */}
+        <Link href={`/posts/${post.id}`} className="font-serif text-sm text-ink-brown hover:text-wax-red flex-1 min-w-0 truncate">
+          {post.title}
+        </Link>
+
+        {/* 场景 */}
+        <span className="font-sans text-[11px] text-leather shrink-0 hidden sm:inline">
+          {sceneLabel}
+        </span>
+
+        {/* 浏览数 + 更新时间 */}
+        <span className="font-mono text-[10px] text-sepia shrink-0 hidden md:inline">
+          {post.viewCount} 次浏览
+        </span>
+        <span className="font-mono text-[10px] text-sepia shrink-0">
+          {formatTime(post.updatedAt)}
+        </span>
+
+        {/* 编辑入口 */}
+        <Link
+          href={`/posts/${post.id}/edit`}
+          className="text-xs text-wax-red hover:underline font-sans shrink-0"
+        >
+          编辑
+        </Link>
+      </div>
     </div>
   );
 }
