@@ -34,7 +34,13 @@ async function getUidFromRequest(req: Request): Promise<number | null> {
     where: { mcpTokenHash: hash },
     select: { id: true },
   });
-  return user?.id ?? null;
+  if (!user) return null;
+  // SEC-008: 鉴权成功后 fire-and-forget 更新 token 最后使用时间（不阻塞请求）；
+  // 失败静默吞掉 —— 这只是可观测性字段，绝不能影响 MCP 主流程
+  void prisma.user
+    .update({ where: { id: user.id }, data: { tokenLastUsedAt: new Date() } })
+    .catch(() => {});
+  return user.id;
 }
 
 /** 把 tagContent（JSON string）安全解析成 string[] */

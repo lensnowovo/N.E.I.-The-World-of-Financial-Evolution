@@ -18,9 +18,13 @@ export async function POST() {
   const plain = 'nei_' + crypto.randomBytes(16).toString('hex');
   const hash = crypto.createHash('sha256').update(plain).digest('hex');
 
+  // SEC-008: 记录 token 创建时间，便于排查泄露；tokenLastUsedAt 在首次 MCP 鉴权时写入
   await prisma.user.update({
     where: { id: uid },
-    data: { mcpTokenHash: hash },
+    data: {
+      mcpTokenHash: hash,
+      tokenCreatedAt: new Date(),
+    },
   });
 
   return NextResponse.json({ token: plain });
