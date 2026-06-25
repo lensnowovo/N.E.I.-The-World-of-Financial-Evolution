@@ -64,7 +64,7 @@ export async function POST(req: Request) {
     if (!user.passwordHash) {
       const limited = onAuthFail();
       if (limited) return limited;
-      return NextResponse.json({ error: '该账号未设置密码，请使用其他方式登录' }, { status: 400 });
+      return NextResponse.json({ error: '该账号通过 GitHub 或邮箱验证码创建，请切换到对应方式登录（上方「验证码登录」标签或 GitHub 按钮）' }, { status: 400 });
     }
     const ok = await bcrypt.compare(password, user.passwordHash);
     if (!ok) {

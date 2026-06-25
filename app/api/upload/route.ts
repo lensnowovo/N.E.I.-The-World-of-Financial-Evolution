@@ -3,7 +3,7 @@ import { prisma } from '@/lib/db';
 import { getSessionUid } from '@/lib/session';
 import { saveBuffer } from '@/lib/storage';
 
-const MAX_SIZE = 100 * 1024 * 1024;
+const MAX_SIZE = 20 * 1024 * 1024;
 
 const ALLOWED_EXT = new Set([
   'pdf', 'docx', 'doc', 'xlsx', 'xls', 'pptx', 'ppt',
@@ -20,7 +20,7 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: '未提交文件' }, { status: 400 });
   }
   if (file.size > MAX_SIZE) {
-    return NextResponse.json({ error: '单文件不能超过 100 MB' }, { status: 400 });
+    return NextResponse.json({ error: '单文件不能超过 20 MB' }, { status: 400 });
   }
   const ext = file.name.split('.').pop()?.toLowerCase() ?? '';
   if (!ALLOWED_EXT.has(ext)) {
