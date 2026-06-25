@@ -4,6 +4,10 @@ import { prisma } from '@/lib/db';
 import { saveBuffer } from '@/lib/storage';
 import { transcribeUploadedWithSource, isAiEnabled } from '@/lib/ai';
 
+// GLM 转写 .md（长正文 + 生成多字段）耗时较长，给到 Vercel hobby 上限 60s
+// （lib/glm.ts TIMEOUT_MS=55s 留 5s 余量返回错误，避免被 Vercel 硬杀成 500）
+export const maxDuration = 60;
+
 /**
  * POST /api/ai/transcribe-file
  *

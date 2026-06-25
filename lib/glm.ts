@@ -13,7 +13,9 @@
 // 标准按量计费账户则改 GLM_BASE_URL 为 /paas/v4。
 const DEFAULT_BASE_URL = 'https://open.bigmodel.cn/api/coding/paas/v4';
 const DEFAULT_MODEL = 'glm-4.6';
-const TIMEOUT_MS = 30_000;
+// transcribe/assist 需要读较长正文 + 生成多字段，glm-4.6 在 Coding Plan 上偶有
+// reasoning 耗时，30s 不够；放宽到 55s，配合 route 侧 maxDuration=60（Vercel hobby 上限）。
+const TIMEOUT_MS = 55_000;
 
 export function isGlmEnabled(): boolean {
   return !!process.env.GLM_API_KEY;
