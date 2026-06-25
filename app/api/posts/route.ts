@@ -6,6 +6,7 @@ import { POST_STATUS } from '@/lib/status';
 import { SCENE_TAGS, INDUSTRY_TAGS, CONTENT_TAGS, SKILL_TAGS } from '@/lib/tags';
 import { buildFeedWhere, fetchUserStars, filterByContent, normalizeSort, sortPosts } from '@/lib/feed';
 import { withMetrics } from '@/lib/metrics';
+import { reviewPostSafety } from '@/lib/ai';
 
 // Used by POST handler for validation
 const sceneVals: string[] = SCENE_TAGS.map((t) => t.value);
@@ -132,6 +133,27 @@ async function createPost(req: Request) {
 
   const safeBody = sanitizeHtml(body);
 
+  // SEC-006：投稿 GLM 安全扫描。GLM 未配置或调用失败时 graceful 降级（默认 safe），
+  // 绝不阻塞发帖主流程。verdict 决定 status / reviewFlag / securityLevel：
+  //   safe       → status=published，无 reviewFlag
+  //   suspicious → status=published（仍公开），reviewFlag=reason 管理员可见，securityLevel=suspicious
+  //   reject     → status=pending（不公开），reviewFlag=reason，securityLevel=reject
+  let verdict: 'safe' | 'suspicious' | 'reject' = 'safe';
+  let reason = '';
+  try {
+    const review = await reviewPostSafety({ title, body: stripHtml(safeBody) });
+    verdict = review.verdict;
+    reason = review.reason;
+  } catch (e) {
+    // GLM 未配置 / 超时 / 限流 / 解析失败等：默认 safe，仅 console.error
+    console.error('[SEC-006] reviewPostSafety failed, fallback to safe:', e);
+  }
+
+  const initialStatus =
+    verdict === 'reject' ? POST_STATUS.PENDING : POST_STATUS.PUBLISHED;
+  const reviewFlag = verdict === 'safe' ? null : reason;
+  const securityLevel = verdict; // safe | suspicious | reject
+
   // Wrap Post + SkillAsset creation in a transaction
   const post = await prisma.$transaction(async (tx) => {
     const created = await tx.post.create({
@@ -143,7 +165,9 @@ async function createPost(req: Request) {
         tagIndustry,
         tagContent: JSON.stringify(cleanContent),
         tagSkill,
-        status: POST_STATUS.PUBLISHED, // MVP 跳过人工审核
+        status: initialStatus,
+        reviewFlag,
+        securityLevel,
       },
     });
 
