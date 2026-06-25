@@ -12,6 +12,7 @@
 - 管理员判断：用 `getCurrentUser()` 返回的 `isAdmin` 字段（lib/session.ts select 已含）；首批 admin 通过 `ADMIN_BOOTSTRAP_EMAILS` env（逗号分隔）引导，收敛到 `lib/admin.ts` 的 `shouldBootstrapAdmin(email)`，仅在用户 **创建** 路径（register/github-callback 新建/seed）调用 —— 已存在用户登录不应被升级为 admin
 - 软删除过滤：Post.deletedAt 是软删标记（null = 活，非 null = 已删）。所有公开 Post 查询必须过滤 `deletedAt: null`：findMany/count/groupBy 直接进 `where`；findUnique 走 `where: { id }` 不能加非唯一字段，改为「fetch 后 `|| post.deletedAt` 当作未找到」；若 findUnique 用了 `select`（非 include），必须把 `deletedAt: true` 加进 select 否则 tsc 报字段不存在。列表查询统一收敛到 `lib/feed.ts` 的 `buildFeedWhere`（已带过滤）；owner-only 视图（profile posts tab owner 分支 / dashboard 收藏列表）按需求可不过滤，让作者看到自己删掉的
 - 管理员 API 守卫：收敛到 `lib/auth-guard.ts` 的 `requireAdmin()`，返回 `{ user: SessionUser } | NextResponse`。调用方 `const g = await requireAdmin(); if (g instanceof NextResponse) return g;` 后即可在 g.user 上拿 admin 身份。语义：未登录 → 401（与项目其他写接口一致），已登录非管理员 → 403。isAdmin 来自 getCurrentUser select，守卫本身不查 DB
+- 详情页 action 入口（编辑/举报）放在 header meta 行的右半 `flex items-center gap-3 shrink-0` 中，按 canEdit / uid 条件渲染。客户端组件（ReportButton/PostActions）作为子组件插入；server page 负责鉴权 + 数据，client component 负责交互态
 
 ---
 
@@ -529,3 +530,51 @@
   - 上下文：未来若要加「自动重审」（PATCH 也跑 GLM 扫描，safe 自动恢复 mcpApproved），需在 PATCH 里调 reviewPostSafety 并按 verdict 分支；但本 story 不做，保持「编辑一律人工复核」的最严格姿态（即便 GLM 判 safe 也等管理员看一眼），更适合 PEVC 这种机密场景
 ---
 
+
+## 2026-06-25 20:30 - SEC-011
+- prisma/schema.prisma 新增 model Report：
+  - `id Int @id @default(autoincrement())` / `reporterId Int` / `postId Int` / `reason String` / `status String @default("open")` / `createdAt DateTime @default(now())`
+  - 关系：`reporter User`（无 onDelete，默认 Restrict 防止删除用户时丢举报记录）；`post Post`（onDelete: Cascade —— 帖子物理删除时一并清举报，与 SkillAsset/Comment 同 pattern）
+  - `@@index([postId])`（按帖查举报）+ `@@index([status])`（admin 按 open/closed/dismissed 筛选）
+  - 在 User 加 `reports Report[]` 反向关系（命名 reports），在 Post 加 `reports Report[]` 反向关系
+- 新增 app/api/reports/route.ts POST handler：
+  - getSessionUid 鉴权（未登录 401）
+  - body { postId, reason }：postId parseInt 校验，reason trim 后 5-1000 字
+  - findUnique 校验 post 存在 + status=published + 未软删（草稿/已拒/软删不可举报）→ 否则 404
+  - 创建 Report(status='open')，返回 201 { id, status }
+- 新增 app/api/admin/reports/[id]/route.ts PATCH handler：
+  - requireAdmin 守卫（401/403）
+  - body { action: 'closed' | 'dismissed' } → update Report.status
+  - report 不存在 → 404；action 非法 → 400
+  - 返回 { id, status }
+- 新增 app/posts/[id]/ReportButton.tsx（client component）：
+  - 4 态：idle → 举报按钮；form → textarea + 取消/提交；submitting → 禁用；done → 「已举报，感谢您的反馈」
+  - 内联 form 展开（不用 Modal），w-72 max-w-full 适配 header 紧凑布局
+  - 调 POST /api/reports，错误内联展示
+- app/posts/[id]/page.tsx header meta 行加 ReportButton（仅 uid 存在时渲染，紧贴「编辑」入口）
+- app/admin/page.tsx Promise.all 新增 reportRows 项（findMany where status=open, take 100, select reporter + post 关系），序列化成 ReportItem[]；顶部计数追加 "· N 举报"（wax-red 色）
+- app/admin/AdminConsoleClient.tsx：
+  - 新增 ReportItem 类型 + 'reports' tab（仅当 reportItems.length>0 时显示）
+  - 新增 onResolveReport handler：PATCH /api/admin/reports/[id] + 乐观更新（closed/dismissed 都从 open 队列移除）
+  - busyId 用 `-report.id` 负数偏移避免和 post.id 命名空间冲突
+  - 新增 ReportRow 组件：post 标题/链接/状态 + 作者 + 举报人 + 时间 + reason 引用块（wax-red/30 边框凸显警示色）+ 标记已处理/驳回按钮
+- 更改的文件：prisma/schema.prisma、app/api/reports/route.ts（新增）、app/api/admin/reports/[id]/route.ts（新增）、app/posts/[id]/ReportButton.tsx（新增）、app/posts/[id]/page.tsx、app/admin/page.tsx、app/admin/AdminConsoleClient.tsx
+- 校验：
+  - `DATABASE_URL=...placeholder npx prisma validate`：🚀 valid
+  - `npx prisma generate`：✔ Generated Prisma Client v5.22.0（干净，无 EPERM）
+  - `grep Report node_modules/.prisma/client/index.d.ts`：Report 类型 + User$reportsArgs + Post$reportsArgs 已就绪
+  - `npx tsc --noEmit`：EXIT=0
+- 浏览器验证：本 story 无 "Verify in browser" 验收项；UI/API/数据流需部署后人工验证。已脑演：(a) 登录用户在 /posts/[id] 看到「举报」按钮，点击展开 textarea，填理由提交 → 201 → 显示「已举报」；(b) 未登录用户看不到按钮；(c) 草稿/已拒/软删帖子的举报 → API 返回 404；(d) 理由<5字 → 400；(e) admin 在 /admin 看到「举报 (1)」tab，进入后看到 ReportRow，点「标记已处理」→ PATCH 返回 {status:'closed'} → 行消失；点「驳回」→ {status:'dismissed'} → 同样消失；(f) 非 admin 调 PATCH /api/admin/reports/[id] → 403；(g) post 已被软删的 ReportRow 显示「帖子已软删」红色 chip
+- **未来迭代的学习：**
+  - pattern：举报/审计类关系 model 的标准三件套：`reporterId`（谁举报）+ `targetId`（举报谁/什么）+ `status @default("open")`（处置状态机）。配合 `@@index([targetId])`（按目标聚合）+ `@@index([status])`（按状态筛队列）。本 story 是这套 pattern 的典型实例，未来若加「内容举报/评论举报/用户举报」都应复用
+  - pattern：report.post 关系 onDelete: Cascade 是与 Comment/SkillAsset/PostFavorite 同 pattern —— 物理删除 post 时自动清掉关联数据；但本仓库实际只软删 post（deletedAt），所以 Cascade 几乎不会触发，关系天然保留。软删 + Cascade 共存是安全的：软删不动外键，物理删才级联清
+  - pattern：busyId 命名空间冲突的解决 —— PostRow 用 `post.id` 做 busy 标记，ReportRow 也用 `id`（整数）。直接 `busyId === r.id` 会和某个 post.id=1 的行同时被「禁用」。本 story 用 `-r.id`（负数）做偏移避免碰撞，简单有效。未来若还有别的实体（如 Comment 审核），可继续用负数偏移或改用 `${kind}:${id}` 字符串 key
+  - pattern：admin 控制台 tab 的「条件渲染 + 实时计数」模式 —— `...(reportItems.length > 0 ? [{ key: 'reports', label: `举报 (${reportItems.length})` }] : [])`，无 open 举报时不显示 tab 避免噪音；N 在 onResolve 后自动更新（filter 后 length 变小）。这和 SEC-007 的 reviewItems 是同一姿势
+  - 陷阱：举报 textarea 不要用 window.prompt —— 中文输入法/长文本/换行在 prompt 里体验极差，且某些浏览器会截断。本 story 用内联 textarea + 展开收起，比 Modal 轻、比 prompt 体验好，是详情页轻量交互的 MVP 姿势
+  - 陷阱：post 校验必须用 findUnique + select，不能假设 postId 存在。本 story 用 `select: { id, status, deletedAt }` 三字段最小投影；草稿/已拒/软删的帖子都不可被举报（语义：举报是「公开可见内容的社区监督」），三种状态统一返回 404（避免泄露 post 状态枚举）
+  - 陷阱：reason 不能是 optional —— 用户必填理由才能举报，避免恶意空白举报刷量；最小 5 字强制用户写具体原因，便于 admin 处置。最大 1000 字防长文污染 DB
+  - 上下文：SEC-005 的 /security 页面已描述「进入详情页点举报按钮 → /admin 处置」，本 story 实施后该描述自然生效，无需回改文案
+  - 上下文：举报闭环与 SEC-007 MCP 审核是互补而非替代 —— 举报是用户侧发起的社区监督，SEC-007 是 GLM 自动扫描 + 管理员主动审核。两者都把可疑内容带到 /admin，但来源不同：举报源自用户感知（可能含人为误报），GLM 扫描源自自动化判定（可能漏判新型注入）。两层叠加提升整体安全性
+  - 上下文：未来若要加 rate limit（防恶意刷举报），可复用 lib/rate-limit.ts 的 checkRateLimit，按 uid 维度限流（如每用户每天最多 10 条举报）。本 story 不加避免误伤正常用户，依赖登录门槛（401）做基础防刷
+  - 上下文：Sprint 1x 至此全部 11 个 story 完成（SEC-001~SEC-011），MCP 安全体系闭环：schema 字段 → MCP 准入过滤 → 安全前缀 → GLM 扫描 → 管理员审核 → Token 溯源 → 调用日志 → 编辑重审 → 举报机制
+---
