@@ -11,6 +11,7 @@ import { HomeHero } from '@/components/home/HomeHero';
 import { HomeTaskGrid } from '@/components/home/HomeTaskGrid';
 import { FeaturedWorkflows } from '@/components/home/FeaturedWorkflows';
 import { HomeMcpFeature } from '@/components/home/HomeMcpFeature';
+import { HomeTrustFeature } from '@/components/home/HomeTrustFeature';
 
 type SP = { [k: string]: string | string[] | undefined };
 
@@ -51,6 +52,7 @@ export default async function HomePage({ searchParams }: { searchParams: Promise
           <HomeTaskGrid />
           <FeaturedWorkflows />
           <HomeMcpFeature />
+          <HomeTrustFeature />
         </>
       ) : (
         <header className="pb-5 border-b border-paper-edge">

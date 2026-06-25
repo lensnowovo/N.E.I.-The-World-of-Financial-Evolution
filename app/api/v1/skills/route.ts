@@ -10,6 +10,7 @@ import {
 import { POST_STATUS } from '@/lib/status';
 import { withMetrics } from '@/lib/metrics';
 import type { ApiSkillListItem, PaginatedResponse } from '@/lib/types';
+import { normalizePublicText } from '@/lib/public-url';
 
 /**
  * GET /api/v1/skills —— 公开只读列表 API
@@ -60,7 +61,7 @@ async function getSkills(req: Request) {
   const data: ApiSkillListItem[] = posts.map((p) => ({
     id: p.id,
     title: p.title,
-    excerpt: stripHtml(p.body).slice(0, 160),
+    excerpt: stripHtml(normalizePublicText(p.body)).slice(0, 160),
     tagScene: p.tagScene,
     tagIndustry: p.tagIndustry,
     tagContent: safeJsonArray(p.tagContent),

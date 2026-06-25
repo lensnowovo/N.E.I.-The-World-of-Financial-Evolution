@@ -1,6 +1,7 @@
 import { prisma } from '@/lib/db';
 import { stripHtml } from '@/lib/validate';
 import { POST_STATUS } from '@/lib/status';
+import { normalizePublicText } from '@/lib/public-url';
 import {
   SCENE_TAGS,
   INDUSTRY_TAGS,
@@ -158,7 +159,7 @@ export async function fetchFeed(query: FeedQuery, uid: number | null): Promise<P
   return posts.map((p) => ({
     id: p.id,
     title: p.title,
-    excerpt: stripHtml(p.body).slice(0, 160),
+    excerpt: stripHtml(normalizePublicText(p.body)).slice(0, 160),
     tagScene: p.tagScene,
     tagIndustry: p.tagIndustry,
     tagContent: (() => {

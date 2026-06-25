@@ -29,6 +29,7 @@ import { ReportButton } from './ReportButton';
 import { DeleteButton } from './DeleteButton';
 import { analyzeSkillQuality } from '@/lib/skill-quality';
 import { SkillQualityPanel } from '@/components/SkillQualityPanel';
+import { normalizePublicText, normalizePublicUrl } from '@/lib/public-url';
 
 export default async function PostDetailPage({
   params,
@@ -93,7 +94,7 @@ export default async function PostDetailPage({
 
   // Defense-in-depth: 渲染前再清洗一次 body，覆盖 DB 中可能存在的未清洗 legacy 内容。
   // 所有走 dangerouslySetInnerHTML 的路径（excerpt/promptParts/正文）都基于此值。
-  const safeBody = sanitizeHtml(post.body);
+  const safeBody = normalizePublicText(sanitizeHtml(post.body));
   const quality = analyzeSkillQuality({
     title: post.title,
     body: safeBody,
@@ -174,7 +175,7 @@ export default async function PostDetailPage({
           isAuthed={!!uid}
           primaryAttachment={primaryAttachment}
           isPrompt={isPrompt}
-          bodyHtml={post.body}
+            bodyHtml={safeBody}
           viewCount={post.viewCount}
           stars={post._count.stars}
           commentsCount={post._count.comments}
@@ -307,12 +308,12 @@ export default async function PostDetailPage({
             <div>
               <p className="font-display tracking-display text-[10px] text-sepia uppercase mb-1.5">来源</p>
               <a
-                href={post.skillAsset.sourceUrl}
+                href={normalizePublicUrl(post.skillAsset.sourceUrl) ?? post.skillAsset.sourceUrl}
                 target="_blank"
                 rel="noopener noreferrer"
                 className="font-mono text-[11px] text-leather hover:text-wax-red hover:underline break-all"
               >
-                {post.skillAsset.sourceUrl}
+                {normalizePublicUrl(post.skillAsset.sourceUrl) ?? post.skillAsset.sourceUrl}
               </a>
             </div>
           )}
@@ -348,12 +349,12 @@ export default async function PostDetailPage({
               <p className="font-display tracking-display text-[10px] text-sepia uppercase mb-1.5">补充说明</p>
               {post.skillAsset.installHint && (
                 <p className="font-sans text-xs text-leather leading-relaxed whitespace-pre-wrap mb-2">
-                  {post.skillAsset.installHint}
+                  {normalizePublicText(post.skillAsset.installHint)}
                 </p>
               )}
               {post.skillAsset.usageNotes && (
                 <p className="font-sans text-xs text-leather leading-relaxed whitespace-pre-wrap">
-                  {post.skillAsset.usageNotes}
+                  {normalizePublicText(post.skillAsset.usageNotes)}
                 </p>
               )}
             </div>

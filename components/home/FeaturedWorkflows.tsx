@@ -4,9 +4,12 @@ import { POST_STATUS } from '@/lib/status';
 import { stripHtml } from '@/lib/validate';
 import { sceneLabel, contentLabel, skillLabel } from '@/lib/tags';
 import { SkillIcon } from '@/components/icons/SkillIcon';
+import { analyzeSkillQuality } from '@/lib/skill-quality';
+import { SkillQualityBadge } from '@/components/SkillQualityPanel';
 
 const MAX_FEATURED = 6;
 const EXCERPT_LEN = 100;
+const MIN_HOME_QUALITY_SCORE = 80;
 
 type FeaturedPost = {
   id: number;
@@ -15,6 +18,15 @@ type FeaturedPost = {
   tagScene: string;
   tagContent: string;
   tagSkill: string | null;
+  skillAsset: {
+    assetType: string;
+    sourceUrl: string | null;
+    installHint: string | null;
+    usageNotes: string | null;
+  } | null;
+  _count: { attachments: number };
+  qualityScore: number;
+  qualityLevel: string;
 };
 
 async function getFeaturedPosts(): Promise<FeaturedPost[]> {
@@ -23,6 +35,7 @@ async function getFeaturedPosts(): Promise<FeaturedPost[]> {
       featured: true,
       deletedAt: null,
       status: POST_STATUS.PUBLISHED,
+      skillAsset: { is: { assetType: 'workflow' } },
     },
     select: {
       id: true,
@@ -31,11 +44,37 @@ async function getFeaturedPosts(): Promise<FeaturedPost[]> {
       tagScene: true,
       tagContent: true,
       tagSkill: true,
+      skillAsset: {
+        select: {
+          assetType: true,
+          sourceUrl: true,
+          installHint: true,
+          usageNotes: true,
+        },
+      },
+      _count: { select: { attachments: true } },
     },
     orderBy: [{ featuredOrder: 'asc' }, { createdAt: 'desc' }],
-    take: MAX_FEATURED,
+    take: MAX_FEATURED * 3,
   });
-  return rows;
+  return rows
+    .map((post) => {
+      const quality = analyzeSkillQuality({
+        title: post.title,
+        body: post.body,
+        tagScene: post.tagScene,
+        tagContent: parseContentTags(post.tagContent),
+        tagSkill: post.tagSkill,
+        assetType: post.skillAsset?.assetType ?? null,
+        attachmentsCount: post._count.attachments,
+        sourceUrl: post.skillAsset?.sourceUrl ?? null,
+        installHint: post.skillAsset?.installHint ?? null,
+        usageNotes: post.skillAsset?.usageNotes ?? null,
+      });
+      return { ...post, qualityScore: quality.score, qualityLevel: quality.level };
+    })
+    .filter((post) => post.qualityScore >= MIN_HOME_QUALITY_SCORE)
+    .slice(0, MAX_FEATURED);
 }
 
 function parseContentTags(raw: string): string[] {
@@ -56,24 +95,24 @@ export async function FeaturedWorkflows() {
       <div className="flex flex-col sm:flex-row sm:items-end sm:justify-between gap-3">
         <div>
           <p className="font-display tracking-display text-[10px] text-sepia uppercase mb-1">
-            Curated Skills
+            Curated Workflows
           </p>
-          <h2 className="font-serif text-2xl sm:text-3xl text-ink-brown">精选 PEVC Skill</h2>
+          <h2 className="font-serif text-2xl sm:text-3xl text-ink-brown">精选 PEVC 工作流</h2>
         </div>
-        <Link href="/" className="font-serif italic text-sm text-leather hover:text-wax-red">
-          浏览全部 Skill →
+        <Link href="/?skill=workflow" className="font-serif italic text-sm text-leather hover:text-wax-red">
+          浏览全部 Workflow →
         </Link>
       </div>
 
       {posts.length === 0 ? (
         <div className="mt-6 border border-dashed border-paper-edge bg-vellum rounded-md p-10 text-center">
-          <p className="font-serif text-base text-leather">暂无精选工作流</p>
-          <p className="mt-1 font-sans text-xs text-sepia">管理员精选后将在此展示。</p>
+          <p className="font-serif text-base text-leather">暂无达到精选标准的工作流</p>
+          <p className="mt-1 font-sans text-xs text-sepia">首页精选仅展示 workflow 且质量分 ≥80 的内容。</p>
         </div>
       ) : (
         <div className="mt-6 grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-3">
           {posts.map((post) => {
-            const skill = post.tagSkill ?? 'workflow';
+            const skill = post.skillAsset?.assetType ?? post.tagSkill ?? 'workflow';
             const tags = parseContentTags(post.tagContent).slice(0, 3);
             return (
               <Link
@@ -87,6 +126,9 @@ export async function FeaturedWorkflows() {
                     {sceneLabel(post.tagScene)}
                   </span>
                   <span className="font-mono text-[9px] text-sepia">{skillLabel(skill)}</span>
+                </div>
+                <div className="mt-2">
+                  <SkillQualityBadge score={post.qualityScore} level={post.qualityLevel} />
                 </div>
                 <h3 className="mt-3 font-serif text-xl text-ink-brown group-hover:text-wax-red transition-colors">
                   {post.title}

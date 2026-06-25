@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/db';
 import { POST_STATUS } from '@/lib/status';
+import { normalizePublicText } from '@/lib/public-url';
 
 /**
  * GET /api/v1/skills/:id/raw —— 取 Skill 原文
@@ -37,7 +38,7 @@ export async function GET(req: Request, { params }: { params: Promise<{ id: stri
   }
 
   // 无附件 → 返回正文纯文本（prompt 帖，优先 <pre>）
-  const raw = extractPlainText(post.body);
+  const raw = normalizePublicText(extractPlainText(post.body));
   return new NextResponse(raw, {
     headers: {
       'Content-Type': 'text/plain; charset=utf-8',

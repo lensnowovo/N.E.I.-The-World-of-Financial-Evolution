@@ -2,10 +2,12 @@ export const dynamic = 'force-dynamic';
 
 import Link from 'next/link';
 import { OneClickAgentPrompt } from '@/components/mcp/OneClickAgentPrompt';
+import { getPublicBaseUrl } from '@/lib/public-url';
 
 export default async function McpGuidePage() {
-  const baseUrl = process.env.NEXT_PUBLIC_BASE_URL || 'https://n-e-i-the-world-of-financial-evolut.vercel.app';
+  const baseUrl = getPublicBaseUrl();
   const mcpUrl = `${baseUrl}/api/mcp`;
+  const connectUrl = `${baseUrl}/connect`;
 
   return (
     <div className="mx-auto max-w-page px-4 sm:px-6 py-8">
@@ -15,49 +17,58 @@ export default async function McpGuidePage() {
         </Link>
         <h1 className="font-serif text-3xl text-ink-brown mb-1">MCP Server 配置指南</h1>
         <p className="font-sans text-sm text-sepia">
-          把 N.E.I. 上的 Skill 接入你的 AI 客户端，在客户端里直接搜索和调用
+          把 N.E.I. 收藏的 Skill / Workflow 接进 Claude Code、Cursor、Windsurf 等 AI 客户端。
         </p>
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-[1fr_280px] gap-8">
-        {/* 左：主内容 */}
         <div className="prose-manuscript max-w-none">
           <h2>这是什么？</h2>
           <p>
-            N.E.I. MCP Server 让你的 AI 客户端（Claude Code / Cursor / Kimi 等）能通过 MCP 协议
-            搜索和获取 N.E.I. 上的 Skill。你在客户端里说一个需求，客户端就能自动找到相关的 Prompt 并执行。
+            N.E.I. MCP Server 让你的 AI 客户端通过 MCP 协议搜索、读取和调用 N.E.I. 上的 PEVC Skill。
+            你可以先在网站收藏 Skill，再在客户端里调用 <code>list_my_skills</code> 读取自己的收藏库。
           </p>
 
+          <div className="not-prose my-5 rounded-md border border-wax-red/30 bg-wax-red/5 p-4">
+            <p className="font-display tracking-display text-[10px] text-wax-red uppercase mb-2">
+              安全边界
+            </p>
+            <p className="font-sans text-sm leading-7 text-ink-brown">
+              N.E.I. MCP 只返回 Skill 和 Workflow 文本，不读取你的本地文件，不上传你的 BP、财务模型、
+              投委会材料或 LP 名单，不把客户端执行结果发送到第三方。任何本地文件读取、联网查询、
+              外部 MCP 调用都由你的 AI 客户端和你本人确认。
+            </p>
+            <Link href="/security" className="mt-2 inline-flex font-serif italic text-sm text-wax-red hover:underline">
+              查看 MCP 安全与保密原则 →
+            </Link>
+          </div>
+
           <h2>配置步骤</h2>
-          <h3>第 1 步：生成 Token</h3>
+          <h3>第 1 步：登录并生成 Token</h3>
           <p>
-            去{' '}
-            <Link href="/settings" className="text-wax-red underline">设置页</Link>
-            {' '}生成一个 MCP Token。Token 只显示一次，请保存好。
+            前往 <Link href="/connect" className="text-wax-red underline">连接配置页</Link> 生成 MCP Token。
+            Token 只显示一次，请保存到密码管理器。泄露后可随时重置。
           </p>
 
           <h3>第 2 步：在客户端配置 MCP Server</h3>
-
-          <h4>方式一（推荐）：一键复制 prompt 给 AI agent</h4>
+          <h4>方式一：复制安全配置 Prompt</h4>
           <p>
-            不想手动改配置文件？复制下面这段 prompt，粘贴到任意 AI agent（Claude Code / Codex /
-            Cursor / WorkBuddy）的对话框，它会自动帮你把 MCP 配好——你只需把 token 单独发给它。
+            只把下面的 Prompt 粘贴到你信任的本地或已登录 AI 客户端。不要把 MCP Token 发给陌生网页、
+            群聊、截图或不可信 Agent。
           </p>
-          <OneClickAgentPrompt mcpUrl={mcpUrl} settingsUrl={`${baseUrl}/settings`} />
+          <OneClickAgentPrompt mcpUrl={mcpUrl} connectUrl={connectUrl} />
 
           <h4>方式二：手动配置</h4>
-
           <div className="bg-vellum/60 border border-paper-edge rounded-md p-4 mb-4">
-            <p className="font-sans text-xs text-sepia mb-2">MCP Server 地址（所有客户端通用）：</p>
+            <p className="font-sans text-xs text-sepia mb-2">MCP Server 地址：</p>
             <code className="font-mono text-sm text-ink-brown">{mcpUrl}</code>
           </div>
 
           <h4>Claude Code</h4>
           <div className="bg-linen text-ink-brown rounded-md p-4 text-xs font-mono overflow-x-auto whitespace-pre">
-{`# 在项目根目录的 .mcp.json 或 ~/.claude/mcp_settings.json
-{
+{`{
   "mcpServers": {
-    "nei": {
+    "nei-pevc": {
       "url": "${mcpUrl}",
       "headers": {
         "Authorization": "Bearer 你的Token"
@@ -67,65 +78,57 @@ export default async function McpGuidePage() {
 }`}
           </div>
 
-          <h4>Cursor</h4>
-          <p>
-            Settings → MCP → Add MCP Server → 选 Streamable HTTP → 填入：
-          </p>
+          <h4>Cursor / Windsurf / 其他支持 MCP 的客户端</h4>
           <ul>
-            <li>URL: <code>{mcpUrl}</code></li>
-            <li>Headers: <code>Authorization: Bearer 你的Token</code></li>
+            <li>类型：Streamable HTTP</li>
+            <li>URL：<code>{mcpUrl}</code></li>
+            <li>Headers：<code>Authorization: Bearer 你的Token</code></li>
           </ul>
 
-          <h4>Kimi / 其他支持 MCP 的客户端</h4>
+          <h3>第 3 步：收藏并调通</h3>
           <p>
-            在客户端的 MCP 配置里添加一个 Streamable HTTP 类型的 server，
-            URL 填 <code>{mcpUrl}</code>，请求头加
-            <code> Authorization: Bearer 你的Token</code>。
+            在 N.E.I. 网站收藏至少一个 Skill，然后在客户端调用 <code>list_my_skills</code>。
+            如果能看到收藏列表，说明“收藏 → Token → 配置 → 调通”的闭环已经跑通。
           </p>
 
-          <h3>第 3 步：收藏你想用的 Skill</h3>
-          <p>
-            在 N.E.I. 网站上收藏你感兴趣的 Skill（点帖子的「收藏」按钮）。
-            收藏后，在客户端里调用 <code>list_my_skills</code> 就能看到它们。
-          </p>
-
-          <h2>可用的 MCP 工具</h2>
+          <h2>可用 MCP 工具</h2>
           <ul>
             <li><strong>search_skills</strong>：按关键词、场景、类型搜索公开 Skill</li>
-            <li><strong>get_skill</strong>：获取某个 Skill 的完整 Prompt 原文</li>
-            <li><strong>list_my_skills</strong>：列出你收藏的 Skill</li>
+            <li><strong>get_skill</strong>：获取某个 Skill 的完整 Prompt / Workflow 原文</li>
+            <li><strong>list_my_skills</strong>：列出你收藏且已准入 MCP 的 Skill</li>
+            <li><strong>apply_skill</strong>：把上下文填入 Prompt 模板，返回可执行 Prompt</li>
+            <li><strong>favorite_skill</strong>：从客户端把公开 Skill 加入收藏库</li>
           </ul>
 
-          <h2>使用示例</h2>
-          <p>
-            配置完成后，在你的客户端里这样说：
-          </p>
-          <blockquote>
-            “帮我做一个合成生物学赛道的尽调，用 N.E.I. 上的 Skill”
-          </blockquote>
-          <p>
-            客户端会自动调用 <code>search_skills</code> 或 <code>list_my_skills</code>，
-            找到相关的 Prompt，拿到原文后用你客户端自己的 AI 额度执行。
-          </p>
+          <h2>推荐任务示例</h2>
+          <ul>
+            <li>用 N.E.I. 帮我初筛这个 BP，给出是否进入立项的理由。</li>
+            <li>用 N.E.I. 生成一份商业尽调访谈问题清单。</li>
+            <li>用 N.E.I. 写一份 IC Memo 的一级结构和关键风险。</li>
+            <li>用 N.E.I. 帮我起草投后月报，并列出需要补充的数据。</li>
+            <li>用 N.E.I. 起草一份给政府引导基金的正式回复函。</li>
+          </ul>
         </div>
 
-        {/* 右：侧边 */}
         <aside className="lg:sticky lg:top-6 lg:self-start space-y-4">
           <div className="border border-paper-edge bg-vellum rounded-md p-4">
             <p className="font-display tracking-display text-[10px] text-sepia uppercase mb-2">快速操作</p>
-            <Link href="/settings" className="block font-serif text-sm text-wax-red hover:underline mb-2">
+            <Link href="/connect" className="block font-serif text-sm text-wax-red hover:underline mb-2">
               → 生成 / 管理 Token
             </Link>
-            <Link href="/" className="block font-serif text-sm text-leather hover:text-ink-brown">
-              → 浏览 Skill
+            <Link href="/security" className="block font-serif text-sm text-leather hover:text-ink-brown mb-2">
+              → 安全与保密原则
+            </Link>
+            <Link href="/?skill=workflow" className="block font-serif text-sm text-leather hover:text-ink-brown">
+              → 浏览 Workflow
             </Link>
           </div>
 
           <div className="border border-paper-edge bg-vellum/50 rounded-md p-4">
-            <p className="font-display tracking-display text-[10px] text-sepia uppercase mb-2">原理</p>
+            <p className="font-display tracking-display text-[10px] text-sepia uppercase mb-2">核心原则</p>
             <p className="font-sans text-xs text-leather leading-relaxed">
-              N.E.I. 只负责分发 Skill 内容（Prompt 原文）。
-              AI 执行用的是你自己客户端的额度——平台零成本，你无需配置 API key。
+              N.E.I. 只分发 Skill 内容。AI 执行用你的客户端额度，敏感项目材料留在你的客户端侧。
+              Token 可随时撤销，投稿 Skill 审核后才进入 MCP。
             </p>
           </div>
         </aside>

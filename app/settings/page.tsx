@@ -55,7 +55,6 @@ export default function SettingsPage() {
       .then((r) => (r.ok ? r.json() : null))
       .then((d) => {
         if (!d) {
-          router.push('/login?next=/settings');
           return;
         }
         setProfile(d);
@@ -151,6 +150,10 @@ export default function SettingsPage() {
         <p className="font-serif italic text-sm text-sepia">加载中…</p>
       </div>
     );
+  }
+
+  if (!profile) {
+    return <SettingsGuestState />;
   }
 
   return (
@@ -310,6 +313,41 @@ export default function SettingsPage() {
           连接配置 →
         </Link>
       </section>
+    </div>
+  );
+}
+
+function SettingsGuestState() {
+  return (
+    <div className="mx-auto max-w-prose px-4 sm:px-6 py-12">
+      <header className="mb-8 pb-5 border-b border-paper-edge">
+        <p className="font-display tracking-display text-[11px] text-sepia uppercase mb-1">
+          个人设置
+        </p>
+        <h1 className="font-serif text-3xl text-ink-brown">登录后管理你的 N.E.I. 账号</h1>
+        <p className="font-serif italic text-sm text-leather mt-2">
+          登录后可以编辑资料、进入连接配置、生成 MCP Token，并查看你的收藏库。
+        </p>
+      </header>
+
+      <div className="rounded-md border border-paper-edge bg-vellum/60 p-5">
+        <h2 className="font-serif text-xl text-ink-brown mb-2">还没有登录</h2>
+        <p className="font-sans text-sm text-leather leading-7">
+          如果你是来配置 MCP，请先登录，再到连接配置页生成 Token。
+          N.E.I. MCP 只分发 Skill / Workflow，不读取本地文件，不保存项目材料。
+        </p>
+        <div className="mt-5 flex flex-wrap gap-3">
+          <Link href="/login?next=/settings" className="inline-flex items-center h-10 px-5 bg-ink-brown text-vellum hover:bg-wax-red font-serif text-sm rounded-sm transition-colors">
+            登录后编辑资料
+          </Link>
+          <Link href="/login?next=/connect" className="inline-flex items-center h-10 px-5 border border-ink-brown text-ink-brown hover:bg-ink-brown hover:text-vellum font-serif text-sm rounded-sm transition-colors">
+            登录后生成 MCP Token
+          </Link>
+          <Link href="/register" className="inline-flex items-center h-10 px-2 font-serif italic text-sm text-leather hover:text-wax-red transition-colors">
+            注册账号 →
+          </Link>
+        </div>
+      </div>
     </div>
   );
 }

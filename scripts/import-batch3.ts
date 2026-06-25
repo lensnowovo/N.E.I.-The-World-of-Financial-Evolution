@@ -181,7 +181,7 @@ const SKILLS: NewSkill[] = [
 <h2>怎么用</h2>
 <ol>
 <li>复制上面的 Prompt</li>
-<li>粘贴到 ChatGPT / Claude / Kimi 等任意 AI 对话框</li>
+<li>粘贴到你信任的 ChatGPT / Claude / Kimi 等已登录 AI 客户端或对话框</li>
 <li>把「[填入赛道名]」换成你要研究的赛道（如"具身智能机器人""合成生物学"）</li>
 </ol>
 <blockquote>脱胎于横纵分析法思路，针对"快速补课"场景精简。适合刚接触新赛道、需要在短时间建立认知框架的投资人。</blockquote>`,

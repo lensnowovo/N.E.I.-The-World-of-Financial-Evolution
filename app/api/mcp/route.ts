@@ -9,6 +9,7 @@ import { POST_STATUS } from '@/lib/status';
 import { extractPlainText } from '@/lib/skill-text';
 import { withMetrics } from '@/lib/metrics';
 import { wrapWithSafetyRules } from '@/lib/mcp-safety';
+import { normalizePublicText } from '@/lib/public-url';
 
 export const dynamic = 'force-dynamic';
 export const maxDuration = 60;
@@ -158,8 +159,8 @@ function makeHandler(uid: number, clientName: string | null, requestId: string) 
               scene: p.tagScene,
               type: p.skillAsset?.assetType ?? null,
               author: p.skillAsset?.originalAuthor || p.author.nickname,
-              excerpt: stripHtml(p.body).slice(0, 120),
-              snippet: args.query ? makeSnippet(p.body, args.query) : null,
+              excerpt: stripHtml(normalizePublicText(p.body)).slice(0, 120),
+              snippet: args.query ? makeSnippet(normalizePublicText(p.body), args.query) : null,
               tags: safeJsonArray(p.tagContent),
               viewCount: p.viewCount,
               stars: p._count.stars,
@@ -205,7 +206,7 @@ function makeHandler(uid: number, clientName: string | null, requestId: string) 
             if (!post || post.status !== POST_STATUS.PUBLISHED || post.deletedAt || !post.mcpApproved) {
               return { content: [{ type: 'text' as const, text: '未找到该 Skill' }] };
             }
-            const text = extractPlainText(post.body);
+            const text = normalizePublicText(extractPlainText(post.body));
             // 提取占位符（apply_skill 用这些 key 做精确替换，显式列出避免调用方猜错 key）
             const placeholders = [
               ...new Set(
@@ -256,7 +257,7 @@ function makeHandler(uid: number, clientName: string | null, requestId: string) 
               return { content: [{ type: 'text' as const, text: '未找到该 Skill' }] };
             }
 
-            let promptText = extractPlainText(post.body);
+            let promptText = normalizePublicText(extractPlainText(post.body));
             const ctx = args.context || {};
             for (const [key, value] of Object.entries(ctx)) {
               if (value) {
@@ -326,7 +327,7 @@ function makeHandler(uid: number, clientName: string | null, requestId: string) 
                 scene: f.post.tagScene,
                 type: f.post.skillAsset?.assetType ?? null,
                 author: f.post.skillAsset?.originalAuthor || f.post.author.nickname,
-                excerpt: stripHtml(f.post.body).slice(0, 120),
+                excerpt: stripHtml(normalizePublicText(f.post.body)).slice(0, 120),
                 tags: safeJsonArray(f.post.tagContent),
                 viewCount: f.post.viewCount,
                 stars: f.post._count.stars,

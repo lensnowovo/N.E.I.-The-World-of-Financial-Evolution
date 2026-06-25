@@ -1,3 +1,4 @@
+import Link from 'next/link';
 import { Ornament } from '@/components/icons/Ornament';
 
 export function SiteFooter() {
@@ -13,6 +14,14 @@ export function SiteFooter() {
         <p className="mt-2 text-center text-xs">
           © {new Date().getFullYear()} N.E.I. · The World of Financial Evolution
         </p>
+        <div className="mt-4 flex flex-wrap justify-center gap-x-4 gap-y-2 font-serif text-xs">
+          <Link href="/security" className="hover:text-ink-brown">
+            MCP 安全与保密原则
+          </Link>
+          <Link href="/mcp" className="hover:text-ink-brown">
+            MCP 配置指南
+          </Link>
+        </div>
       </div>
     </footer>
   );

@@ -3,6 +3,7 @@ import { prisma } from '@/lib/db';
 import { stripHtml } from '@/lib/validate';
 import { POST_STATUS } from '@/lib/status';
 import type { ApiSkillDetail, ApiAttachment, SingleResponse } from '@/lib/types';
+import { normalizePublicText, normalizePublicUrl } from '@/lib/public-url';
 
 /**
  * GET /api/v1/skills/:id —— 公开只读详情 API
@@ -77,8 +78,8 @@ export async function GET(req: Request, { params }: { params: Promise<{ id: stri
   const data: ApiSkillDetail = {
     id: post.id,
     title: post.title,
-    body: post.body,
-    excerpt: stripHtml(post.body).slice(0, 200),
+    body: normalizePublicText(post.body),
+    excerpt: stripHtml(normalizePublicText(post.body)).slice(0, 200),
     tagScene: post.tagScene,
     tagIndustry: post.tagIndustry,
     tagContent: safeJsonArray(post.tagContent),
@@ -95,10 +96,10 @@ export async function GET(req: Request, { params }: { params: Promise<{ id: stri
       ? {
           id: post.skillAsset.id,
           assetType: post.skillAsset.assetType,
-          sourceUrl: post.skillAsset.sourceUrl,
+          sourceUrl: normalizePublicUrl(post.skillAsset.sourceUrl),
           originalAuthor: post.skillAsset.originalAuthor,
-          installHint: post.skillAsset.installHint,
-          usageNotes: post.skillAsset.usageNotes,
+          installHint: post.skillAsset.installHint ? normalizePublicText(post.skillAsset.installHint) : null,
+          usageNotes: post.skillAsset.usageNotes ? normalizePublicText(post.skillAsset.usageNotes) : null,
         }
       : null,
     attachments,

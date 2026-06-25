@@ -64,7 +64,7 @@ export function HomeHero({
 
       <dl className="mt-7 pt-5 border-t border-paper-edge flex flex-wrap gap-x-8 gap-y-3">
         <Stat value={String(totalSkills)} label="个公开 Skill" />
-        <Stat value={String(workflowCount)} label="个完整工作流" />
+        <Stat value={String(workflowCount)} label="个 Workflow / Playbook" />
         <Stat value="MCP" label="已支持收藏库调用" />
         <Stat value="3" label="类 AI 客户端可接入" />
       </dl>

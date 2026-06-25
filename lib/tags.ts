@@ -152,7 +152,7 @@ export const ASSET_TYPE_HELPERS: Record<string, { body: string; installHint: str
  */
 export const HOW_TO_USE: Record<string, string> = {
   prompt:
-    '复制下面的提示词，粘贴到 ChatGPT / Claude / Kimi 等任意 AI 对话框，把方括号 [像这样] 的部分换成你的实际内容。',
+    '复制下面的提示词，粘贴到你信任的 AI 客户端或已登录对话框，把方括号 [像这样] 的部分换成你的实际内容。',
   template:
     '下载文件后用 Excel / Word / PPT 打开（看文件后缀），按里面的说明填写。建议先复制一份原文件再改，保住模板。',
   'agent-skill':

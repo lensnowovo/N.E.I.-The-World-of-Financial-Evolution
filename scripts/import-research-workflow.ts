@@ -261,7 +261,7 @@ const WORKFLOW_MD = `# 一级市场行业研究端到端工作流：从陌生赛
 
 const intro = `<p>把 N.E.I. 上的<strong>行业框架 + 投研能力 + 交付工具</strong>串联成一个完整工作流——拿到一个陌生赛道，从 0 到完成一份 IC 级行研报告。<strong>8 步走完</strong>，每一步告诉你该用哪个 Skill、看什么、怎么验证。</p>
 <h2>解决什么问题</h2>
-<ul><li>拿到陌生行业不知道从哪下手</li><li>N.E.I. 上 60+ Skill 不知道怎么组合使用</li><li>做完行研总觉得漏了关键维度</li></ul>
+<ul><li>拿到陌生行业不知道从哪下手</li><li>N.E.I. 上几十个 Skill 不知道怎么组合使用</li><li>做完行研总觉得漏了关键维度</li></ul>
 <h2>核心价值</h2>
 <ul><li><strong>8 步端到端</strong>：判断阶段 → 政策 → 技术 → 产业链 → 行业深度 → 专利 → 专家验证 → 输出报告</li><li><strong>每步引用具体 Skill</strong>（#67-#97 可点击跳转）</li><li><strong>含行业路由表</strong>：14 个行业一键找到对应框架</li><li><strong>含 2026 VC 8 大标准自检</strong></li><li>8 条工作流级红旗</li></ul>
 <p>适合：PE/VC/FA 投资经理、分析师、IR。<strong>N.E.I. 的组合工作流旗舰。</strong></p>`;
