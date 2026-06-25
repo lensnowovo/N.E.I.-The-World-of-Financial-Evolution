@@ -11,6 +11,7 @@ import {
   type ReviewPostItem,
   type OverviewStats,
   type McpStats,
+  type ReportItem,
 } from './AdminConsoleClient';
 
 // /admin —— 管理员控制台（多 tab：概览 / 内容审核 / MCP 状态 / 我的发布 / 数据）
@@ -46,7 +47,7 @@ export default async function AdminPage() {
   } as const;
 
   const [
-    rows, myRows, reviewRows,
+    rows, myRows, reviewRows, reportRows,
     [totalPosts, totalUsers, totalMcpCalls, featuredCount],
     [todayPosts, todayUsers, todayMcp],
     mcpByTool, mcpRecent, tokenUsers,
@@ -58,6 +59,20 @@ export default async function AdminPage() {
       select: reviewSelect,
       orderBy: { createdAt: 'desc' },
       take: 100,
+    }),
+    // SEC-011: open 状态举报，按时间倒序，take 100；含 reporter nickname + post title 便于处置
+    prisma.report.findMany({
+      where: { status: 'open' },
+      orderBy: { createdAt: 'desc' },
+      take: 100,
+      select: {
+        id: true,
+        reason: true,
+        status: true,
+        createdAt: true,
+        reporter: { select: { id: true, nickname: true } },
+        post: { select: { id: true, title: true, status: true, deletedAt: true, author: { select: { id: true, nickname: true } } } },
+      },
     }),
     Promise.all([
       prisma.post.count({ where: { deletedAt: null } }),
@@ -106,6 +121,21 @@ export default async function AdminPage() {
     author: { id: r.author.id, nickname: r.author.nickname },
   }));
 
+  const reportItems: ReportItem[] = reportRows.map((r) => ({
+    id: r.id,
+    reason: r.reason,
+    status: r.status,
+    createdAt: r.createdAt.toISOString(),
+    reporter: { id: r.reporter.id, nickname: r.reporter.nickname },
+    post: {
+      id: r.post.id,
+      title: r.post.title,
+      status: r.post.status,
+      deletedAt: r.post.deletedAt?.toISOString() ?? null,
+      author: { id: r.post.author.id, nickname: r.post.author.nickname },
+    },
+  }));
+
   const overview: OverviewStats = {
     totalPosts, totalUsers, totalMcpCalls, featuredCount,
     todayPosts, todayUsers, todayMcp,
@@ -136,6 +166,7 @@ export default async function AdminPage() {
           <span className="font-mono text-sm text-sepia">
             {activeCount} 活跃 · {deletedCount} 已软删 · {overview.featuredCount} 精选
             {reviewItems.length > 0 && <span className="text-wax-red"> · {reviewItems.length} 待审</span>}
+            {reportItems.length > 0 && <span className="text-wax-red"> · {reportItems.length} 举报</span>}
           </span>
         </div>
         <p className="mt-2 font-sans text-xs text-leather">
@@ -147,6 +178,7 @@ export default async function AdminPage() {
         initialItems={items}
         myPosts={myPosts}
         initialReviewItems={reviewItems}
+        initialReportItems={reportItems}
         overview={overview}
         mcp={mcp}
         adminId={me.id}

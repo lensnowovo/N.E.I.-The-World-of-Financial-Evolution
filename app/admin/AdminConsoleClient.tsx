@@ -50,7 +50,22 @@ export type McpStats = {
   recent: { tool: string; postId: number | null; nickname: string; createdAt: string }[];
 };
 
-type Tab = 'overview' | 'content' | 'review' | 'mcp' | 'mine' | 'data';
+export type ReportItem = {
+  id: number;
+  reason: string;
+  status: string;
+  createdAt: string;
+  reporter: { id: number; nickname: string };
+  post: {
+    id: number;
+    title: string;
+    status: string;
+    deletedAt: string | null;
+    author: { id: number; nickname: string };
+  };
+};
+
+type Tab = 'overview' | 'content' | 'review' | 'reports' | 'mcp' | 'mine' | 'data';
 
 const STATUS_LABEL: Record<string, string> = {
   [POST_STATUS.DRAFT]: '草稿',
@@ -75,6 +90,7 @@ export function AdminConsoleClient({
   initialItems,
   myPosts,
   initialReviewItems,
+  initialReportItems,
   overview,
   mcp,
   adminId,
@@ -82,6 +98,7 @@ export function AdminConsoleClient({
   initialItems: AdminPostItem[];
   myPosts: AdminPostItem[];
   initialReviewItems: ReviewPostItem[];
+  initialReportItems: ReportItem[];
   overview: OverviewStats;
   mcp: McpStats;
   adminId: number;
@@ -89,6 +106,7 @@ export function AdminConsoleClient({
   const [tab, setTab] = useState<Tab>('overview');
   const [items, setItems] = useState<AdminPostItem[]>(initialItems);
   const [reviewItems, setReviewItems] = useState<ReviewPostItem[]>(initialReviewItems);
+  const [reportItems, setReportItems] = useState<ReportItem[]>(initialReportItems);
   const [featured, setFeatured] = useState<AdminPostItem[]>(() =>
     initialItems
       .filter((i) => i.featured && !i.deletedAt)
@@ -168,6 +186,7 @@ export function AdminConsoleClient({
     { key: 'overview', label: '概览' },
     { key: 'content', label: '内容审核' },
     ...(reviewItems.length > 0 ? [{ key: 'review' as const, label: `待审 (${reviewItems.length})` }] : []),
+    ...(reportItems.length > 0 ? [{ key: 'reports' as const, label: `举报 (${reportItems.length})` }] : []),
     { key: 'mcp', label: 'MCP 状态' },
     { key: 'mine', label: '我的发布' },
     { key: 'data', label: '数据' },
@@ -202,6 +221,36 @@ export function AdminConsoleClient({
           );
         });
         flash(true, `${verb}「${post.title}」已生效`);
+      } catch {
+        flash(false, '网络错误，操作失败');
+      } finally {
+        setBusyId(null);
+      }
+    },
+    [flash],
+  );
+
+  // SEC-011 举报处置：closed（成立，配合内容审核动作）/ dismissed（驳回）
+  // 用 report.id 做 busyId 命名空间（避免和 post.id 冲突），用负数偏移确保不撞
+  const onResolveReport = useCallback(
+    async (report: ReportItem, action: 'closed' | 'dismissed') => {
+      const verb = action === 'closed' ? '标记已处理' : '驳回举报';
+      if (typeof window !== 'undefined' && !window.confirm(`确认${verb}「#${report.id}」？`)) return;
+      setBusyId(-report.id);
+      try {
+        const res = await fetch(`/api/admin/reports/${report.id}`, {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ action }),
+        });
+        if (!res.ok) {
+          const data = await res.json().catch(() => ({}));
+          flash(false, `操作失败：${data?.error ?? res.status}`);
+          return;
+        }
+        // 两种动作都从 open 队列移除（closed/dismissed 都不再是 open）
+        setReportItems((prev) => prev.filter((i) => i.id !== report.id));
+        flash(true, `${verb}「#${report.id}」已生效`);
       } catch {
         flash(false, '网络错误，操作失败');
       } finally {
@@ -309,6 +358,30 @@ export function AdminConsoleClient({
             <ul className="space-y-2">
               {reviewItems.map((p) => (
                 <ReviewRow key={p.id} p={p} isBusy={busyId === p.id} onReview={onReview} />
+              ))}
+            </ul>
+          )}
+        </div>
+      )}
+
+      {/* —— 举报队列（SEC-011）—— */}
+      {tab === 'reports' && (
+        <div className="space-y-6">
+          <div className="flex items-baseline gap-3 flex-wrap">
+            <h2 className="font-serif text-lg text-ink-brown">社区举报</h2>
+            <span className="font-sans text-[11px] text-sepia">
+              用户在帖子详情页提交的举报 · 标记 closed（成立，配合内容审核处置）或 dismissed（驳回）
+            </span>
+          </div>
+
+          {reportItems.length === 0 ? (
+            <div className="border border-paper-edge bg-vellum rounded-md p-10 text-center">
+              <p className="font-serif italic text-sepia">暂无 open 举报</p>
+            </div>
+          ) : (
+            <ul className="space-y-2">
+              {reportItems.map((r) => (
+                <ReportRow key={r.id} r={r} isBusy={busyId === -r.id} onResolve={onResolveReport} />
               ))}
             </ul>
           )}
@@ -576,6 +649,59 @@ function ReviewRow({
               撤回 MCP
             </Button>
           )}
+        </div>
+      </div>
+    </li>
+  );
+}
+
+/* ============================================================
+   举报行（SEC-011 社区举报处置）
+   ============================================================ */
+function ReportRow({
+  r,
+  isBusy,
+  onResolve,
+}: {
+  r: ReportItem;
+  isBusy: boolean;
+  onResolve: (r: ReportItem, action: 'closed' | 'dismissed') => void;
+}) {
+  const postDeleted = !!r.post.deletedAt;
+  return (
+    <li className="border border-wax-red/30 bg-vellum rounded-md p-4">
+      <div className="flex items-start justify-between gap-4 flex-wrap">
+        <div className="min-w-0 flex-1">
+          <div className="flex items-center gap-2 flex-wrap">
+            <span className="font-mono text-[11px] text-wax-red">举报 #{r.id}</span>
+            <Link href={`/posts/${r.post.id}`} className="font-serif text-base text-ink-brown hover:text-wax-red truncate">
+              {r.post.title}
+            </Link>
+            {postDeleted && <span className="font-sans text-[10px] px-1.5 py-0.5 border border-wax-red text-wax-red rounded-sm">帖子已软删</span>}
+            <span className="font-sans text-[10px] px-1.5 py-0.5 border border-paper-edge text-sepia rounded-sm">
+              {STATUS_LABEL[r.post.status] ?? r.post.status}
+            </span>
+          </div>
+          <div className="mt-1 flex items-center gap-3 flex-wrap font-mono text-[11px] text-sepia">
+            <span>post #{r.post.id}</span>
+            <Link href={`/profile/${r.post.author.id}`} className="hover:text-ink-brown">作者 @{r.post.author.nickname}</Link>
+            <span>·</span>
+            <span>举报人 @{r.reporter.nickname}</span>
+            <span>·</span>
+            <span>{formatDate(r.createdAt)}</span>
+          </div>
+          <div className="mt-2 px-2 py-1.5 border-l-2 border-wax-red bg-wax-red/5 font-sans text-xs text-ink-brown">
+            <span className="font-serif italic text-wax-red mr-1">举报理由:</span>
+            {r.reason}
+          </div>
+        </div>
+        <div className="flex items-center gap-2 shrink-0 flex-wrap">
+          <Button size="sm" variant="primary" disabled={isBusy} onClick={() => onResolve(r, 'closed')} title="举报成立，标记已处理（配合内容审核动作处置）">
+            标记已处理
+          </Button>
+          <Button size="sm" variant="secondary" disabled={isBusy} onClick={() => onResolve(r, 'dismissed')} title="举报无效/误报，驳回">
+            驳回
+          </Button>
         </div>
       </div>
     </li>

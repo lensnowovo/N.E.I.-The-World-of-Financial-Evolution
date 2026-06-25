@@ -25,6 +25,7 @@ import { SkillPreview } from './SkillPreview';
 import { PreCopyButton } from './PreCopyButton';
 import { BackLink } from './BackLink';
 import { ExecuteButton } from './ExecuteButton';
+import { ReportButton } from './ReportButton';
 
 export default async function PostDetailPage({
   params,
@@ -136,6 +137,7 @@ export default async function PostDetailPage({
                 编辑
               </Link>
             )}
+            {uid && <ReportButton postId={post.id} />}
           </div>
         </div>
 

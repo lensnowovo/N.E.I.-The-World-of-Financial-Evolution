@@ -35,6 +35,7 @@ model User {
   stars     PostFavorite[]
   commentLikes CommentLike[]
   mcpCallLogs McpCallLog[]
+  reports   Report[]   // SEC-011: 用户提交的举报（作为举报人）
 
   // 关注关系
   following UserFollow[] @relation("Follower")  // 我关注的人
@@ -85,11 +86,28 @@ model Post {
   attachments  Attachment[]
   stars        PostFavorite[]
   skillAsset   SkillAsset?
+  reports      Report[]   // SEC-011: 针对此帖的举报
 
   @@index([createdAt])
   @@index([tagScene])
   @@index([userId])
   @@index([deletedAt])
+}
+
+// ---------- 举报（SEC-011）----------
+model Report {
+  id         Int      @id @default(autoincrement())
+  reporterId Int      // 谁举报
+  postId     Int      // 举报哪篇 post
+  reason     String   // 举报理由（用户填写）
+  status     String   @default("open") // open / closed / dismissed
+  createdAt  DateTime @default(now())
+
+  reporter User @relation(fields: [reporterId], references: [id])
+  post     Post @relation(fields: [postId], references: [id], onDelete: Cascade)
+
+  @@index([postId])
+  @@index([status])
 }
 
 // ---------- Skill 资产 ----------
