@@ -509,3 +509,23 @@
   - 上下文：本 story 与 SEC-008（tokenCreatedAt / tokenLastUsedAt）是互补的 —— SEC-008 是 per-user 聚合时间戳（轻），本 story 是 per-call 详细日志（重，但只取维度不取正文）。未来 admin 控制台若加「可疑调用」视图，可按 clientName / requestId 聚合：如「同一 requestId 内连续多次 favorite/unfavorite」可能是滥用，「latencyMs 持续 > 5000」可能 DB 慢查询
   - 上下文：SEC-010 编辑触发重审会让被编辑的 skill 立即 mcpApproved=false，下次 MCP 调用 get/apply 该 skill 会返回「未找到」—— 本 story 的日志会记录到 tool=get_skill 但 latencyMs 会很短（query 命中后早 return），可作为「用户尝试调用被撤回 skill」的信号
 ---
+
+## 2026-06-25 19:40 - SEC-010
+- app/api/posts/[id]/route.ts 的 PATCH handler：在 prisma.post.update 的 data 追加三字段实现 Rug Pull 防护
+  - `version: { increment: 1 }` —— Prisma atomic increment，每次编辑版本号 +1（管理员视图的 version chip 可据此识别「曾被编辑过」）
+  - `mcpApproved: false` —— 立即从 MCP 撤回（SEC-003 的 where mcpApproved:true 立即过滤），用户 agent 拿不到更新后的内容
+  - `reviewFlag: 'edited: pending re-review'` —— 进入 SEC-007 的 /admin?tab=review 队列（OR reviewFlag != null 命中），等待管理员复核
+  - status 保持不变（published 仍可见），仅标 reviewFlag —— 公开视图仍展示原内容，只是 MCP 准入被撤
+- 更改的文件：app/api/posts/[id]/route.ts
+- 类型检查：`npx tsc --noEmit` EXIT=0（无输出 = 通过；Post schema 已含 version/mcpApproved/reviewFlag，SEC-001 已生成 client）
+- 浏览器验证：本 story 无 "Verify in browser" 验收项；DB 字段写入由 prisma update data 保证，需部署后人工验证：（a）作者编辑自己已审核的 post → DB 中 version+1, mcpApproved=false, reviewFlag='edited: pending re-review'；（b）用 MCP 客户端调 get_skill 该 post → 返回「未找到」（SEC-003 过滤生效）；（c）admin 在 /admin?tab=review 看到该 post 进入待审队列，ReviewRow 的 version chip 显示 >1（SEC-007 的 version>1 提示重审）；（d）admin approve 后 mcpApproved=true + reviewFlag 清空，重新进 MCP
+- **未来迭代的学习：**
+  - pattern：Prisma atomic increment 用 `{ increment: 1 }` 而非「先读后写 +1」—— 后者在并发编辑下会丢更新（两个并发 PATCH 都读到 version=1 都写 2），atomic increment 是 DB 层的原子操作，天然并发安全。本 story 编辑场景并发概率低，但保持 atomic 习惯避免陷阱
+  - pattern：Rug Pull 防护的三件套 `version+1 + mcpApproved=false + reviewFlag=标记` 是同一 update.data 内一次性写入的 —— 不能分三次 update，否则中间状态可能被 MCP 客户端读到（version 已 +1 但 mcpApproved 仍 true 的窗口期）。Prisma update data 是单次 SQL UPDATE 原子提交，无中间态泄漏
+  - pattern：编辑触发重审后 status 保持不变（published 仍公开可见）是关键语义 —— SEC-010 的目的是「防止 MCP 用户拿到被污染的 skill」，而非「惩罚作者的公开内容」。公开视图的可见性由作者/管理员通过 status/软删 控制，本 story 只管 MCP 准入
+  - 陷阱：reviewFlag 的值用固定字符串 'edited: pending re-review' 而非动态构造 —— SEC-007 的 admin 视图通过 `reviewFlag != null` 筛选进队列，不依赖具体内容；固定值便于未来 grep 审计「哪些 post 是因编辑被重审 vs GLM 扫描 suspicious」
+  - 陷阱：不要在 PATCH 里 `reviewFlag: null` 清标记 —— 那等于「编辑后无声放行」，违背 SEC-010 的目的。即便作者编辑后 GLM 再次扫描判定 safe（SEC-006 的 reviewPostSafety），也应让管理员人工复核，不自动清 reviewFlag（SEC-006 只在 POST 创建时调，PATCH 不调，本 story 也不调）
+  - 上下文：SEC-007 的 ReviewRow 已有 version chip（>1 提示重审），本 story 的 version+1 直接喂给它；admin 的 approve 动作会清 reviewFlag + mcpApproved=true，让编辑后的版本重新进 MCP。SEC-003 的 mcpApproved:true 过滤是本 story mcpApproved=false 写入的「下游生效点」—— 编辑后立即从 MCP 消失
+  - 上下文：未来若要加「自动重审」（PATCH 也跑 GLM 扫描，safe 自动恢复 mcpApproved），需在 PATCH 里调 reviewPostSafety 并按 verdict 分支；但本 story 不做，保持「编辑一律人工复核」的最严格姿态（即便 GLM 判 safe 也等管理员看一眼），更适合 PEVC 这种机密场景
+---
+
