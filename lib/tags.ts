@@ -12,6 +12,7 @@ export const SCENE_TAGS = [
   { value: 'ic', label: 'IC 材料', example: '写投委会材料、立项报告' },
   { value: 'post-investment', label: '投后管理', example: '被投公司赋能、董事会参与' },
   { value: 'fundraising', label: '募资 / LP', example: '找 LP、写募资材料、LP 沟通' },
+  { value: 'fund-ops', label: '基金运营', example: '基金设立/估值/LP 报告/清算/合规' },
   { value: 'crm', label: '知识管理', example: 'CRM、会议纪要、团队知识库' },
 ] as const;
 
