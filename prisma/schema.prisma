@@ -36,6 +36,7 @@ model User {
   commentLikes CommentLike[]
   mcpCallLogs McpCallLog[]
   reports   Report[]   // SEC-011: 用户提交的举报（作为举报人）
+  consents  UserConsent[] // 协议确认记录
 
   // 关注关系
   following UserFollow[] @relation("Follower")  // 我关注的人
@@ -233,4 +234,21 @@ model VerificationCode {
   createdAt DateTime @default(now())
 
   @@index([email])
+}
+
+// ---------- 用户协议确认记录 ----------
+// 记录用户在注册 / 生成 MCP Token / 投稿等关键动作时对协议的确认。
+model UserConsent {
+  id          Int      @id @default(autoincrement())
+  userId      Int
+  consentType String   // terms | privacy | mcp_security | contribution
+  version     String   // 协议版本，如 "2026-06"
+  acceptedAt  DateTime @default(now())
+  ipAddress   String?  // 可选，如能获取则记录
+  userAgent   String?  // 可选
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([userId, consentType])
 }

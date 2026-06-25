@@ -600,6 +600,14 @@ export default async function PostDetailPage({
           isAuthed={!!uid}
         />
       </div>
+
+      {/* 免责声明 */}
+      <div className="mt-10 pt-5 border-t border-paper-edge">
+        <p className="font-sans text-[11px] text-sepia leading-relaxed">
+          本 Skill 仅用于辅助分析和内容生成，不构成投资建议、法律意见、财务意见、税务意见、审计意见或合规意见。请结合实际情况和专业判断使用。详见{' '}
+          <Link href="/disclaimer" className="text-leather hover:text-ink-brown underline">免责声明</Link>。
+        </p>
+      </div>
     </article>
   );
 }
