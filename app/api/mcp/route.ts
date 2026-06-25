@@ -85,6 +85,8 @@ function makeHandler(uid: number) {
             skill: args.skillType,
             industry: args.industry,
           });
+          // SEC-003: MCP 只返回审核通过的 skill（mcpApproved=true），未审核的社区投稿不进 MCP
+          where.mcpApproved = true;
           if (args.author) {
             where.author = { ...(where.author || {}), nickname: { contains: args.author } };
           }
@@ -166,10 +168,11 @@ function makeHandler(uid: number) {
               tagScene: true,
               status: true,
               deletedAt: true,
+              mcpApproved: true,
               skillAsset: { select: { assetType: true, sourceUrl: true } },
             },
           });
-          if (!post || post.status !== POST_STATUS.PUBLISHED || post.deletedAt) {
+          if (!post || post.status !== POST_STATUS.PUBLISHED || post.deletedAt || !post.mcpApproved) {
             return { content: [{ type: 'text' as const, text: '未找到该 Skill' }] };
           }
           const text = extractPlainText(post.body);
@@ -214,9 +217,9 @@ function makeHandler(uid: number) {
 
           const post = await prisma.post.findUnique({
             where: { id: args.id },
-            select: { title: true, body: true, status: true, deletedAt: true },
+            select: { title: true, body: true, status: true, deletedAt: true, mcpApproved: true },
           });
-          if (!post || post.status !== POST_STATUS.PUBLISHED || post.deletedAt) {
+          if (!post || post.status !== POST_STATUS.PUBLISHED || post.deletedAt || !post.mcpApproved) {
             return { content: [{ type: 'text' as const, text: '未找到该 Skill' }] };
           }
 
@@ -272,7 +275,12 @@ function makeHandler(uid: number) {
           });
 
           const skills = favs
-            .filter((f) => f.post.status === POST_STATUS.PUBLISHED && !f.post.deletedAt)
+            .filter(
+              (f) =>
+                f.post.status === POST_STATUS.PUBLISHED &&
+                !f.post.deletedAt &&
+                f.post.mcpApproved,
+            )
             .map((f) => ({
               id: f.post.id,
               title: f.post.title,
@@ -313,9 +321,14 @@ function makeHandler(uid: number) {
 
           const post = await prisma.post.findUnique({
             where: { id: args.id },
-            select: { id: true, title: true, status: true, deletedAt: true },
+            select: { id: true, title: true, status: true, deletedAt: true, mcpApproved: true },
           });
-          if (!post || post.status !== POST_STATUS.PUBLISHED || post.deletedAt) {
+          if (
+            !post ||
+            post.status !== POST_STATUS.PUBLISHED ||
+            post.deletedAt ||
+            !post.mcpApproved
+          ) {
             return { content: [{ type: 'text' as const, text: '未找到该 Skill，无法收藏' }] };
           }
           await prisma.postFavorite.upsert({
