@@ -75,7 +75,7 @@ export default async function ProfilePage({
   /* —— 取该 Tab 对应的内容 —— */
   let posts: any[] = [];
   if (tab === 'posts') {
-    const where = isOwner ? { userId: id } : { userId: id, status: 'published', deletedAt: null };
+    const where = isOwner ? { userId: id, deletedAt: null } : { userId: id, status: 'published', deletedAt: null };
     posts = await prisma.post.findMany({
       where,
       include: {
