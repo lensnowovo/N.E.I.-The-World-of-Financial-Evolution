@@ -8,6 +8,7 @@ import { stripHtml } from '@/lib/validate';
 import { POST_STATUS } from '@/lib/status';
 import { extractPlainText } from '@/lib/skill-text';
 import { withMetrics } from '@/lib/metrics';
+import { wrapWithSafetyRules } from '@/lib/mcp-safety';
 
 export const dynamic = 'force-dynamic';
 export const maxDuration = 60;
@@ -188,11 +189,13 @@ function makeHandler(uid: number) {
             content: [
               {
                 type: 'text' as const,
-                text:
+                // SEC-004: 在 skill 内容前注入安全规则前缀，降低 prompt injection 风险
+                text: wrapWithSafetyRules(
                   `# ${post.title}\n场景：${post.tagScene}\n类型：${post.skillAsset?.assetType ?? '未知'}\n\n---\n\n${text}` +
-                  (placeholders.length
-                    ? `\n\n---\n\n**占位符**（apply_skill 时传这些 key 做精确替换）：\n${placeholders.join('  ')}`
-                    : ''),
+                    (placeholders.length
+                      ? `\n\n---\n\n**占位符**（apply_skill 时传这些 key 做精确替换）：\n${placeholders.join('  ')}`
+                      : ''),
+                ),
               },
             ],
           };
@@ -244,7 +247,10 @@ function makeHandler(uid: number) {
             content: [
               {
                 type: 'text' as const,
-                text: `# ${post.title}\n\n以下是填好你上下文的 Prompt，请直接用你的 AI 执行：\n\n---\n\n${promptText}${hint}`,
+                // SEC-004: 在填好的 prompt 前注入安全规则，apply 出来的内容直接给客户端 AI 执行，更需边界声明
+                text: wrapWithSafetyRules(
+                  `# ${post.title}\n\n以下是填好你上下文的 Prompt，请直接用你的 AI 执行：\n\n---\n\n${promptText}${hint}`,
+                ),
               },
             ],
           };
@@ -299,10 +305,12 @@ function makeHandler(uid: number) {
             content: [
               {
                 type: 'text' as const,
-                text:
+                // SEC-004: 收藏列表也注入安全规则前缀（列表里含 excerpt/title，且用户会继续 get/apply 其中某个）
+                text: wrapWithSafetyRules(
                   skills.length > 0
                     ? `你收藏了 ${skills.length} 个 Skill：\n${JSON.stringify(skills, null, 2)}`
                     : '你还没有收藏任何 Skill。请到 N.E.I. 网站发现并收藏，或用 favorite_skill 工具收藏。',
+                ),
               },
             ],
           };
