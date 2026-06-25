@@ -17,13 +17,16 @@ export const SCENE_TAGS = [
 
 export const INDUSTRY_TAGS = [
   { value: 'ai-saas', label: 'AI / SaaS' },
-  { value: 'biotech', label: '生物医药' },
+  { value: 'semiconductor', label: '半导体 / 芯片' },
+  { value: 'biotech', label: '生物医药 / CGT' },
   { value: 'consumer', label: '消费 / 品牌' },
-  { value: 'robotics', label: '机器人 / 先进制造' },
-  { value: 'climate', label: '气候 / 新能源' },
+  { value: 'robotics', label: '具身智能 / 机器人' },
+  { value: 'climate', label: '新能源 / 储能' },
+  { value: 'aerospace', label: '商业航天' },
+  { value: 'materials', label: '新材料' },
   { value: 'fintech', label: '金融科技' },
   { value: 'crypto', label: 'Crypto / Web3' },
-  { value: 'healthcare', label: '医疗健康' },
+  { value: 'healthcare', label: '医疗服务 / 器械' },
   { value: 'cross-border', label: '出海 / 全球化' },
 ] as const;
 
