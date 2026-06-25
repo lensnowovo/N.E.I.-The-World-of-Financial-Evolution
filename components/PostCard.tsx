@@ -101,10 +101,10 @@ function DefaultPostCard({
             </div>
           )}
 
-          {/* —— 作者条 —— */}
+          {/* —— 作者条：优先显示原作者（如 Anthropic/肖璟），无则显示上传者 —— */}
           <div className="flex items-center gap-2 mb-3 font-sans text-xs text-sepia">
             <RoleBadge role={post.author.role} size={16} />
-            <span className="text-ink-brown">{post.author.nickname}</span>
+            <span className="text-ink-brown">{post.skillAsset?.originalAuthor || post.author.nickname}</span>
             <DotSep />
             <TimeText value={post.createdAt} />
             {post.counts.attachments > 0 && (
