@@ -342,3 +342,21 @@
   - 陷阱：批量迁移脚本不要忘了 `status: 'published'` 与 `deletedAt: null` 过滤 —— 草稿/已拒/软删的帖子即便 author 是 library 也不应进 MCP（前者未公开，后者已下架）。codebase 的 deletedAt 软删 pattern（见顶部 Codebase Patterns）在这类批量更新里同样必须遵守
   - 上下文：SEC-003 会在 MCP route 的 5 个 tool 查询 where 都加 `mcpApproved: true`；本 story 的迁移脚本保证现有官方 skill 在 SEC-003 上线后仍可被 MCP 返回（否则全部被过滤 → MCP 空）。两个 story 强耦合，部署时 SEC-002 必须先于 SEC-003 跑
 ---
+
+## 2026-06-25 14:30 - SEC-003
+- app/api/mcp/route.ts 5 个 tool 的 post 查询统一加 `mcpApproved` 准入过滤，unfavorite_skill 按需求不动：
+  - **search_skills**：`buildFeedWhere(...)` 返回的 where 上挂 `where.mcpApproved = true`（在 buildFeedWhere 外部挂，避免污染首页/搜索 feed 的共用 where —— feed 仍要展示未审核帖供浏览，只是 MCP 不返回）
+  - **get_skill / apply_skill / favorite_skill**：findUnique 的 `select` 显式加 `mcpApproved: true`（select 不带默认标量，见 US-009 陷阱），not-found 分支条件追加 `|| !post.mcpApproved`
+  - **list_my_skills**：post 是 `include` 关系（默认带全部标量，无需显式 select），在内存 filter 里追加 `&& f.post.mcpApproved`
+  - **unfavorite_skill**：取消收藏语义不改（用户已收藏的 skill 即便事后被撤 MCP 准入，仍可取消收藏，否则会留下脏 favorited 记录）
+- 更改的文件：app/api/mcp/route.ts
+- 类型检查：`npx tsc --noEmit` EXIT=0
+- 浏览器验证：本 story 无 "Verify in browser" 验收项；MCP 协议需要 token + 客户端 SDK 不便本地手动测，需部署后人工验证（任取一篇 mcpApproved=false 的 post，从 MCP 客户端调 get/apply/favorite/list_my 应都拿不到，search 也搜不到）
+- **未来迭代的学习：**
+  - pattern：buildFeedWhere 是「公开可见的 feed 查询」共用 helper（首页/搜索/筛选），它返回 `status:published + deletedAt:null`；MCP 的过滤是「审核准入」是更严格一档。**不要把 mcpApproved 塞进 buildFeedWhere**，否则首页也会被过滤（用户浏览不到未审核的投稿）。正确姿势是在 MCP 路由内部 where 上单独加 `where.mcpApproved = true`。这一「在同一 where 对象上叠加约束」的姿势在本文件 search_skills 已用过（args.author / args.cursor 也是后挂的）
+  - pattern：findUnique + select（非 include）不自动带新增标量字段 —— 必须把 `mcpApproved: true` 显式写进 select，否则 tsc 报 Property 'mcpApproved' does not exist。这和 US-009 的 deletedAt / US-012 的 featured 是同一个坑（select 是投影白名单），改 select 查询时务必同步加新字段
+  - pattern：filter 「post 关系上的条件」在 include 场景下有两个选择 —— (a) 查询层 `post: { where: {...} }` (b) 内存 filter。本 story list_my_skills 选 (b) 因为 take:50 已限制规模 + 收藏夹是用户自己的小集合；若数据量大改 (a) 更优。get/apply/favorite 选 findUnique + 显式 select + 404 兜底，是单 post 准入的标准姿势
+  - 陷阱：unfavorite_skill **不要**加 mcpApproved 过滤。语义上「取消收藏」是删除已存在的 favorite 记录，若加过滤会导致撤 MCP 准入的 skill 无法被用户取消收藏，留在 favorited 列表里污染。acceptanceCriteria 明确说 unfavorite 不受影响
+  - 上下文：SEC-002 的迁移脚本必须先于本 story 部署，否则现有官方 skill 全部 mcpApproved=false 会被本 story 的过滤清空 → MCP 空。SEC-004 会在 get/apply/list_my 返回的 content 外层包 wrapWithSafetyRules（本 story 只动 where 过滤，不动返回内容）
+  - 上下文：SEC-007 的管理员 approve 动作会把 mcpApproved 置 true —— 即控制本 story 过滤准入的开关；SEC-010 的编辑触发重审会把 mcpApproved 重置 false，本 story 的过滤立即生效阻止更新版进 MCP（防 Rug Pull）
+---
