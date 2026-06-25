@@ -1,0 +1,89 @@
+{
+  "project": "N.E.I. 用户控制台重构 + .md 上传自动填 (Sprint 1x)",
+  "branchName": "ralph/sprint-1x-dash-upload",
+  "description": "技术栈：Next.js 15.5 App Router / React 18 / Prisma 5.22 + PostgreSQL(Neon) / GLM(OpenAI 兼容，lib/glm.ts，baseUrl /coding/paas/v4，model glm-4.6，env GLM_API_KEY) / R2 存储。\n\n本轮两件事：\n1) /dashboard 用户控制台从 2 tab(skills+connect)重构为 4 tab(概览/我的收藏/我的发布/MCP 连接)，让普通用户有自己的数据中心；\n2) 发布表单加「上传 SKILL.md」→ GLM 读文件内容自动预填(标题/中文介绍/标签/类型)，复用已有 transcribe 的 GLM 转写能力。\n\n关键约束：\n- 本地无 DATABASE_URL，验收以 `npx tsc --noEmit` 为准(必过)。改 prisma/schema.prisma 后先 npx prisma generate。\n- GLM 走 lib/glm.ts(isGlmEnabled 判 GLM_API_KEY)；未配/失败 graceful 降级(不阻塞)。\n- 不改业务逻辑/安全层(SEC 已上线)，只加控制台 UI + 发布上传体验。遵循现有 patterns(sepia/vellum/ink-brown)。\n- /dashboard 是普通用户控制台；管理员审核在 /admin(已有 5 tab)，不要混淆。",
+  "userStories": [
+    {
+      "id": "DASH-001",
+      "title": "/dashboard 重构 4 tab 框架 + 概览 tab(我的数据统计)",
+      "description": "作为用户我希望控制台有个概览，一眼看到我的收藏/发布/被收藏/被浏览/MCP 调用数据。",
+      "acceptanceCriteria": [
+        "app/dashboard/DashboardClient.tsx 把 tab 从 'skills'|'connect' 重构为 4 个：'overview'(概览)/'stars'(我的收藏)/'mine'(我的发布)/'mcp'(MCP 连接)。'stars' tab 复用现有 skills 内容(收藏列表)，不重写",
+        "概览 tab 显示当前登录用户的 5 个数据：收藏数(postFavorite.count userId=me)、发布数(post.count userId=me status=published deletedAt=null)、被收藏数(我的帖被收藏总数，聚合 postFavorite join post where post.userId=me)、被浏览数(我的帖 viewCount 求和)、MCP 调用数(mcpCallLog.count userId=me)",
+        "数据从 props 传入(app/dashboard/page.tsx server 端查好传给 client)，client 只渲染",
+        "Typecheck passes"
+      ],
+      "priority": 1,
+      "passes": true,
+      "notes": "",
+      "retryCount": 0,
+      "blocked": false
+    },
+    {
+      "id": "DASH-002",
+      "title": "我的发布 tab(我发的帖 + 编辑/删除入口)",
+      "description": "作为用户我希望在控制台看到自己发的帖，并能编辑或删除。",
+      "acceptanceCriteria": [
+        "我的发布 tab 列出 userId=me 且 status=published 且 deletedAt=null 的 post(显示 title/scene/updatedAt)，按 updatedAt desc",
+        "每条带「编辑」链接(跳 /posts/[id]/edit，US-013 已有)和「删除」提示(软删除走 /admin，普通用户删除提示去 /admin 或显示「联系管理员」)",
+        "数据从 props 传入(server 端查)",
+        "Typecheck passes"
+      ],
+      "priority": 2,
+      "passes": true,
+      "notes": "",
+      "retryCount": 0,
+      "blocked": false
+    },
+    {
+      "id": "DASH-003",
+      "title": "MCP 连接 tab(token 状态 + 生成/撤销 + 我的调用历史)",
+      "description": "作为用户我希望在控制台管理 MCP token 并看自己的调用历史。",
+      "acceptanceCriteria": [
+        "MCP 连接 tab 显示当前 token 状态：有无 token(查 user.mcpTokenHash 是否非空)、tokenCreatedAt、tokenLastUsedAt(从 User 字段读，SEC-008 已加)",
+        "提供「生成 token」和「撤销 token」按钮(调现有 /api/users/me/mcp-token POST/DELETE)，生成后显示一次明文 token",
+        "显示最近 10 条 MCP 调用历史(prisma.mcpCallLog.findMany where userId=me orderBy createdAt desc take 10，显示 tool/postId/clientName/createdAt)，从 props 传入",
+        "Typecheck passes"
+      ],
+      "priority": 3,
+      "passes": true,
+      "notes": "",
+      "retryCount": 0,
+      "blocked": false
+    },
+    {
+      "id": "UPLOAD-001",
+      "title": "发布表单加「上传 SKILL.md」入口(前端读文件 + POST)",
+      "description": "作为用户(尤其发 agent-skill)我希望上传 SKILL.md 文件后平台自动读内容填表单，不用手敲正文。",
+      "acceptanceCriteria": [
+        "app/publish/PublishForm.tsx 在表单顶部(类型选择附近)加一个「上传 SKILL.md 自动填」入口：input type=file accept='.md,.markdown,.txt'",
+        "选文件后用 FileReader 读文本内容，POST 到 /api/ai/transcribe-file，body { content, fileName }",
+        "收到响应后预填表单：标题、正文(intro HTML)、场景、行业、内容标签、类型(assetType)；用户可 review 修改后再提交",
+        "上传/转写中显示 loading，失败显示错误(GLM 未配则提示去配置)",
+        "Typecheck passes"
+      ],
+      "priority": 4,
+      "passes": true,
+      "notes": "",
+      "retryCount": 0,
+      "blocked": false
+    },
+    {
+      "id": "UPLOAD-002",
+      "title": "后端 /api/ai/transcribe-file(GLM 读 .md 内容 → 生成中文标题/介绍/标签)",
+      "description": "作为平台我希望用户提供 .md 文件内容时，GLM 读取并生成中文友好的发布字段，复用 transcribe 的转写能力。",
+      "acceptanceCriteria": [
+        "新增 app/api/ai/transcribe-file/route.ts POST：接 { content, fileName }，需登录(getSessionUid)；isGlmEnabled 校验，未配返回 503",
+        "调 lib/glm.ts 让 GLM 读 content(原文)，参考 lib/ai.ts 现有 transcribeSkill 的提示词逻辑(把 GitHub 抓取的 sourceContent 换成本接口收到的 content)，生成 { title(中文标题), intro(中文介绍，HTML), scene, industry, contents[], assetType }",
+        "返回 { skill: {title, shouldAttach, ...}, sourceContent? } 结构对齐前端预填(参考 /api/ai/transcribe 的返回 shape，前端 PublishForm 已有消费逻辑)",
+        "GLM 调用失败时返回 500 + 错误信息",
+        "Typecheck passes"
+      ],
+      "priority": 5,
+      "passes": true,
+      "notes": "",
+      "retryCount": 0,
+      "blocked": false
+    }
+  ]
+}
