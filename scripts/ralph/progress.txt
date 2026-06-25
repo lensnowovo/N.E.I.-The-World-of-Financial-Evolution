@@ -685,3 +685,23 @@
   - 上下文：lib/ai.ts 现有三套 LLM 能力（transcribe / suggest / review-safety），加上本 story 的 transcribeUploadedFile 是第四套；所有 LLM 调用都通过 lib/glm.ts 的 glmChat（jsonMode + temperature + maxTokens），失败抛 Error 给调用方转 HTTP 500
   - 上下文：前端入口在 app/publish/PublishForm.tsx 的 BranchPicker.onFilePick（UPLOAD-001 已加），accept=".md,.markdown,.txt"，1MB 客户端上限；后端 200KB 文本上限是二次保险（防 base64/编码绕过）
 ---
+
+## 2026-06-25 00:15 - UX-001
+- 把「上传 SKILL.md 自动填」入口从 BranchPicker 顶部独立区，移到 PublishForm 主表单（选完分支后显示）的拖拽 drop zone + AI 解析按钮：
+  - PublishForm 新增 `uploading`/`uploadErr`/`dragOver`/`dragDepth` 状态与 `handleMdFile`/`onFileInputChange`/`onMdDrop` 三个 handler（复用原 onFilePick 的 readFileAsText → POST /api/ai/transcribe-file → prefillFromAi 链路，不动后端）
+  - drop zone：dashed border + drag-over 高亮（border-ink-brown + bg-parchment）+ uploading 时 opacity-60 + pointer-events-none；点击 label 触发隐藏 `<input type="file" accept=".md,.markdown,.txt">`
+  - dragDepth useRef 计数器解决 drag enter/leave 在子元素边界来回触发导致的 flicker（标准 pattern：enter++/leave--，归零才 unset dragOver）
+  - BranchPicker 删除 uploading/uploadErr state、onFilePick 函数、整块 upload UI；`busy = importing || uploading` 简化为直接用 `importing`；GitHub 导入入口保留不动
+  - 新增 drop zone Section 位于「当前分支标识」之后、「标题」Section 之前 —— 用户先选分支 → 看到 drop zone → 拖入文件 → AI 预填 → 可改后发布
+- 更改的文件：app/publish/PublishForm.tsx（+111/-76）
+- 类型检查：`npx tsc --noEmit` 通过（EXIT=0）
+- 浏览器验证（acceptanceCriteria 含拖拽/click/AI 解析行为）：本地无 DATABASE_URL 不便跑 `npm run dev` 完整交互（prefillFromAi 不依赖 DB，但 /api/ai/transcribe-file 路由可能间接用 session）。需部署后人工验证。已脑演：(a) 选 prompt → drop zone 出现 ✓；(b) 拖 .md → onMdDrop → handleMdFile → FileReader → POST → prefillFromAi 设 branch/title/scene/... 表单可见可改 ✓；(c) 点击 label → 文件选择对话框 → 选文件 → 同链路 ✓；(d) uploading=true 时 drop zone 灰显且 onMdDrop 提前 return 防重入 ✓；(e) 非 .md 后缀 → uploadErr "仅支持 .md / .markdown / .txt 文件" ✓；(f) >1MB → uploadErr "文件过大..." ✓
+- **未来迭代的学习：**
+  - pattern：React DnD drop zone 的 flicker 用 `useRef<number>` depth counter 解（enter++ / leave--，<=0 才真正 unset dragOver）。不用 counter 的话，鼠标在父→子元素边界会反复触发 enter/leave，dragOver 状态闪烁
+  - pattern：`onDragOver` 必须显式 `e.preventDefault()` 才能让 `onDrop` 触发（浏览器默认会阻止 drop）；`onDrop` 也要 preventDefault 防浏览器直接打开文件
+  - pattern：「文件 input change + 拖拽 drop」共用逻辑时，抽出 `handleMdFile(file: File)` 接收 File 参数，两个入口各自从 `e.target.files?.[0]` 或 `e.dataTransfer.files?.[0]` 取出 File 传入，避免重复读取逻辑
+  - pattern：`<input type="file" className="hidden">` 包在 `<label>` 里是经典的「点击触发文件选择」CSS-less 方案，label 点击会代理到 input；选完文件后 `e.target.value = ''` 让用户能重选同一文件（input change 不会因 value 不变而触发）
+  - 陷阱：原 onFilePick 在大小校验失败分支里有 `e.target.value = ''`，但拖拽路径没有 input 要清空 —— 抽出 handleMdFile 后这个清理只在 onFileInputChange 路径做，handleMdFile 本身保持纯净（只处理 File）
+  - 上下文：`prefillFromAi` 会 `setBranch(skill.branch)` —— 即用户选了 prompt 后拖入一个 AI 判定为 method 的 .md，分支会被切换；这是「AI 智能识别」的预期行为，不要在 drop zone 里固定分支
+  - 上下文：PublishForm 的「Section」组件位于文件底部（line ~815），统一 title + hint + children 三段式；drop zone 也用 Section 包裹保持视觉一致
+---
