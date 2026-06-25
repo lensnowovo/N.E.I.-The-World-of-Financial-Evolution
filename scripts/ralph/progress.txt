@@ -480,3 +480,32 @@
   - 上下文：本 story 是 SEC-009 的前置依赖（两者都属「Token/日志溯源」priority 8-9），SEC-009 不依赖本 story 的字段，但同属一个主题域。部署时无顺序约束
 ---
 
+
+## 2026-06-25 19:10 - SEC-009
+- prisma/schema.prisma McpCallLog 加 3 个溯源字段（放在 createdAt 后、关系前，保持「业务字段 → 关系 → 索引」结构）：
+  - `clientName String?` —— 调用方 User-Agent，识别客户端（Cursor / Claude Desktop / curl 等）
+  - `latencyMs Int?` —— tool 执行耗时（毫秒）
+  - `requestId String?` —— 同请求多 tool 共享的随机 id（crypto.randomUUID）
+  - 新增 `@@index([requestId])` 便于按请求聚合查询；userId 索引保留
+- app/api/mcp/route.ts：
+  - 新增 `perRequestCtx(req)` helper：从 User-Agent header 提取 clientName（截断 256 防长 UA 撑爆 DB），缺失返回 null；`crypto.randomUUID()` 生成 requestId
+  - POST/GET/DELETE 三个入口都调 perRequestCtx，把 clientName + requestId 传给 makeHandler（与 uid 一起构成 per-request 闭包三元组）
+  - makeHandler 内新增 `logCall(tool, start, postId?)` helper：统一构造 mcpCallLog.create data（含 uid + tool + postId + clientName + requestId + latencyMs = Date.now() - start），fire-and-forget `.catch(() => {})`
+  - 6 个 tool（search/get/apply/list_my/favorite/unfavorite）全部改为 `const start = Date.now(); try { ...原逻辑... } finally { logCall(...) }` 模式：finally 测得真实 latencyMs，且工具抛错也保留日志（防御性观测）
+- 更改的文件：prisma/schema.prisma、app/api/mcp/route.ts
+- 校验：
+  - `npx prisma generate`：✔ Generated Prisma Client v5.22.0（干净，无 EPERM）
+  - `grep -E "clientName|latencyMs|requestId" node_modules/.prisma/client/index.d.ts`：McpCallLog 类型字段已就绪（string | null / number | null）
+  - `npx tsc --noEmit`：EXIT=0
+- 浏览器验证：本 story 无 "Verify in browser" 验收项；MCP 协议需 token + 客户端 SDK，本地不便测。需部署后人工验证（用不同 User-Agent 的客户端 curl 调 MCP tool，去 Neon 查 mcpCallLog 表应看到 clientName / latencyMs / requestId 三列被填充；同一次 POST 内若 SDK 批量调多个 tool，requestId 应一致）。已脑演绝不记录正文：logCall data 只含 userId/postId/tool/clientName/requestId/latencyMs，无 body / prompt / token 字段
+- **未来迭代的学习：**
+  - pattern：「per-request 闭包传递多值」用 `makeHandler(uid, clientName, requestId)` 三元参数 + helper 内层闭包，是 US-001 的 uid 单值传递的自然扩展。每次 HTTP 请求 POST/GET/DELETE 入口都重新生成 requestId，天然做到「同请求共享 / 跨请求隔离」，不需要 AsyncLocalStorage
+  - pattern：logCall helper 收敛在 makeHandler 内部（闭包捕获 uid/clientName/requestId），避免 6 个 tool 各自重复构造 prisma.mcpCallLog.create data —— 任何字段调整（如未来加 toolArgs 哈希）只改一处。这和 SEC-004 的 wrapWithSafetyRules 是同一收敛思路
+  - pattern：tool 执行耗时测量用 `try { ... } finally { logCall(tool, start) }` 而非「log at start」或「log at end 无 finally」—— 前者只测到 0ms，后者在 tool 抛错时丢日志。try/finally 既测到真实 latency 又保留异常路径的观测，是 fire-and-forget 观测日志的标准姿势
+  - 陷阱：User-Agent 字符串可能非常长（某些浏览器 + 扩展 UA 拼到 500+ 字），不截断会撑爆 DB 行 + 索引。本 story 在 perRequestCtx 入口 `ua.slice(0, 256)` 截断，256 足够覆盖主流客户端标识（Cursor / Claude Desktop / VS Code MCP / curl 等）
+  - 陷阱：`crypto.randomUUID()` 在 Next.js server runtime 原生可用（Node 16.7+），不需要 import 'crypto' 模块 —— 顶部已 `import crypto from 'node:crypto'`，randomUUID 是其方法
+  - 陷阱：fire-and-forget 必须 `.catch(() => {})`，否则 prisma create reject 会变 unhandledRejection 拖崩 serverless 进程（同 SEC-008 / 顶部 Codebase Patterns 的 fire-and-forget 三件套）
+  - 陷阱：logCall 在 finally 里执行时，prisma.mcpCallLog.create 是异步的但不需要 await —— await 会阻塞 tool 返回响应给 MCP 客户端，违反「MCP SLA 快返回」语义。fire-and-forget 是观测字段的正确姿态
+  - 上下文：本 story 与 SEC-008（tokenCreatedAt / tokenLastUsedAt）是互补的 —— SEC-008 是 per-user 聚合时间戳（轻），本 story 是 per-call 详细日志（重，但只取维度不取正文）。未来 admin 控制台若加「可疑调用」视图，可按 clientName / requestId 聚合：如「同一 requestId 内连续多次 favorite/unfavorite」可能是滥用，「latencyMs 持续 > 5000」可能 DB 慢查询
+  - 上下文：SEC-010 编辑触发重审会让被编辑的 skill 立即 mcpApproved=false，下次 MCP 调用 get/apply 该 skill 会返回「未找到」—— 本 story 的日志会记录到 tool=get_skill 但 latencyMs 会很短（query 命中后早 return），可作为「用户尝试调用被撤回 skill」的信号
+---
