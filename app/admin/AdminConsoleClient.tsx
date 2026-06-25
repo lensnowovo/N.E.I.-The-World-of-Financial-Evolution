@@ -21,6 +21,19 @@ export type AdminPostItem = {
   author: { id: number; nickname: string };
 };
 
+export type ReviewPostItem = {
+  id: number;
+  title: string;
+  status: string;
+  tagScene: string;
+  mcpApproved: boolean;
+  reviewFlag: string | null;
+  securityLevel: string;
+  version: number;
+  createdAt: string;
+  author: { id: number; nickname: string };
+};
+
 export type OverviewStats = {
   totalPosts: number;
   totalUsers: number;
@@ -37,13 +50,19 @@ export type McpStats = {
   recent: { tool: string; postId: number | null; nickname: string; createdAt: string }[];
 };
 
-type Tab = 'overview' | 'content' | 'mcp' | 'mine' | 'data';
+type Tab = 'overview' | 'content' | 'review' | 'mcp' | 'mine' | 'data';
 
 const STATUS_LABEL: Record<string, string> = {
   [POST_STATUS.DRAFT]: '草稿',
   [POST_STATUS.PENDING]: '待审',
   [POST_STATUS.PUBLISHED]: '已发布',
   [POST_STATUS.REJECTED]: '已拒绝',
+};
+
+const SECURITY_LEVEL_LABEL: Record<string, string> = {
+  safe: '安全',
+  suspicious: '可疑',
+  reject: '拒绝',
 };
 
 function formatDate(iso: string): string {
@@ -55,18 +74,21 @@ function formatDate(iso: string): string {
 export function AdminConsoleClient({
   initialItems,
   myPosts,
+  initialReviewItems,
   overview,
   mcp,
   adminId,
 }: {
   initialItems: AdminPostItem[];
   myPosts: AdminPostItem[];
+  initialReviewItems: ReviewPostItem[];
   overview: OverviewStats;
   mcp: McpStats;
   adminId: number;
 }) {
   const [tab, setTab] = useState<Tab>('overview');
   const [items, setItems] = useState<AdminPostItem[]>(initialItems);
+  const [reviewItems, setReviewItems] = useState<ReviewPostItem[]>(initialReviewItems);
   const [featured, setFeatured] = useState<AdminPostItem[]>(() =>
     initialItems
       .filter((i) => i.featured && !i.deletedAt)
@@ -145,10 +167,49 @@ export function AdminConsoleClient({
   const TABS: { key: Tab; label: string }[] = [
     { key: 'overview', label: '概览' },
     { key: 'content', label: '内容审核' },
+    ...(reviewItems.length > 0 ? [{ key: 'review' as const, label: `待审 (${reviewItems.length})` }] : []),
     { key: 'mcp', label: 'MCP 状态' },
     { key: 'mine', label: '我的发布' },
     { key: 'data', label: '数据' },
   ];
+
+  const onReview = useCallback(
+    async (post: ReviewPostItem, action: 'approve' | 'reject' | 'revoke') => {
+      const verb = action === 'approve' ? '通过' : action === 'reject' ? '拒绝' : '撤回 MCP';
+      if (typeof window !== 'undefined' && !window.confirm(`确认${verb}「${post.title}」？`)) return;
+      setBusyId(post.id);
+      try {
+        const res = await fetch(`/api/admin/posts/${post.id}/review`, {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ action }),
+        });
+        if (!res.ok) {
+          const data = await res.json().catch(() => ({}));
+          flash(false, `操作失败：${data?.error ?? res.status}`);
+          return;
+        }
+        const data = await res.json();
+        setReviewItems((prev) => {
+          // approve → 清 reviewFlag + status=published：移出待审队列
+          // reject  → status=rejected：不再 pending，reviewFlag 不变但状态已结案，移出
+          // revoke  → 仅切换 mcpApproved；reviewFlag 非空的 suspicious 仍需复核 → 留在队列
+          if (action === 'approve' || action === 'reject') {
+            return prev.filter((i) => i.id !== post.id);
+          }
+          return prev.map((i) =>
+            i.id === post.id ? { ...i, mcpApproved: Boolean(data.mcpApproved) } : i,
+          );
+        });
+        flash(true, `${verb}「${post.title}」已生效`);
+      } catch {
+        flash(false, '网络错误，操作失败');
+      } finally {
+        setBusyId(null);
+      }
+    },
+    [flash],
+  );
 
   return (
     <div>
@@ -224,6 +285,30 @@ export function AdminConsoleClient({
             <ul className="space-y-2">
               {visible.map((p) => (
                 <PostRow key={p.id} p={p} adminId={adminId} isBusy={busyId === p.id} onDelete={onDelete} onToggleFeatured={onToggleFeatured} />
+              ))}
+            </ul>
+          )}
+        </div>
+      )}
+
+      {/* —— 待审队列（SEC-007）—— */}
+      {tab === 'review' && (
+        <div className="space-y-6">
+          <div className="flex items-baseline gap-3 flex-wrap">
+            <h2 className="font-serif text-lg text-ink-brown">MCP 准入审核</h2>
+            <span className="font-sans text-[11px] text-sepia">
+              列出 status=pending 或 reviewFlag 非空的帖子 · GLM 安全扫描（SEC-006）标记的 suspicious/reject 会进入此处
+            </span>
+          </div>
+
+          {reviewItems.length === 0 ? (
+            <div className="border border-paper-edge bg-vellum rounded-md p-10 text-center">
+              <p className="font-serif italic text-sepia">暂无待审内容 · 投稿经 GLM 扫描后若被标 suspicious/reject 会自动出现在此</p>
+            </div>
+          ) : (
+            <ul className="space-y-2">
+              {reviewItems.map((p) => (
+                <ReviewRow key={p.id} p={p} isBusy={busyId === p.id} onReview={onReview} />
               ))}
             </ul>
           )}
@@ -429,6 +514,68 @@ function PostRow({
           <Button size="sm" variant="secondary" disabled={isBusy || deleted} onClick={() => onDelete(p)} title={deleted ? '已软删' : ''}>
             删除
           </Button>
+        </div>
+      </div>
+    </li>
+  );
+}
+
+/* ============================================================
+   待审帖子行（SEC-007 MCP 准入审核）
+   ============================================================ */
+function ReviewRow({
+  p,
+  isBusy,
+  onReview,
+}: {
+  p: ReviewPostItem;
+  isBusy: boolean;
+  onReview: (p: ReviewPostItem, action: 'approve' | 'reject' | 'revoke') => void;
+}) {
+  const securityChipColor =
+    p.securityLevel === 'reject'
+      ? 'border-wax-red text-wax-red bg-wax-red/5'
+      : p.securityLevel === 'suspicious'
+        ? 'border-gilded text-gilded bg-gilded/5'
+        : 'border-paper-edge text-sepia';
+  return (
+    <li className="border border-paper-edge bg-vellum rounded-md p-4">
+      <div className="flex items-start justify-between gap-4 flex-wrap">
+        <div className="min-w-0 flex-1">
+          <div className="flex items-center gap-2 flex-wrap">
+            <Link href={`/posts/${p.id}`} className="font-serif text-lg text-ink-brown hover:text-wax-red truncate">{p.title}</Link>
+            <span className={cn('font-sans text-[10px] px-1.5 py-0.5 border rounded-sm', securityChipColor)}>
+              GLM: {SECURITY_LEVEL_LABEL[p.securityLevel] ?? p.securityLevel}
+            </span>
+            {p.mcpApproved && <span className="font-sans text-[10px] px-1.5 py-0.5 bg-green-50 text-green-800 rounded-sm">已准入 MCP</span>}
+            {p.version > 1 && <span className="font-sans text-[10px] px-1.5 py-0.5 border border-paper-edge text-leather rounded-sm" title="编辑过会 +1 并撤回 MCP 准入（SEC-010 防 Rug Pull）">v{p.version}</span>}
+          </div>
+          <div className="mt-1 flex items-center gap-3 flex-wrap font-mono text-[11px] text-sepia">
+            <span>#{p.id}</span>
+            <span>{STATUS_LABEL[p.status] ?? p.status}</span>
+            <span>{sceneLabel(p.tagScene)}</span>
+            <Link href={`/profile/${p.author.id}`} className="hover:text-ink-brown">@{p.author.nickname}</Link>
+            <span>{formatDate(p.createdAt)}</span>
+          </div>
+          {p.reviewFlag && (
+            <div className="mt-2 px-2 py-1.5 border-l-2 border-gilded bg-gilded/5 font-sans text-xs text-leather">
+              <span className="font-serif italic text-gilded mr-1">reviewFlag:</span>
+              {p.reviewFlag}
+            </div>
+          )}
+        </div>
+        <div className="flex items-center gap-2 shrink-0 flex-wrap">
+          <Button size="sm" variant="primary" disabled={isBusy} onClick={() => onReview(p, 'approve')} title="mcpApproved=true + status=published + 清 reviewFlag">
+            通过 MCP
+          </Button>
+          <Button size="sm" variant="secondary" disabled={isBusy} onClick={() => onReview(p, 'reject')} title="status=rejected（公开视图下架）">
+            拒绝
+          </Button>
+          {p.mcpApproved && (
+            <Button size="sm" variant="secondary" disabled={isBusy} onClick={() => onReview(p, 'revoke')} title="mcpApproved=false（立即从 MCP 返回过滤掉）">
+              撤回 MCP
+            </Button>
+          )}
         </div>
       </div>
     </li>

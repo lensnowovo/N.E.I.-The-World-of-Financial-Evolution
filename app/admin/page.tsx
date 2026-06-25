@@ -4,9 +4,11 @@ import Link from 'next/link';
 import { redirect } from 'next/navigation';
 import { prisma } from '@/lib/db';
 import { getCurrentUser } from '@/lib/session';
+import { POST_STATUS } from '@/lib/status';
 import {
   AdminConsoleClient,
   type AdminPostItem,
+  type ReviewPostItem,
   type OverviewStats,
   type McpStats,
 } from './AdminConsoleClient';
@@ -33,14 +35,30 @@ export default async function AdminPage() {
     author: { select: { id: true, nickname: true } },
   } as const;
 
+  // 待审队列：status=pending（含 SEC-006 reject 档）或 reviewFlag 非空（含 suspicious 标记）
+  // 两类都需管理员复核；SEC-007 的 approve 动作清 reviewFlag + mcpApproved=true
+  const reviewSelect = {
+    ...postSelect,
+    mcpApproved: true,
+    reviewFlag: true,
+    securityLevel: true,
+    version: true,
+  } as const;
+
   const [
-    rows, myRows,
+    rows, myRows, reviewRows,
     [totalPosts, totalUsers, totalMcpCalls, featuredCount],
     [todayPosts, todayUsers, todayMcp],
     mcpByTool, mcpRecent, tokenUsers,
   ] = await Promise.all([
     prisma.post.findMany({ select: postSelect, orderBy: { createdAt: 'desc' }, take: 200 }),
     prisma.post.findMany({ where: { userId: me.id }, select: postSelect, orderBy: { createdAt: 'desc' }, take: 50 }),
+    prisma.post.findMany({
+      where: { deletedAt: null, OR: [{ status: POST_STATUS.PENDING }, { reviewFlag: { not: null } }] },
+      select: reviewSelect,
+      orderBy: { createdAt: 'desc' },
+      take: 100,
+    }),
     Promise.all([
       prisma.post.count({ where: { deletedAt: null } }),
       prisma.user.count(),
@@ -75,6 +93,19 @@ export default async function AdminPage() {
   const items: AdminPostItem[] = rows.map(mapItem);
   const myPosts: AdminPostItem[] = myRows.map(mapItem);
 
+  const reviewItems: ReviewPostItem[] = reviewRows.map((r) => ({
+    id: r.id,
+    title: r.title,
+    status: r.status,
+    tagScene: r.tagScene,
+    mcpApproved: r.mcpApproved,
+    reviewFlag: r.reviewFlag,
+    securityLevel: r.securityLevel,
+    version: r.version,
+    createdAt: r.createdAt.toISOString(),
+    author: { id: r.author.id, nickname: r.author.nickname },
+  }));
+
   const overview: OverviewStats = {
     totalPosts, totalUsers, totalMcpCalls, featuredCount,
     todayPosts, todayUsers, todayMcp,
@@ -104,6 +135,7 @@ export default async function AdminPage() {
           <h1 className="font-serif text-3xl text-ink-brown">管理员控制台</h1>
           <span className="font-mono text-sm text-sepia">
             {activeCount} 活跃 · {deletedCount} 已软删 · {overview.featuredCount} 精选
+            {reviewItems.length > 0 && <span className="text-wax-red"> · {reviewItems.length} 待审</span>}
           </span>
         </div>
         <p className="mt-2 font-sans text-xs text-leather">
@@ -114,6 +146,7 @@ export default async function AdminPage() {
       <AdminConsoleClient
         initialItems={items}
         myPosts={myPosts}
+        initialReviewItems={reviewItems}
         overview={overview}
         mcp={mcp}
         adminId={me.id}
