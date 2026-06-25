@@ -303,3 +303,24 @@
   - 上下文：本 story 是 Sprint 0.x 的最后一个 US，完成 FeaturedWorkflows 数据驱动闭环；与 US-012（featured 字段 + API）、US-014（admin 控制台「精选」按钮）形成写入→读取完整链路
   - 上下文：未来若要让非 admin 也能 curated（如特邀编辑），扩展 shouldBootstrapAdmin 同模式的 EDITOR_BOOTSTRAP_EMAILS + User.isEditor 字段；但本 sprint 范围内只支持 admin
 ---
+
+## 2026-06-25 00:00 - SEC-001
+- prisma/schema.prisma Post 模型新增 4 个安全字段（放在 featuredOrder 后、createdAt 前）：
+  - `mcpApproved Boolean @default(false)` —— MCP 准入标记，只有 true 才通过 app/api/mcp/route.ts 返回
+  - `reviewFlag String?` —— 审核标记/原因（GLM 安全扫描或人工标记，管理员可见）
+  - `securityLevel String @default("safe")` —— safe | suspicious | reject（GLM 安全扫描结论）
+  - `version Int @default(1)` —— skill 版本号；编辑触发 +1 且 mcpApproved=false（防 Rug Pull，SEC-010 会用）
+- 更改的文件：prisma/schema.prisma
+- 校验：
+  - `DATABASE_URL=...placeholder npx prisma validate`：🚀 valid
+  - `npx prisma generate`：✔ Generated Prisma Client v5.22.0（这次无 EPERM，干净生成）
+  - `grep -E "mcpApproved|reviewFlag|securityLevel" node_modules/.prisma/client/index.d.ts`：4 个字段类型已就绪
+  - `npx tsc --noEmit`：EXIT=0
+- 浏览器验证：本 story 无 "Verify in browser" 验收项；schema 字段类型已由 prisma generate + tsc 双重覆盖
+- **未来迭代的学习：**
+  - pattern：Sprint 1x 的 Post schema 变更是「字段组扩展」而非单字段 —— 一次性把 4 个安全字段（mcpApproved / reviewFlag / securityLevel / version）加齐，避免后续 story 反复改 schema 反复 generate（Windows EPERM 风险）。后续 SEC-002~SEC-011 不应再改 Post 模型（SEC-008 改 User.tokenCreatedAt/LastUsedAt，SEC-009 改 McpCallLog，SEC-011 新增 Report）
+  - pattern：4 字段的位置选择「业务字段后、时间戳前」—— 与 US-008/US-009/US-012 加字段同一姿势（featured/deletedAt 也在该区域），保持 schema 可读性 + 时间戳字段始终在末尾的约定
+  - 上下文：SEC-002 会新增 scripts/migrate-mcp-approved.ts，把 author email === library@pevc.local 或 featured=true 的已发布 post 批量设 mcpApproved=true。本 story 只加字段（默认 false），不动数据
+  - 上下文：SEC-003 会在 app/api/mcp/route.ts 的 5 个 tool 查询 where 都加 `mcpApproved: true`。SEC-004 会新建 lib/mcp-safety.ts 包裹 MCP 返回内容。SEC-006 会在发帖流程调 GLM 写入 securityLevel + reviewFlag。SEC-007 会在 /admin 控制台加 mcpApproved 切换按钮。SEC-010 会在 PATCH 帖子时 `version: { increment: 1 }` + `mcpApproved: false`
+  - 陷阱：4 字段未加 `@@index` —— mcpApproved 选择性低（绝大多数待审=false，少数审核通过=true），b-tree 帮不上查询；SEC-003 的 MCP where 即便全表扫也够快（Sprint 1x 量级）。若未来 skill 池过万再考虑组合索引（mcpApproved, deletedAt, status）
+---
