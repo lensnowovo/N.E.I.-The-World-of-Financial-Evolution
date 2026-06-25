@@ -188,6 +188,20 @@ export function PublishForm({ currentUser }: { currentUser: CurrentUser }) {
     return methodBody;
   };
 
+  const getValidationMessage = (): string => {
+    if (!branch) return '请先选择要分享什么';
+    if (title.trim().length < 5) return '标题至少 5 个字';
+    if (title.length > 100) return '标题最大 100 个字';
+    if (!scene) return '请选择一个「用在哪个环节」';
+    if (branch === 'prompt' && promptText.trim().length === 0) return '把提示词粘贴进来';
+    if (branch === 'file' && fileTypeIdx === null) return '选一下这是什么类型的文件';
+    if (branch === 'method' && !methodType) return '选一下这属于哪类';
+    const body = resolveBody();
+    if (!body || body.replace(/<[^>]*>/g, '').trim().length === 0) return '内容还没写';
+    if (sourceUrl.trim() && !/^https?:\/\/.+/.test(sourceUrl.trim())) return '链接须以 http:// 或 https:// 开头';
+    return '';
+  };
+
   const submit = async (e: React.FormEvent) => {
     e.preventDefault();
     setErr('');
@@ -242,6 +256,7 @@ export function PublishForm({ currentUser }: { currentUser: CurrentUser }) {
 
   const assetType = resolveAssetType();
   const assetHelper = branch ? ASSET_TYPE_HELPERS[assetType] : null;
+  const validationMessage = getValidationMessage();
 
   // 智能发布辅助用的纯文本正文（prompt 分支本来就是纯文本；file/method 是富文本去标签）
   const bodyText =
@@ -593,6 +608,11 @@ export function PublishForm({ currentUser }: { currentUser: CurrentUser }) {
           {err}
         </p>
       )}
+      {!err && validationMessage && (
+        <p className="font-sans text-sm text-sepia border-l border-gilded pl-3">
+          请先补全：{validationMessage}
+        </p>
+      )}
 
       <div className="border-t border-paper-edge pt-6 flex items-center justify-between gap-3">
         <p className="font-serif italic text-xs text-sepia hidden sm:block">
@@ -602,7 +622,7 @@ export function PublishForm({ currentUser }: { currentUser: CurrentUser }) {
           <Button type="button" variant="secondary" onClick={() => router.back()}>
             取消
           </Button>
-          <Button type="submit" size="lg" disabled={submitting}>
+          <Button type="submit" size="lg" disabled={submitting || !!validationMessage}>
             {submitting ? '正在发布…' : '发布'}
           </Button>
         </div>

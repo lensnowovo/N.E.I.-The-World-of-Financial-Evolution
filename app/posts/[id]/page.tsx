@@ -27,6 +27,8 @@ import { BackLink } from './BackLink';
 import { ExecuteButton } from './ExecuteButton';
 import { ReportButton } from './ReportButton';
 import { DeleteButton } from './DeleteButton';
+import { analyzeSkillQuality } from '@/lib/skill-quality';
+import { SkillQualityPanel } from '@/components/SkillQualityPanel';
 
 export default async function PostDetailPage({
   params,
@@ -92,6 +94,18 @@ export default async function PostDetailPage({
   // Defense-in-depth: 渲染前再清洗一次 body，覆盖 DB 中可能存在的未清洗 legacy 内容。
   // 所有走 dangerouslySetInnerHTML 的路径（excerpt/promptParts/正文）都基于此值。
   const safeBody = sanitizeHtml(post.body);
+  const quality = analyzeSkillQuality({
+    title: post.title,
+    body: safeBody,
+    tagScene: post.tagScene,
+    tagContent,
+    tagSkill: post.tagSkill,
+    assetType,
+    attachmentsCount: post.attachments.length,
+    sourceUrl: post.skillAsset?.sourceUrl ?? null,
+    installHint: post.skillAsset?.installHint ?? null,
+    usageNotes: post.skillAsset?.usageNotes ?? null,
+  });
 
   // 摘要（去 HTML 标签）
   const excerpt = safeBody.replace(/<[^>]*>/g, '').replace(/\s+/g, ' ').trim().slice(0, 120);
@@ -285,6 +299,8 @@ export default async function PostDetailPage({
           )}
 
           <div className="h-px bg-paper-edge" />
+
+          <SkillQualityPanel quality={quality} />
 
           {/* 来源链接 */}
           {post.skillAsset?.sourceUrl && (

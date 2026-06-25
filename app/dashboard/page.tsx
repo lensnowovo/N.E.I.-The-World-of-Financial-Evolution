@@ -135,7 +135,7 @@ export default async function DashboardPage() {
     }));
 
   // MCP 调用统计
-  const [totalCalls, last7DaysLogs, topSkillsLogs, allCallPostIds] = await Promise.all([
+  const [totalCalls, last7DaysLogs, topSkillsLogs, allCallPostIds, listMySkillsCalls] = await Promise.all([
     prisma.mcpCallLog.count({ where: { userId: uid } }),
     prisma.mcpCallLog.count({
       where: { userId: uid, createdAt: { gte: new Date(Date.now() - 7 * 86400000) } },
@@ -152,6 +152,7 @@ export default async function DashboardPage() {
       select: { postId: true },
       distinct: ['postId'],
     }),
+    prisma.mcpCallLog.count({ where: { userId: uid, tool: 'list_my_skills' } }),
   ]);
 
   // Get titles for top skills
@@ -195,6 +196,13 @@ export default async function DashboardPage() {
         mcpTokenCreatedAt={mcpTokenCreatedAt}
         mcpTokenLastUsedAt={mcpTokenLastUsedAt}
         mcpCallLogs={mcpCallLogs}
+        mcpOnboardingStatus={{
+          favoriteCount: items.length,
+          hasMcpToken,
+          tokenLastUsedAt: mcpTokenLastUsedAt,
+          hasAnyMcpCall: totalCalls > 0,
+          hasListMySkillsCall: listMySkillsCalls > 0,
+        }}
         userId={uid}
       />
     </div>

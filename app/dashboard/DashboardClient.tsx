@@ -5,7 +5,11 @@ import Link from 'next/link';
 import { cn } from '@/lib/cn';
 import { Button } from '@/components/ui/Button';
 import { Input } from '@/components/ui/Input';
-import { formatTime } from '@/lib/format';
+import { TimeText } from '@/components/TimeText';
+import {
+  McpOnboardingChecklist,
+  type McpOnboardingStatus,
+} from '@/components/mcp/McpOnboardingChecklist';
 
 type FavItem = {
   favoriteId: number;
@@ -67,6 +71,7 @@ export function DashboardClient({
   mcpTokenCreatedAt,
   mcpTokenLastUsedAt,
   mcpCallLogs,
+  mcpOnboardingStatus,
   userId,
 }: {
   initialItems: FavItem[];
@@ -78,6 +83,7 @@ export function DashboardClient({
   mcpTokenCreatedAt: string | null;
   mcpTokenLastUsedAt: string | null;
   mcpCallLogs: McpCallLog[];
+  mcpOnboardingStatus: McpOnboardingStatus;
   userId: number;
 }) {
   const [tab, setTab] = useState<'overview' | 'stars' | 'mine' | 'mcp'>('overview');
@@ -91,6 +97,11 @@ export function DashboardClient({
   const [apiKey, setApiKey] = useState('');
   const [keySaving, setKeySaving] = useState(false);
   const [msg, setMsg] = useState<{ ok: boolean; text: string } | null>(null);
+  const currentMcpOnboardingStatus: McpOnboardingStatus = {
+    ...mcpOnboardingStatus,
+    favoriteCount: items.length,
+    hasMcpToken: mcpActive,
+  };
 
   // 生成 / 重新生成 MCP token
   const generateMcpToken = useCallback(async () => {
@@ -310,6 +321,8 @@ export function DashboardClient({
       {/* Tab: MCP 连接（DASH-003：token 状态 + 生成/撤销 + 调用历史） */}
       {tab === 'mcp' && (
         <div className="space-y-6">
+          <McpOnboardingChecklist status={currentMcpOnboardingStatus} compact />
+
           {/* MCP */}
           <div className="rounded-lg border-2 border-gilded/40 bg-gilded/5 p-5">
             <h3 className="font-serif text-base text-ink-brown mb-2">MCP Server（推荐）</h3>
@@ -345,12 +358,12 @@ export function DashboardClient({
                 <div className="flex flex-wrap gap-x-6 gap-y-1 text-xs">
                   {mcpTokenCreatedAt && (
                     <span className="font-sans text-sepia">
-                      创建时间：<span className="font-mono text-leather">{formatTime(mcpTokenCreatedAt)}</span>
+                      创建时间：<span className="font-mono text-leather"><TimeText value={mcpTokenCreatedAt} /></span>
                     </span>
                   )}
                   {mcpTokenLastUsedAt ? (
                     <span className="font-sans text-sepia">
-                      最近使用：<span className="font-mono text-leather">{formatTime(mcpTokenLastUsedAt)}</span>
+                      最近使用：<span className="font-mono text-leather"><TimeText value={mcpTokenLastUsedAt} /></span>
                     </span>
                   ) : (
                     <span className="font-sans text-sepia italic">尚未使用</span>
@@ -522,7 +535,7 @@ function MyPostRow({ post }: { post: MyPost }) {
           {post.viewCount} 次浏览
         </span>
         <span className="font-mono text-[10px] text-sepia shrink-0">
-          {formatTime(post.updatedAt)}
+          <TimeText value={post.updatedAt} />
         </span>
 
         {/* 编辑入口 */}
@@ -564,7 +577,7 @@ function McpCallLogRow({ log }: { log: McpCallLog }) {
         </span>
       )}
       {/* 时间 */}
-      <span className="font-mono text-sepia shrink-0 ml-auto">{formatTime(log.createdAt)}</span>
+      <TimeText value={log.createdAt} className="font-mono text-sepia shrink-0 ml-auto" />
     </div>
   );
 }

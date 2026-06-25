@@ -4,10 +4,10 @@ import { useCallback, useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { cn } from '@/lib/cn';
-import { formatTime } from '@/lib/format';
 import { Button } from '@/components/ui/Button';
 import { Textarea } from '@/components/ui/Input';
 import { RoleBadge } from '@/components/icons/RoleBadge';
+import { TimeText } from '@/components/TimeText';
 
 type Author = {
   id: number;
@@ -296,7 +296,7 @@ function CommentHead({
         </span>
       )}
       <span className="text-sepia">·</span>
-      <span className="text-sepia">{formatTime(createdAt)}</span>
+      <TimeText value={createdAt} className="text-sepia" />
     </div>
   );
 }

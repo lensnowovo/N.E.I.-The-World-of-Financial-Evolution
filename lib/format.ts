@@ -24,6 +24,12 @@ export function formatTime(d: Date | string): string {
   return date.toLocaleDateString('zh-CN', { year: 'numeric', month: '2-digit', day: '2-digit' });
 }
 
+export function formatStableDate(d: Date | string): string {
+  const date = typeof d === 'string' ? new Date(d) : d;
+  if (Number.isNaN(date.getTime())) return '';
+  return date.toISOString().slice(0, 10).replace(/-/g, '/');
+}
+
 export function truncate(s: string, n: number) {
   return s.length > n ? s.slice(0, n) + '...' : s;
 }

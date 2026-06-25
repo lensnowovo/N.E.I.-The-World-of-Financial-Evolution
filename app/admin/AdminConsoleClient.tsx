@@ -83,7 +83,7 @@ const SECURITY_LEVEL_LABEL: Record<string, string> = {
 function formatDate(iso: string): string {
   const d = new Date(iso);
   const pad = (n: number) => String(n).padStart(2, '0');
-  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}`;
+  return `${d.getUTCFullYear()}-${pad(d.getUTCMonth() + 1)}-${pad(d.getUTCDate())} ${pad(d.getUTCHours())}:${pad(d.getUTCMinutes())} UTC`;
 }
 
 export function AdminConsoleClient({
@@ -297,6 +297,39 @@ export function AdminConsoleClient({
             </div>
           </div>
           <div>
+            <p className="font-serif italic text-xs text-sepia mb-3">日常运营队列</p>
+            <div className="grid gap-3 md:grid-cols-4">
+              <OpsQueueCard
+                title="待审队列"
+                value={reviewItems.length}
+                detail="pending / reviewFlag 内容"
+                tone={reviewItems.length > 0 ? 'warn' : 'ok'}
+                onClick={() => setTab('review')}
+              />
+              <OpsQueueCard
+                title="举报处理"
+                value={reportItems.length}
+                detail="open reports"
+                tone={reportItems.length > 0 ? 'danger' : 'ok'}
+                onClick={() => setTab('reports')}
+              />
+              <OpsQueueCard
+                title="MCP 准入"
+                value={mcp.tokenUsers}
+                detail="已配置 Token 用户"
+                tone="neutral"
+                onClick={() => setTab('mcp')}
+              />
+              <OpsQueueCard
+                title="错误监控"
+                value={overview.totalMcpCalls}
+                detail="查看 API 错误率 / 慢请求"
+                tone="neutral"
+                onClick={() => setTab('data')}
+              />
+            </div>
+          </div>
+          <div>
             <p className="font-serif italic text-xs text-sepia mb-3">累计</p>
             <div className="grid grid-cols-3 gap-3">
               <StatCard value={overview.totalPosts} label="帖子总数" sub="未软删" />
@@ -445,6 +478,43 @@ export function AdminConsoleClient({
       {/* —— 数据 —— */}
       {tab === 'data' && <MetricsView />}
     </div>
+  );
+}
+
+function OpsQueueCard({
+  title,
+  value,
+  detail,
+  tone,
+  onClick,
+}: {
+  title: string;
+  value: number;
+  detail: string;
+  tone: 'ok' | 'warn' | 'danger' | 'neutral';
+  onClick: () => void;
+}) {
+  const toneClass =
+    tone === 'danger'
+      ? 'border-wax-red/40 bg-wax-red/5 text-wax-red'
+      : tone === 'warn'
+        ? 'border-gilded/50 bg-gilded/5 text-gilded'
+        : tone === 'ok'
+          ? 'border-moss/40 bg-moss/5 text-moss'
+          : 'border-paper-edge bg-vellum text-ink-brown';
+
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className={cn('rounded-md border p-4 text-left transition-colors hover:border-ink-brown', toneClass)}
+    >
+      <div className="flex items-baseline justify-between gap-3">
+        <p className="font-serif text-sm">{title}</p>
+        <p className="font-serif text-2xl num-osf">{value}</p>
+      </div>
+      <p className="mt-1 font-sans text-[11px] text-sepia">{detail}</p>
+    </button>
   );
 }
 

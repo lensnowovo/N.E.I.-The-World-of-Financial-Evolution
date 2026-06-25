@@ -4,7 +4,7 @@ import Link from 'next/link';
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { cn } from '@/lib/cn';
-import { formatTime, formatCount } from '@/lib/format';
+import { formatCount } from '@/lib/format';
 import {
   sceneLabel,
   industryLabel,
@@ -19,6 +19,7 @@ import {
   ContentChip,
   SkillChip,
 } from '@/components/ui/Chip';
+import { TimeText } from '@/components/TimeText';
 import type { PostCardData } from '@/lib/types';
 
 // PostCardData 定义已抽到 lib/types.ts，这里 re-export 保持向后兼容
@@ -105,7 +106,7 @@ function DefaultPostCard({
             <RoleBadge role={post.author.role} size={16} />
             <span className="text-ink-brown">{post.author.nickname}</span>
             <DotSep />
-            <span>{formatTime(post.createdAt)}</span>
+            <TimeText value={post.createdAt} />
             {post.counts.attachments > 0 && (
               <>
                 <DotSep />
@@ -261,7 +262,7 @@ function CompactPostCard({
                 {post.skillAsset?.originalAuthor || post.author.nickname}
               </span>
               <span className="text-sepia/60 shrink-0">·</span>
-              <span className="text-sepia shrink-0">{formatTime(post.createdAt)}</span>
+              <TimeText value={post.createdAt} className="text-sepia shrink-0" />
             </div>
 
             <div className="flex items-center gap-2.5 font-mono text-[10px] text-sepia shrink-0">

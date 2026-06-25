@@ -6,6 +6,10 @@ import Link from 'next/link';
 import { cn } from '@/lib/cn';
 import { Input } from '@/components/ui/Input';
 import { Button } from '@/components/ui/Button';
+import {
+  McpOnboardingChecklist,
+  type McpOnboardingStatus,
+} from '@/components/mcp/McpOnboardingChecklist';
 
 type ConnectProfile = {
   id: number;
@@ -16,6 +20,7 @@ type ConnectProfile = {
 export default function ConnectPage() {
   const router = useRouter();
   const [profile, setProfile] = useState<ConnectProfile | null>(null);
+  const [mcpStatus, setMcpStatus] = useState<McpOnboardingStatus | null>(null);
   const [loading, setLoading] = useState(true);
 
   const [apiKey, setApiKey] = useState('');
@@ -27,11 +32,14 @@ export default function ConnectPage() {
   const [copied, setCopied] = useState(false);
 
   useEffect(() => {
-    fetch('/api/users/me')
-      .then((r) => (r.ok ? r.json() : null))
-      .then((d) => {
-        if (!d) { router.push('/login?next=/connect'); return; }
-        setProfile(d);
+    Promise.all([
+      fetch('/api/users/me').then((r) => (r.ok ? r.json() : null)),
+      fetch('/api/users/me/mcp-status').then((r) => (r.ok ? r.json() : null)),
+    ])
+      .then(([profileData, statusData]) => {
+        if (!profileData) { router.push('/login?next=/connect'); return; }
+        setProfile(profileData);
+        setMcpStatus(statusData);
       })
       .finally(() => setLoading(false));
   }, [router]);
@@ -61,6 +69,12 @@ export default function ConnectPage() {
           配置后，可以在 AI 客户端或网站上直接使用 N.E.I. 的 Skill
         </p>
       </header>
+
+      {mcpStatus && (
+        <div className="mb-8">
+          <McpOnboardingChecklist status={mcpStatus} />
+        </div>
+      )}
 
       {/* —— MCP Token —— */}
       <section className="mb-10">
@@ -95,7 +109,7 @@ export default function ConnectPage() {
               </span>
               <button
                 type="button"
-                onClick={async () => { setMcpGenerating(true); const res = await fetch('/api/users/me/mcp-token', { method: 'POST' }); const data = await res.json(); setMcpGenerating(false); if (res.ok) setMcpToken(data.token); }}
+                onClick={async () => { setMcpGenerating(true); const res = await fetch('/api/users/me/mcp-token', { method: 'POST' }); const data = await res.json(); setMcpGenerating(false); if (res.ok) { setMcpToken(data.token); setMcpStatus((s) => s ? { ...s, hasMcpToken: true } : s); } }}
                 disabled={mcpGenerating}
                 className="font-sans text-sm text-wax-red hover:underline"
               >
@@ -107,7 +121,7 @@ export default function ConnectPage() {
             </Link>
           </div>
         ) : (
-          <Button type="button" onClick={async () => { setMcpGenerating(true); const res = await fetch('/api/users/me/mcp-token', { method: 'POST' }); const data = await res.json(); setMcpGenerating(false); if (res.ok) { setMcpToken(data.token); setProfile(p => p ? { ...p, hasMcpToken: true } : p); } }} disabled={mcpGenerating}>
+          <Button type="button" onClick={async () => { setMcpGenerating(true); const res = await fetch('/api/users/me/mcp-token', { method: 'POST' }); const data = await res.json(); setMcpGenerating(false); if (res.ok) { setMcpToken(data.token); setProfile(p => p ? { ...p, hasMcpToken: true } : p); setMcpStatus((s) => s ? { ...s, hasMcpToken: true } : s); } }} disabled={mcpGenerating}>
             {mcpGenerating ? '生成中…' : '生成 MCP Token'}
           </Button>
         )}
