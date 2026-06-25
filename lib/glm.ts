@@ -9,7 +9,9 @@
  * 切换 base_url / 模型只需改环境变量（GLM_BASE_URL / GLM_MODEL）。
  */
 
-const DEFAULT_BASE_URL = 'https://open.bigmodel.cn/api/paas/v4';
+// Coding Plan 套餐地址（松禾账户用此，套餐额度在此路径下）；
+// 标准按量计费账户则改 GLM_BASE_URL 为 /paas/v4。
+const DEFAULT_BASE_URL = 'https://open.bigmodel.cn/api/coding/paas/v4';
 const DEFAULT_MODEL = 'glm-4.6';
 const TIMEOUT_MS = 30_000;
 
