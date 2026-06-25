@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { cn } from '@/lib/cn';
 import { RichEditor } from '@/components/RichEditor';
@@ -59,6 +59,12 @@ export function PublishForm({ currentUser }: { currentUser: CurrentUser }) {
   const [err, setErr] = useState('');
   const [submitting, setSubmitting] = useState(false);
 
+  // —— 拖拽 .md 自动填（选完分支后显示）——
+  const [uploading, setUploading] = useState(false);
+  const [uploadErr, setUploadErr] = useState('');
+  const [dragOver, setDragOver] = useState(false);
+  const dragDepth = useRef(0);
+
   const toggleContent = (v: string) => {
     if (contents.includes(v)) setContents(contents.filter((x) => x !== v));
     else if (contents.length < 3) setContents([...contents, v]);
@@ -108,6 +114,59 @@ export function PublishForm({ currentUser }: { currentUser: CurrentUser }) {
         { id: attachment.id, fileName: attachment.fileName, fileSize: 0, mimeType: 'text/markdown' },
       ]);
     }
+  };
+
+  /** 处理 .md/.markdown/.txt 文件 → FileReader 读文本 → POST /api/ai/transcribe-file → 预填表单
+   *  供「拖拽 drop」和「点击选文件 input change」两个入口共用 */
+  const handleMdFile = async (file: File) => {
+    setUploadErr('');
+
+    const lowerName = file.name.toLowerCase();
+    if (!lowerName.endsWith('.md') && !lowerName.endsWith('.markdown') && !lowerName.endsWith('.txt')) {
+      setUploadErr('仅支持 .md / .markdown / .txt 文件');
+      return;
+    }
+
+    // 大小校验，防上传超大文件卡住 AI 转写
+    if (file.size > 1024 * 1024) {
+      setUploadErr('文件过大，请控制在 1MB 以内');
+      return;
+    }
+
+    setUploading(true);
+    try {
+      const content = await readFileAsText(file);
+      const res = await fetch('/api/ai/transcribe-file', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ content, fileName: file.name }),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        setUploadErr(data.error || '读取失败');
+        return;
+      }
+      prefillFromAi(data);
+    } catch {
+      setUploadErr('网络错误，请重试');
+    } finally {
+      setUploading(false);
+    }
+  };
+
+  const onFileInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) handleMdFile(file);
+    e.target.value = ''; // 清空 input 让用户能重选同一文件
+  };
+
+  const onMdDrop = (e: React.DragEvent) => {
+    e.preventDefault();
+    dragDepth.current = 0;
+    setDragOver(false);
+    if (uploading) return;
+    const file = e.dataTransfer.files?.[0];
+    if (file) handleMdFile(file);
   };
 
   /** 根据分支推导出 assetType */
@@ -227,6 +286,56 @@ export function PublishForm({ currentUser }: { currentUser: CurrentUser }) {
         <span>·</span>
         <span>分享一个{branchLabel(branch)}</span>
       </div>
+
+      {/* ===== 从 SKILL.md 自动填（拖拽 + AI 解析）===== */}
+      <Section title="从 SKILL.md 自动填（选填）" hint="拖入 .md 文件，AI 读内容帮你预填">
+        <div
+          onDrop={onMdDrop}
+          onDragOver={(e) => e.preventDefault()}
+          onDragEnter={() => {
+            dragDepth.current++;
+            setDragOver(true);
+          }}
+          onDragLeave={() => {
+            dragDepth.current--;
+            if (dragDepth.current <= 0) {
+              dragDepth.current = 0;
+              setDragOver(false);
+            }
+          }}
+          className={cn(
+            'rounded border-2 border-dashed p-6 text-center transition-colors',
+            dragOver
+              ? 'border-ink-brown bg-parchment'
+              : 'border-paper-edge bg-vellum/40 hover:border-sepia',
+            uploading && 'opacity-60 pointer-events-none',
+          )}
+        >
+          <p className="font-serif text-sm text-leather mb-1">
+            {uploading ? 'AI 读取中…' : '把 SKILL.md / .md / .txt 拖到这里'}
+          </p>
+          <p className="font-serif italic text-[11px] text-sepia mb-3">
+            AI 会读内容自动填好标题、分类和介绍，你 review 后再发布
+          </p>
+          <label
+            className={cn(
+              'inline-flex items-center gap-1.5 h-9 px-4 rounded-sm cursor-pointer transition-colors',
+              'border border-paper-edge bg-vellum text-leather hover:border-ink-brown hover:text-ink-brown',
+            )}
+          >
+            <span className="font-serif text-sm">或点击选择文件</span>
+            <input
+              type="file"
+              accept=".md,.markdown,.txt"
+              className="hidden"
+              onChange={onFileInputChange}
+            />
+          </label>
+          {uploadErr && (
+            <p className="mt-3 font-sans text-xs text-wax-red">{uploadErr}</p>
+          )}
+        </div>
+      </Section>
 
       {/* ===== 标题 ===== */}
       <Section title="标题" hint="一句话概括，让别人一眼知道这是啥">
@@ -562,10 +671,6 @@ function BranchPicker({
   const [importing, setImporting] = useState(false);
   const [importErr, setImportErr] = useState('');
 
-  // —— 上传 SKILL.md 自动填 ——
-  const [uploading, setUploading] = useState(false);
-  const [uploadErr, setUploadErr] = useState('');
-
   const onImport = async () => {
     setImportErr('');
     const url = ghUrl.trim();
@@ -589,43 +694,6 @@ function BranchPicker({
       setImporting(false);
     }
   };
-
-  /** 选本地 .md/.markdown/.txt 文件 → FileReader 读文本 → POST /api/ai/transcribe-file → 预填表单 */
-  const onFilePick = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    setUploadErr('');
-    const file = e.target.files?.[0];
-    if (!file) return;
-
-    // 大小校验，防上传超大文件卡住 AI 转写
-    if (file.size > 1024 * 1024) {
-      setUploadErr('文件过大，请控制在 1MB 以内');
-      e.target.value = '';
-      return;
-    }
-
-    setUploading(true);
-    try {
-      const content = await readFileAsText(file);
-      const res = await fetch('/api/ai/transcribe-file', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ content, fileName: file.name }),
-      });
-      const data = await res.json();
-      if (!res.ok) {
-        setUploadErr(data.error || '读取失败');
-        return;
-      }
-      onTranscribe(data);
-    } catch {
-      setUploadErr('网络错误，请重试');
-    } finally {
-      setUploading(false);
-      e.target.value = ''; // 清空 input 让用户能重选同一文件
-    }
-  };
-
-  const busy = importing || uploading;
 
   const cards: {
     branch: Branch;
@@ -712,7 +780,7 @@ function BranchPicker({
           <button
             type="button"
             onClick={onImport}
-            disabled={busy || !ghUrl.trim()}
+            disabled={importing || !ghUrl.trim()}
             className="inline-flex items-center gap-1.5 h-10 px-5 bg-gilded text-vellum hover:bg-ink-brown disabled:opacity-50 disabled:cursor-not-allowed font-serif text-sm rounded-sm transition-colors shrink-0"
           >
             {importing ? 'AI 转写中…' : 'AI 导入'}
@@ -723,39 +791,6 @@ function BranchPicker({
         )}
         <p className="mt-2 font-serif italic text-[11px] text-sepia">
           贴一个公开的 GitHub 文件链接，AI 会抓取内容并自动填好标题、分类和介绍，你 review 后再发布
-        </p>
-      </div>
-
-      {/* —— 或者：上传本地 SKILL.md / .md / .txt 文件 —— */}
-      <div className="mt-4">
-        <div className="flex items-center gap-3 mb-4">
-          <span className="flex-1 h-px bg-paper-edge" />
-          <span className="font-serif italic text-xs text-sepia">或者，上传本地文件自动填</span>
-          <span className="flex-1 h-px bg-paper-edge" />
-        </div>
-        <label
-          className={cn(
-            'flex items-center justify-center gap-1.5 h-10 px-5 rounded-sm cursor-pointer transition-colors',
-            'border border-paper-edge bg-vellum text-leather hover:border-ink-brown hover:text-ink-brown',
-            busy && 'opacity-50 cursor-not-allowed',
-          )}
-        >
-          <span className="font-serif text-sm">
-            {uploading ? 'AI 读取中…' : '选择 .md / .markdown / .txt 文件'}
-          </span>
-          <input
-            type="file"
-            accept=".md,.markdown,.txt"
-            className="hidden"
-            onChange={onFilePick}
-            disabled={busy}
-          />
-        </label>
-        {uploadErr && (
-          <p className="mt-2 font-sans text-xs text-wax-red">{uploadErr}</p>
-        )}
-        <p className="mt-2 font-serif italic text-[11px] text-sepia">
-          选一个本地 SKILL.md / .md / .txt，AI 会读内容自动填好标题、分类和介绍，你 review 后再发布
         </p>
       </div>
     </div>
