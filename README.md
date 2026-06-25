@@ -1,144 +1,253 @@
-# PEVC Skills Map + Community Platform V1.0
+# N.E.I. — The World of Financial Evolution
 
-面向一级市场（VC / PE / FA）从业者的技能资产发现与分享社区。
+> 面向 PE / VC / FA / 产业投资人的 AI Skill Hub、Prompt Library 与 MCP 工作流平台。
 
-## 产品定位
+[访问产品](https://nei-pevc.com) · [MCP 配置指南](https://nei-pevc.com/mcp) · [安全与保密原则](https://nei-pevc.com/security)
 
-PEVC Skills Map 是一个围绕投资工作流的技能资产社区。用户可以发布、发现、评论、收藏和下载可复用的技能资产。
+N.E.I. 不是一个普通 Prompt 站。它试图把一级市场高频工作——BP 初筛、行业研究、商业尽调、财务分析、IC Memo、投后管理、募资 / LP 沟通——沉淀成可搜索、可收藏、可调用、可复用的 AI Skill 与 Workflow。
 
-**核心概念：**
-- **Post** -- 通用内容壳：标题、正文、作者、状态、浏览/评论/点赞/收藏。所有 Skill Asset 都是一个 Post。
-- **SkillAsset** -- 扩展 Post 的资产元数据：类型（Prompt / Agent Skill / Workflow / Tool Stack / Template / API-Script / Case Study）、来源链接、安装说明、使用心得。
-- **Skills Map** -- 按工作场景 x 资产类型的矩阵发现界面。
-- **四维标签** -- 工作场景（10）x 行业赛道（9）x 工作内容（11）x 资产类型（7）。
+你可以把它理解成：
+
+- 给一级市场从业者用的 **AI Skill Library**
+- 给 Claude Code / Cursor / Windsurf 等客户端接入的 **PEVC MCP Server**
+- 给机构内部逐步沉淀方法论的 **Prompt / Workflow Repository**
+
+当前项目处于小范围 Public Beta 准备阶段。
+
+---
+
+## 为什么做 N.E.I.
+
+一级市场工作里有大量重复但高价值的判断流程：
+
+- 一份 BP 要不要进入初筛？
+- 一个赛道怎么快速形成投资地图？
+- 商业尽调访谈应该问哪些问题？
+- IC Memo 怎么组织结构和反方问题？
+- 投后月报、政府回函、LP 汇报怎么标准化？
+
+这些工作过去散落在个人经验、Word 模板、Excel 清单、投委会材料和聊天记录里。N.E.I. 想做的，是把这些“隐性工作流”变成可以被 AI 客户端调用的结构化 Skill。
+
+---
+
+## 产品能力
+
+### 1. Skill Library
+
+浏览、搜索和筛选 PEVC 场景下的 Prompt、SKILL.md、模板、方法论、工具组合和 Workflow。
+
+支持维度包括：
+
+- 工作场景：BP 初筛、行业研究、商业尽调、财务分析、IC 材料、投后管理、募资 / LP 等
+- 内容类型：Prompt、SKILL.md、Workflow、Template、Tool Stack、Case Study
+- 行业赛道：AI、半导体、新能源、医健、消费、先进制造等
+- 工作内容：信息收集、尽调问题、报告生成、自动化、风险识别等
+
+### 2. 收藏库
+
+用户可以把常用 Skill 收藏到自己的 Library，并为每条收藏添加备注、排序和复用线索。
+
+这不是简单点赞，而是 MCP 调用的基础：你的 AI 客户端可以通过 `list_my_skills` 读取你自己的收藏库。
+
+### 3. MCP Server
+
+N.E.I. 提供 MCP Server，让 AI 客户端直接搜索和调用平台上的 Skill。
+
+当前工具包括：
+
+- `search_skills`：按关键词 / 场景 / 类型搜索公开 Skill
+- `get_skill`：获取某个 Skill 的完整 Prompt / Workflow 原文
+- `list_my_skills`：列出当前用户收藏且已准入 MCP 的 Skill
+- `apply_skill`：把上下文填入 Prompt 模板，返回可执行 Prompt
+- `favorite_skill`：从客户端把公开 Skill 加入收藏库
+
+典型使用方式：
+
+```text
+用 N.E.I. 帮我初筛这个 BP，判断是否进入立项。
+用 N.E.I. 生成一份商业尽调访谈问题清单。
+用 N.E.I. 写一份 IC Memo 的一级结构和关键风险。
+用 N.E.I. 起草一份给政府引导基金的正式回复函。
+```
+
+### 4. Skill 质量体系
+
+详情页会展示 Skill Quality、适用场景、输入示例、输出预期和建议补齐项。
+
+质量评分会参考：
+
+- 标题是否具体
+- 场景和标签是否完整
+- 正文是否足够结构化
+- 是否包含占位符、步骤、输入 / 输出示例
+- 文件型 Skill 是否有附件
+- 是否有来源、安装说明和使用心得
+
+首页精选会优先展示真正 Workflow 且质量分达到门槛的内容。
+
+### 5. Admin 运营台
+
+管理员可以处理：
+
+- 待审队列
+- 举报内容
+- MCP 准入
+- 首页精选
+- 错误监控
+- API / MCP 调用数据
+
+这让 N.E.I. 不只是内容站，而是一个可以持续运营的 Skill 平台。
+
+---
+
+## MCP 安全与保密原则
+
+N.E.I. 面向机构用户，因此安全边界必须清楚。
+
+N.E.I. MCP 默认：
+
+- 不读取本地文件
+- 不上传用户文件
+- 不保存 BP、财务模型、投委会材料、LP 名单
+- 只分发 Skill / Workflow 文本
+- Token 可随时撤销和重新生成
+- 用户投稿 Skill 审核后才进入 MCP
+- 调用日志不记录用户敏感正文
+
+更完整说明见：[MCP 安全与保密原则](https://nei-pevc.com/security)。
+
+---
 
 ## 技术栈
 
-- **Next.js 14** App Router + Server Components
-- **React 18** + **Tailwind CSS**（骑士感手抄本设计系统）
-- **Prisma 5** + **SQLite**（生产可换 PostgreSQL）
-- **TipTap** 富文本编辑器
-- HMAC 签名 cookie 会话 + bcryptjs 密码哈希
+- **Next.js 15 App Router**
+- **React 18**
+- **TypeScript**
+- **Tailwind CSS**
+- **Prisma 5**
+- **PostgreSQL / Neon**
+- **MCP SDK + mcp-handler**
+- **TipTap Rich Editor**
+- **Vercel 部署**
 
-## 本地启动
+---
+
+## 本地开发
 
 ```bash
 npm install
-npx prisma db push --force-reset --accept-data-loss && npm run db:seed
+npm run db:push
 npm run dev
 ```
 
-访问 [http://localhost:3000](http://localhost:3000)
+访问：
 
-## 测试账号
+```text
+http://localhost:3000
+```
 
-| 邮箱 | 密码 | 身份 | 昵称 |
-|------|------|------|------|
-| vc@pevc.dev | password123 | VC | 清流VC合伙人 |
-| pe@pevc.dev | password123 | PE | PE研究员小李 |
-| fa@pevc.dev | password123 | FA | FA-王经理 |
-| vc2@pevc.dev | password123 | VC | AI赛道分析师 |
+常用命令：
 
-**邮箱验证码（开发模式）：** 所有邮箱通用 `123456`
+```bash
+npm run lint
+npx tsc --noEmit --pretty false
+npm run smoke:public-posts
+npm run build
+```
 
-## 已实现功能
+生产构建：
 
-| 模块 | 状态 | 说明 |
-|------|------|------|
-| Skills Map | done | 工作场景 x 资产类型矩阵 + 统计 + 响应式 |
-| Skill Asset 发布 | done | 7 种资产类型 + 类型专属引导 + 元数据 + 附件 |
-| Feed 流 | done | 时间倒序 + 四维筛选 + 搜索 + 去重查询层 |
-| 搜索页 | done | 独立检索页 + 空状态引导 + 维度速查 |
-| 内容详情 | done | Skill Asset 面板 + 正文 + 附件 + 评论 + 点赞/收藏 |
-| 评论 | done | 两级嵌套、删除 |
-| 文件上传 / 下载 | done | 拖拽上传、下载计数 |
-| 个人主页 | done | 发布 / 点赞 / 收藏 三 Tab + 关注 |
-| 内容状态 | done | POST_STATUS 常量（draft / pending / published / rejected） |
+```bash
+npm run build
+```
+
+Vercel 构建：
+
+```bash
+npm run vercel-build
+```
+
+---
+
+## 环境变量
+
+请参考 [.env.example](./.env.example)。
+
+关键变量包括：
+
+- `DATABASE_URL`
+- `SESSION_SECRET`
+- `NEXT_PUBLIC_BASE_URL`
+- 邮件服务配置
+- AI / GLM / Anthropic 相关配置
+- 文件存储相关配置
+
+不要提交 `.env` 或 `.env.local`。
+
+---
 
 ## 项目结构
 
-```
-pevc-platform/
-├── app/                        # Next.js App Router
-│   ├── api/                    # REST API 路由
-│   │   ├── auth/               # 注册 / 登录 / 邮箱验证码 / me / logout
-│   │   ├── sms/send/           # 邮箱验证码（dev 模式返回固定值）
-│   │   ├── posts/              # 内容 CRUD + 互动（点赞/收藏）
-│   │   ├── comments/           # 评论删除 / 点赞
-│   │   ├── upload/             # 附件上传 / 删除
-│   │   ├── files/[id]/download # 附件下载
-│   │   └── users/[id]/follow/  # 关注 / 取消关注
-│   ├── (pages)/
-│   │   ├── page.tsx            # 首页 Feed
-│   │   ├── login/              # 登录
-│   │   ├── register/           # 注册（两步）
-│   │   ├── publish/            # 发布（含 Skill Asset 类型引导）
-│   │   ├── search/             # 独立检索页
-│   │   ├── skills-map/         # Skills Map 矩阵页
-│   │   ├── posts/[id]/         # 详情
-│   │   └── profile/[id]/       # 个人主页（三 Tab + 关注）
-│   ├── design-system/          # 设计系统预览页
-│   ├── layout.tsx              # 全局布局 + 顶部导航
-│   └── globals.css             # Tailwind 入口 + 手抄本主题
-├── components/
-│   ├── TopNav.tsx              # 顶部导航栏
-│   ├── PostCard.tsx            # Feed 卡片
-│   ├── FilterBar.tsx           # 四维筛选栏
-│   ├── RichEditor.tsx          # TipTap 富文本编辑器
-│   ├── AttachmentUploader.tsx  # 拖拽上传
-│   ├── AttachmentList.tsx      # 附件列表
-│   ├── CommentSection.tsx      # 两级嵌套评论
-│   ├── FollowButton.tsx        # 关注按钮
-│   ├── auth/AuthFrame.tsx      # 登录/注册通用框架
-│   ├── chrome/SiteHeader.tsx   # 站点头部
-│   ├── chrome/SiteFooter.tsx   # 站点底部
-│   ├── icons/                  # 手抄本风格图标
-│   │   ├── Crest.tsx           # 家徽
-│   │   ├── FileSeal.tsx        # 文件封印
-│   │   ├── Ornament.tsx        # 花饰
-│   │   ├── RoleBadge.tsx       # 角色徽章
-│   │   └── SkillIcon.tsx       # 资产类型图标
-│   └── ui/                     # 基础 UI 组件
-│       ├── Button.tsx
-│       ├── Card.tsx
-│       ├── Chip.tsx
-│       ├── Input.tsx
-│       └── Skeleton.tsx
-├── lib/                        # 业务层
-│   ├── db.ts                   # Prisma 客户端
-│   ├── session.ts              # cookie 会话（HMAC 签名）
-│   ├── storage.ts              # 文件存储（本地 uploads/）
-│   ├── tags.ts                 # 四维分类常量 + ASSET_TYPE_HELPERS
-│   ├── status.ts               # POST_STATUS 常量（draft/pending/published/rejected）
-│   ├── skills-map.ts           # Skills Map 矩阵数据聚合
-│   ├── feed.ts                 # Feed 查询层（去重、筛选、分页）
-│   ├── validate.ts             # 校验 / XSS 过滤
-│   ├── format.ts               # 格式化辅助
-│   └── cn.ts                   # clsx + tailwind-merge 工具
-├── prisma/
-│   ├── schema.prisma           # 数据模型（含 SkillAsset、UserFollow）
-│   ├── seed.ts                 # 种子数据
-│   └── dev.db                  # SQLite 文件（自动生成）
-├── uploads/                    # 本地附件存储
-└── tailwind.config.ts          # 手抄本设计系统主题
+```text
+app/                  Next.js App Router 页面与 API
+components/           UI、首页模块、MCP 组件、详情页组件
+lib/                  数据库、会话、安全、MCP、格式化、业务逻辑
+prisma/               Prisma schema 与迁移
+scripts/              数据导入、迁移、上线 smoke test
+uploads/              本地开发附件目录
 ```
 
-## V1.0 简化（vs PRD）
+重点目录：
 
-| PRD 要求 | V1.0 实现 | 后续 |
-|----------|-----------|------|
-| 内容审核 | 直接 published，POST_STATUS 常量已就位 | 管理后台 + pending 流转 |
-| 短信网关 | 固定验证码 `123456` | 接入邮件服务商 |
-| 文件存储 OSS | 本地 `uploads/` | OSS SDK + 签名 URL |
-| 全文检索 | LIKE 查询 | Elasticsearch |
+- `app/api/mcp/route.ts`：MCP Server 入口
+- `app/connect/page.tsx`：MCP onboarding 与 Token 配置
+- `app/security/page.tsx`：安全与保密原则
+- `app/admin/page.tsx`：Admin 运营台
+- `components/home/`：首页产品模块
+- `lib/mcp-safety.ts`：MCP 返回内容的安全前缀
+- `lib/skill-quality.ts`：Skill 质量评分
+- `scripts/smoke-public-posts.ts`：公开 Post 详情页 smoke test
 
-## 关键命令
+---
+
+## 上线前验收清单
+
+每次发布前建议至少运行：
 
 ```bash
-npm run dev          # 开发
-npm run build        # 生产构建
-npm run start        # 生产启动
-npm run setup        # db:push + db:seed
-npx prisma db push --force-reset --accept-data-loss && npm run db:seed  # 完整重置
-npx prisma studio    # 数据库可视化
+npm run lint
+npx tsc --noEmit --pretty false
+npm run smoke:public-posts
+npm run build
 ```
+
+如果要检查线上详情页：
+
+```bash
+npm run smoke:public-posts -- --base https://nei-pevc.com
+```
+
+---
+
+## 当前阶段
+
+N.E.I. 当前适合：
+
+- 邀请 10～30 位 PEVC / FA / 产业投资朋友小范围试用
+- 收集真实使用任务
+- 补齐 BP 初筛、IC 材料、投后管理等核心场景
+- 验证 MCP 收藏库调用是否真的提高工作效率
+
+下一阶段重点不是继续堆内容，而是：
+
+- 提升核心场景覆盖
+- 强化安全信任表达
+- 提升 Skill 质量门槛
+- 做任务到 Skill Bundle 的推荐路径
+- 沉淀机构级私有 Skill Repository
+
+---
+
+## License
+
+Private beta project. All rights reserved unless otherwise stated.
