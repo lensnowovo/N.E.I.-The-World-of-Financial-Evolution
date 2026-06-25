@@ -56,12 +56,12 @@ export async function FeaturedWorkflows() {
       <div className="flex flex-col sm:flex-row sm:items-end sm:justify-between gap-3">
         <div>
           <p className="font-display tracking-display text-[10px] text-sepia uppercase mb-1">
-            Curated Workflows
+            Curated Skills
           </p>
-          <h2 className="font-serif text-2xl sm:text-3xl text-ink-brown">精选 PEVC 工作流</h2>
+          <h2 className="font-serif text-2xl sm:text-3xl text-ink-brown">精选 PEVC Skill</h2>
         </div>
-        <Link href="/?skill=workflow" className="font-serif italic text-sm text-leather hover:text-wax-red">
-          查看全部工作流程 →
+        <Link href="/" className="font-serif italic text-sm text-leather hover:text-wax-red">
+          浏览全部 Skill →
         </Link>
       </div>
 
