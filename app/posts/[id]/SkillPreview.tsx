@@ -27,7 +27,7 @@ export async function SkillPreview({
 
   let raw: string;
   try {
-    // 走存储抽象：本地走 UPLOAD_DIR，生产走 R2/S3（readFileByKey 内部已防路径穿越）
+    // 走 storage 抽象层（readFileByKey：本地 UPLOAD_DIR / 生产 R2，内部防路径穿越）
     const buf = await readFileByKey(storageKey);
     raw = buf.toString('utf-8');
   } catch {

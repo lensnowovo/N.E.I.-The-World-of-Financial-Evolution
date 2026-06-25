@@ -21,6 +21,7 @@ model User {
   bio          String?  // 个人简介（选填）
   apiKeyEnc    String?  // 加密后的 AI API key（AES-256-GCM）
   mcpTokenHash String?  // MCP server 访问 token 的 hash
+  isAdmin      Boolean  @default(false)  // 管理员
   githubId        String?   @unique
   githubAvatarUrl String?
   githubUsername  String?
@@ -72,6 +73,8 @@ model Post {
   featuredOrder Int    @default(0)      // 精选排序（管理员拖拽控制首页顺序；0 = 默认按时间）
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt
+  deletedAt    DateTime?  // 软删除
+  featured     Boolean   @default(false)  // 精选
 
   author       User           @relation(fields: [userId], references: [id])
   comments     Comment[]
