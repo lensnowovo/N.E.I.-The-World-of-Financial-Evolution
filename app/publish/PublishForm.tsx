@@ -384,7 +384,7 @@ export function PublishForm({ currentUser }: { currentUser: CurrentUser }) {
 
       {branch === 'file' && (
         <>
-          <Section title="上传文件" hint="别人下载后就能直接用的文件">
+          <Section title="附加其他文件（选填）" hint="PDF / Excel / Word 等额外附件；SKILL.md 用上面的「自动填」">
             <AttachmentUploader files={files} onChange={setFiles} />
           </Section>
 
