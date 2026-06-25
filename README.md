@@ -1,6 +1,6 @@
 # N.E.I. — The World of Financial Evolution
 
-> 一个给 PE / VC / FA / 产业投资人整理 AI 工作流的小站。先从 Prompt、Skill、Workflow 和 MCP 做起。
+> 面向 PE / VC / FA / 产业投资人的 AI 工作流项目，当前重点整理 Prompt、Skill、Workflow，并提供 MCP 调用能力。
 
 ## 官方网站
 
@@ -14,16 +14,16 @@
 
 **N.E.I. = New Era Investor**。
 
-N.E.I. 是 jammyssy 发起的一个新一代投资人社群。群里现在有 500+ 位朋友，大家大多关心一级市场、AI 工具、投资工作流，以及怎么把机构里的重复劳动做得更轻一点。
+N.E.I. 是 jammyssy 发起的新一代投资人社群，目前已有 500+ 位成员，关注一级市场、AI 工具、投资工作流以及机构效率提升。
 
-`nei-pevc.com` 是这个社群下面长出来的一个 PEVC 小产品。它不是从一份完整商业计划书开始的，更像是从一些很具体的问题开始的：
+`nei-pevc.com` 是 N.E.I. 社群下的 PEVC AI 产品，起点来自一些非常具体的一线工作问题：
 
 - BP 太多，能不能先有个靠谱的初筛框架？
 - 行研、尽调、IC、投后这些活，能不能少从空白文档开始？
 - 大家各自写过的好 Prompt、好模板，能不能放到一个地方复用？
 - 如果已经在 Claude Code、Cursor、Windsurf 里工作，能不能直接把这些 Skill 调出来？
 
-所以现在这个站先做一件朴素的事：把一级市场常用的 Prompt、Skill、Workflow 和模板整理出来，让它们能被搜索、收藏、复制，也能通过 MCP 给 AI 客户端调用。
+现阶段，项目先把一级市场常用的 Prompt、Skill、Workflow 和模板整理出来，支持搜索、收藏、复制，并通过 MCP 提供给 AI 客户端调用。
 
 你可以把它理解成三件东西的组合：
 
@@ -31,13 +31,13 @@ N.E.I. 是 jammyssy 发起的一个新一代投资人社群。群里现在有 50
 - 一个可以接进 Claude Code、Cursor、Windsurf 的 PEVC MCP Server；
 - 一个慢慢积累机构方法论和工作模板的地方。
 
-现在还在小范围 Public Beta 前后打磨阶段，很多地方会继续改。
+项目目前处于小范围 Public Beta 前后的打磨阶段，功能、内容和协作方式都会继续调整。
 
 ---
 
 ## 为什么做这个站
 
-一级市场工作里有很多看起来“每次都不一样”，但其实高度重复的判断流程：
+一级市场工作里有很多判断流程，表面上每次都不同，底层方法却高度重复：
 
 - 一份 BP 要不要进入初筛？
 - 一个赛道怎么快速形成投资地图？
@@ -45,9 +45,9 @@ N.E.I. 是 jammyssy 发起的一个新一代投资人社群。群里现在有 50
 - IC Memo 怎么组织结构和反方问题？
 - 投后月报、政府回函、LP 汇报怎么标准化？
 
-这些东西过去常常散在个人经验、Word 模板、Excel 清单、投委会材料和聊天记录里。时间久了，每个人都有一点自己的“土办法”，但很难复用，也很难交给 AI。
+这些方法过去常常散落在个人经验、Word 模板、Excel 清单、投委会材料和聊天记录里。时间久了，每个人都会形成自己的处理方式，却很难复用，也很难交给 AI。
 
-`nei-pevc.com` 想先把这些土办法整理出来。不是一上来就做一个很重的平台，而是先把能用的 Skill、Prompt、Workflow 放到一起，让真实工作里能少一点重复造轮子。
+`nei-pevc.com` 先从可复用内容做起：把已经能用的 Skill、Prompt、Workflow 放到一起，让真实工作中少一些重复整理和重复写作。
 
 ---
 
@@ -68,7 +68,7 @@ N.E.I. 是 jammyssy 发起的一个新一代投资人社群。群里现在有 50
 
 登录后，可以把常用 Skill 收藏到自己的 Library，并为每条收藏添加备注、排序和复用线索。
 
-收藏不只是点赞。后面你的 AI 客户端可以通过 `list_my_skills` 读取自己的收藏库，这样 MCP 调用时不会每次从全站重新找。
+收藏会成为 MCP 调用的基础。后面你的 AI 客户端可以通过 `list_my_skills` 读取自己的收藏库，减少每次从全站重新搜索的成本。
 
 ### 3. MCP Server
 
@@ -95,7 +95,7 @@ N.E.I. 是 jammyssy 发起的一个新一代投资人社群。群里现在有 50
 
 详情页会展示 Skill Quality、适用场景、输入示例、输出预期和建议补齐项。
 
-评分不是为了装饰，主要是提醒我们：哪些内容已经比较可复用，哪些还只是一个草稿。它会参考：
+评分主要用于判断内容的复用程度：哪些内容已经比较完整，哪些还需要继续补充。它会参考：
 
 - 标题是否具体
 - 场景和标签是否完整
@@ -117,7 +117,7 @@ N.E.I. 是 jammyssy 发起的一个新一代投资人社群。群里现在有 50
 - 错误监控
 - API / MCP 调用数据
 
-这些东西不太“性感”，但很重要。内容多起来以后，如果没有审核、举报、MCP 准入和错误监控，站点很快就会乱。
+这些运营能力会决定内容规模扩大后的秩序。内容多起来以后，需要审核、举报、MCP 准入和错误监控来维持质量。
 
 ---
 
@@ -257,7 +257,7 @@ npm run smoke:public-posts -- --base https://nei-pevc.com
 - **内容贡献**：提交 PEVC 场景下可复用的 Prompt、SKILL.md、Workflow、模板、案例和工具组合。
 - **产品 / 代码贡献**：修复 bug、优化页面、补充 MCP 能力、改进安全与运营工具。
 
-如果你不是工程背景，最简单的方式是：在网站投稿，或者在 GitHub Issue 里写一个真实工作场景。比如“我想用 AI 帮我初筛 BP，但不知道怎么问”，这种就很有价值。维护者会再把它整理成 Skill、Workflow 或产品需求。
+如果你没有工程背景，也可以直接在网站投稿，或者在 GitHub Issue 里写一个真实工作场景。比如“我想用 AI 帮我初筛 BP，但不知道怎么问”，这种需求本身就很有价值。维护者会再把它整理成 Skill、Workflow 或产品需求。
 
 完整贡献方式见：[CONTRIBUTING.md](./CONTRIBUTING.md)。
 
@@ -265,10 +265,10 @@ npm run smoke:public-posts -- --base https://nei-pevc.com
 
 ## 现在做到哪了
 
-目前它还不是一个“正式发布、所有东西都很稳”的产品。比较适合：
+目前项目还在 Public Beta 前后的打磨阶段，比较适合：
 
 - 找 10～30 位 PEVC / FA / 产业投资朋友小范围试用；
-- 收集真实任务，而不是继续凭空想功能；
+- 收集真实任务，减少凭空设计功能；
 - 继续补 BP 初筛、IC 材料、投后管理这些短板；
 - 验证 MCP 收藏库到底能不能真的省时间。
 
@@ -284,11 +284,11 @@ npm run smoke:public-posts -- --base https://nei-pevc.com
 
 ## 项目来源与维护说明
 
-N.E.I.（New Era Investor）是 jammyssy 发起和组建的新一代投资人社群。`nei-pevc.com` 最早也是从这个社群里关于“一级市场怎么用 AI”的讨论长出来的。早期 MVP 由 jammyssy 用 Claude Code 快速搭了一个基础版本，给后面的探索开了个头。
+N.E.I.（New Era Investor）是 jammyssy 发起和组建的新一代投资人社群。`nei-pevc.com` 最早来自社群里关于“一级市场怎么用 AI”的讨论。早期 MVP 由 jammyssy 使用 Claude Code 快速搭建，为后续产品探索提供了基础版本。
 
 后面 `nei-pevc.com` 这条线，包括产品方向、MCP、安全、内容模型、运营后台、部署、基础设施、域名和持续开发，主要由 lensnowovo 接手推进、出资和维护。
 
-所以这里把关系写清楚：N.E.I. 是社群和共同语境，`nei-pevc.com` 是其中一个面向 PEVC 工作流的产品实践；这个仓库是 `nei-pevc.com` 当前的主仓库和正式部署仓库。
+这里明确项目关系：N.E.I. 是社群和共同语境，`nei-pevc.com` 是其中一个面向 PEVC 工作流的产品实践；这个仓库是 `nei-pevc.com` 当前的主仓库和正式部署仓库。
 
 For English readers: N.E.I. stands for New Era Investor, a next-generation investor community initiated and organized by jammyssy with 500+ members. `nei-pevc.com` is a PEVC-focused AI product line under the broader N.E.I. community. The earliest MVP was scaffolded with support from jammyssy. The `nei-pevc.com` product line — including product direction, MCP workflow, security system, content model, admin operations, deployment, infrastructure, domain, and ongoing development — is led, funded, and maintained by lensnowovo. This repository is the canonical product repository for `nei-pevc.com`.
 
