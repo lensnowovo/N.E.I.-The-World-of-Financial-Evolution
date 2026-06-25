@@ -248,6 +248,20 @@ N.E.I. 当前适合：
 
 ---
 
+## 项目来源与维护说明
+
+N.E.I. 起源于社群内关于一级市场 AI 工作流的共同想法。早期 MVP 曾由 jammyssy 使用 Claude Code 快速搭建，为后续产品探索提供了基础起点。
+
+此后，`nei-pevc.com` 这条 PEVC 产品线的产品方向、MCP 工作流、安全体系、内容模型、运营后台、部署、基础设施、域名和持续开发，均由 lensnowovo 主导、出资并维护。
+
+本仓库是 `nei-pevc.com` 的唯一主仓库和正式部署仓库。项目仍处于更广义的 N.E.I. 社群生态之下，同时保留对早期 MVP 基础贡献的说明。
+
+For English readers: N.E.I. started as a community idea around AI workflows for private-market professionals. The earliest MVP was scaffolded with support from jammyssy. The `nei-pevc.com` product line — including product direction, MCP workflow, security system, content model, admin operations, deployment, infrastructure, domain, and ongoing development — is led, funded, and maintained by lensnowovo. This repository is the canonical product repository for `nei-pevc.com`.
+
+See also: [NOTICE.md](./NOTICE.md).
+
+---
+
 ## License
 
 Private beta project. All rights reserved unless otherwise stated.
