@@ -431,3 +431,30 @@
   - 上下文：SEC-007 admin 控制台会筛选 `status=pending OR reviewFlag != null` 的 post 做人工复核 —— 本 story 的 reject (pending) 与 suspicious (reviewFlag 非空) 都会进入 SEC-007 的待审列表；admin 的 approve 动作会清 reviewFlag + mcpApproved=true（SEC-003 的 MCP 准入开关）。三个 story 形成 GLM 扫描 → 人工复核 → MCP 准入闭环
   - 上下文：本 story 的 securityLevel 字段（SEC-001 引入）是 SEC-007 管理员视图分组/筛选的依据之一；securityLevel 默认 "safe" 保证历史帖（未经 SEC-006 扫描的）也被视为安全，不会误进待审
 ---
+
+## 2026-06-25 17:00 - SEC-007
+- 新增 API PATCH /api/admin/posts/[id]/review：requireAdmin 守卫 + action ∈ {approve, reject, revoke}
+  - approve → mcpApproved=true + status=published + reviewFlag=null（SEC-003 立即放行进入 MCP）
+  - reject  → status=rejected（公开视图下架；mcpApproved 不动，通常本就 false）
+  - revoke  → mcpApproved=false（SEC-003 立即从 MCP 返回过滤掉）
+  - 复用 lib/auth-guard.ts 的 requireAdmin()，返回 {id, status, mcpApproved, reviewFlag} 便于客户端乐观更新
+- app/admin/page.tsx：
+  - 新增 reviewSelect（postSelect + mcpApproved/reviewFlag/securityLevel/version）
+  - Promise.all 新增第 3 项：findMany where `deletedAt:null AND OR[status=pending, reviewFlag!=null]`，take 100
+  - reviewItems 序列化为 ReviewPostItem[] 传入 client；顶部计数追加 "· N 待审"（wax-red 色凸显）
+- app/admin/AdminConsoleClient.tsx：
+  - 新增 ReviewPostItem 类型 + SECURITY_LEVEL_LABEL 字典
+  - 新增 Tab='review'，仅当 reviewItems.length>0 时才在 tab 条渲染（"待审 (N)"）
+  - 新增 onReview handler：fetch PATCH + 乐观更新 reviewItems（approve/reject 移出队列；revoke 仅切换 mcpApproved 留在队列 —— 因 suspicious 仍需复核）
+  - 新增 ReviewRow 组件：GLM 安全档 chip（reject=wax-red / suspicious=gilded / safe=sepia）+ 已准入 MCP chip + version chip（>1 提示 SEC-010 重审）+ reviewFlag 引用块 + 三按钮（通过 MCP / 拒绝 / 撤回 MCP）
+- 更改的文件：app/api/admin/posts/[id]/review/route.ts（新增）、app/admin/page.tsx、app/admin/AdminConsoleClient.tsx
+- 类型检查：`npx tsc --noEmit` EXIT=0
+- 浏览器验证：本 story 无 "Verify in browser" 验收项；UI/按钮交互需部署后人工验证。已脑演：(a) GLM 扫描返回 reject 的 post → SEC-006 写 status=pending+reviewFlag → 进入本 story 的 findMany（OR status=pending）→ admin 在 /admin?tab=review 看到 ReviewRow，点「通过 MCP」→ PATCH approve → 后端 status=published+mcpApproved=true+reviewFlag=null → 前端 reviewItems 移除该条，SEC-003 的 MCP where(mcpApproved:true) 即刻放行；(b) GLM suspicious → reviewFlag 非空 → 进入队列 → admin 看到 reviewFlag 引用块里的 GLM 原因；(c) 已准入 MCP 的 post 被举报可疑 → admin 点「撤回 MCP」→ revoke mcpApproved=false → SEC-003 即刻过滤；(d) reject → status=rejected 公开视图下架，ReviewRow 移出队列；(e) 非 admin 访问 PATCH → requireAdmin 返回 403；(f) 未登录 → 401
+- **未来迭代的学习：**
+  - pattern：审核类「单 post 状态切换」API 与 US-012 的 feature toggle 同骨架 —— requireAdmin 守卫 + findUnique 存在性 + update + 返回更新后的字段。SEC-007 把三个动作（approve/reject/revoke）合并到一个 PATCH 路由用 body.action 区分，比拆三个端点更紧凑（共享守卫 + findUnique 逻辑）
+  - pattern：乐观更新语义按动作分档 —— approve/reject 是「终态切换」，应从待审队列移除；revoke 是「仅切换 mcpApproved」，reviewFlag 非空的 suspicious 仍需复核，留在队列。这一档化语义写在 onReview 的 setReviewItems 回调里，未来若加新动作（如 "reset to pending"）也要明确「是否离开队列」
+  - pattern：tab 条的条件渲染（`...(reviewItems.length > 0 ? [{ key: 'review', label: '待审 (N)' }] : [])`）让无待审时不显示空 tab，避免 UI 噪音。N 实时反映 reviewItems.length（每次 onReview 后自动更新计数）
+  - 陷阱：findMany where `OR: [{status: PENDING}, {reviewFlag: {not: null}}]` 必须 `AND deletedAt: null` —— 否则软删的待审帖也会进队列，admin 看到「幽灵待审」（US-009 软删 pattern 的延伸：所有公开/管理视图都应明确是否过滤软删，本 story 选择过滤因软删 = 下架 = 无需再审）
+  - 陷阱：ReviewRow 的 reviewFlag 引用块用 `border-l-2 border-gilded bg-gilded/5`（不是 prose-manuscript），避免被 prose 的 `p::before` 加短横线污染；GLM 的 reason 可能含换行，统一在 lib/ai.ts 已 replace 空白（SEC-006 的陷阱），UI 端直接 render 即可
+  - 上下文：SEC-006 的 GLM 扫描结果是本 story 队列的数据源（reject→pending, suspicious→reviewFlag 非空）；SEC-003 的 mcpApproved:true 过滤是本 story approve 动作的下游生效点；SEC-010 的编辑触发重审（version+1+mcpApproved=false+reviewFlag）会把已审核的编辑版本重新塞回本 story 队列。三个 story 通过本 story 的 /admin 审核界面形成闭环
+---
