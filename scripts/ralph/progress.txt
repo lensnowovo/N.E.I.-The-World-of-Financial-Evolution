@@ -458,3 +458,25 @@
   - 陷阱：ReviewRow 的 reviewFlag 引用块用 `border-l-2 border-gilded bg-gilded/5`（不是 prose-manuscript），避免被 prose 的 `p::before` 加短横线污染；GLM 的 reason 可能含换行，统一在 lib/ai.ts 已 replace 空白（SEC-006 的陷阱），UI 端直接 render 即可
   - 上下文：SEC-006 的 GLM 扫描结果是本 story 队列的数据源（reject→pending, suspicious→reviewFlag 非空）；SEC-003 的 mcpApproved:true 过滤是本 story approve 动作的下游生效点；SEC-010 的编辑触发重审（version+1+mcpApproved=false+reviewFlag）会把已审核的编辑版本重新塞回本 story 队列。三个 story 通过本 story 的 /admin 审核界面形成闭环
 ---
+
+## 2026-06-25 18:30 - SEC-008
+- prisma/schema.prisma User 模型新增 `tokenCreatedAt DateTime?` + `tokenLastUsedAt DateTime?`（紧贴 mcpTokenHash 后，三者构成「token 状态三元组」：hash/created/used）
+- app/api/users/me/mcp-token/route.ts POST：生成 token 时把 tokenCreatedAt 一并写入 update.data（`{ mcpTokenHash: hash, tokenCreatedAt: new Date() }`）
+- app/api/mcp/route.ts getUidFromRequest：findFirst 命中用户后，在 `return user.id` 前挂一段 fire-and-forget `prisma.user.update({ data: { tokenLastUsedAt: new Date() } }).catch(() => {})`，**不 await** 不阻塞请求；失败静默吞（这仅是可观测性字段，不能影响 MCP 主流程）
+- 更改的文件：prisma/schema.prisma、app/api/users/me/mcp-token/route.ts、app/api/mcp/route.ts
+- 校验：
+  - `npx prisma generate`：✔ Generated Prisma Client v5.22.0（干净，无 EPERM）
+  - `grep token... index.d.ts`：User 的 tokenCreatedAt / tokenLastUsedAt 类型已就绪（Date | null 在 $type Payloads 出现）
+  - `npx tsc --noEmit`：EXIT=0（无任何报错）
+- 浏览器验证：本 story 无 "Verify in browser" 验收项；schema 字段类型 + 写路径 + fire-and-forget 行为已由 tsc + 代码审查覆盖。需部署后人工验证：（a）生成 token → DB user.tokenCreatedAt ≈ now，tokenLastUsedAt 仍 null；（b）用该 token 调 MCP（任意 tool）→ tokenLastUsedAt 被更新为请求时间；（c）间隔多次调用 → tokenLastUsedAt 取最近一次（每次请求都 overwrite，因 update 无条件触发）
+- **未来迭代的学习：**
+  - pattern：fire-and-forget 写入用 `void promise.catch(() => {})` 三件套 —— `void` 表达「不 await 的意图」（让 ESLint no-floating-promises 闭嘴）、`.catch(() => {})` 兜底 reject（避免 unhandledRejection 把进程拖崩）、放在 return 之前避免「return 后死代码」TS 警告。N.E.I. 已有同 pattern：MCP route 的 `void prisma.mcpCallLog.create(...).catch(() => {})` 是 mcp-handler 的标准观察性写入姿势
+  - pattern：「同一查询的命中点 + 副作用写入」要合并到 findFirst/update 的同一函数 scope 内，避免第二次查询（先 findFirst 拿 uid 再 update） —— 本 story 是 fire-and-forget 用 user.id 直接 update，逻辑上是两次 DB 操作，但因 second 是非阻塞且独立写入不影响返回值，整体可接受。如果未来要更激进可改为 raw SQL `UPDATE ... WHERE mcpTokenHash=$1 RETURNING id`（单次往返）
+  - pattern：DateTime? 字段配合 fire-and-forget 写入是「廉价可观测性」的标准姿势 —— 比维护一张专门的 TokenUsage 表轻得多；适合 low-cardinality per-user 字段（一个用户一条 tokenCreatedAt/LastUsedAt）。若未来要记录每次调用详情用 SEC-009 的 McpCallLog 扩展（clientName/latencyMs/requestId）
+  - 陷阱：fire-and-forget 必须 `.catch(() => {})` —— 没 catch 的 floating promise 在 Next.js serverless 环境里如果 reject 会被 runtime 当作 unhandledRejection 杀进程 / 至少污染日志。本 story 把 catch 写在 update 后链上而非顶层 try/catch，保持函数式风格
+  - 陷阱：tokenLastUsedAt 的更新绝对不能 await —— 否则每个 MCP 请求都会被一次额外的 DB 写入拖慢 ~10-50ms，叠加在 tool 执行时间上。MCP 的 SLA 是「快返回」，所以「fire」比「await」语义正确
+  - 陷阱：不要在 POST /api/users/me/mcp-token 的 DELETE 里同步清 tokenCreatedAt/LastUsedAt —— 虽然 acceptance 没说，但删 token 后保留这两个时间戳反而有审计价值（「用户曾在 X 创建过 token，Y 是最后一次使用，Z 撤销」），UI 层基于 mcpTokenHash != null 判断是否展示即可。本 story 选择不动 DELETE，保持「撤销」语义最小（只清 hash）
+  - 上下文：SEC-009 会给 McpCallLog 加 clientName/latencyMs/requestId，与本 story 的 token 时间戳是互补的 —— 本 story 是「per-user 聚合时间戳」（轻），SEC-009 是「per-call 详细日志」（重，但只取维度不取正文）。未来 admin 控制台若加「可疑 token」视图，tokenLastUsedAt - tokenCreatedAt 的差值可用来检测「token 生成后从未用过」（可能被泄露后从未触发，但也可能就是用户没用，需结合其他信号）
+  - 上下文：本 story 是 SEC-009 的前置依赖（两者都属「Token/日志溯源」priority 8-9），SEC-009 不依赖本 story 的字段，但同属一个主题域。部署时无顺序约束
+---
+
