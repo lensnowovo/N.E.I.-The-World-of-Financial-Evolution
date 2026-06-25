@@ -95,6 +95,8 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
   const cleanContent = tagContentArr.filter((c) => contentVals.includes(c));
 
   // 仅更新可编辑字段；userId / status 不从请求体读取，防篡改
+  // SEC-010: 编辑触发重审 —— version+1 + mcpApproved=false + reviewFlag 标记，
+  // 防止「初版安全、更新偷偷加恶意指令」的 Rug Pull 攻击；status 保持不变（published 仍可见）
   await prisma.post.update({
     where: { id },
     data: {
@@ -104,6 +106,9 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
       tagIndustry,
       tagContent: JSON.stringify(cleanContent),
       tagSkill,
+      version: { increment: 1 },
+      mcpApproved: false,
+      reviewFlag: 'edited: pending re-review',
     },
   });
 
