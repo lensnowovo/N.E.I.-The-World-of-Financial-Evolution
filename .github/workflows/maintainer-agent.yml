@@ -1,0 +1,93 @@
+name: GitHub Maintainer Agent
+
+on:
+  issues:
+    types: [opened, edited, reopened]
+
+permissions:
+  contents: read
+  issues: write
+
+jobs:
+  triage-issue:
+    name: Triage issue
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Classify, label, and welcome
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const issue = context.payload.issue;
+            const title = issue.title || "";
+            const body = issue.body || "";
+            const text = `${title}\n${body}`.toLowerCase();
+
+            const labels = new Set();
+
+            const hasAny = (words) => words.some((word) => text.includes(word));
+
+            if (title.toLowerCase().startsWith("[bug]") || hasAny(["bug", "报错", "错误", "崩溃", "broken", "not working", "复现步骤"])) {
+              labels.add("bug");
+            }
+
+            if (title.toLowerCase().startsWith("[feature]") || hasAny(["feature", "enhancement", "建议", "希望", "期望能力", "新功能", "优化"])) {
+              labels.add("enhancement");
+            }
+
+            if (title.toLowerCase().startsWith("[content]") || hasAny(["prompt", "skill", "workflow", "template", "case study", "内容类型", "适用场景", "预期输出"])) {
+              labels.add("content");
+            }
+
+            if (hasAny(["mcp", "token", "claude", "cursor", "windsurf", "kimi", "list_my_skills", "search_skills", "get_skill", "apply_skill"])) {
+              labels.add("mcp");
+            }
+
+            if (hasAny(["security", "安全", "secret", "token 泄露", "泄露", "隐私", "privacy", "xss", "csrf", "越权", "权限"])) {
+              labels.add("security");
+            }
+
+            if (hasAny(["admin", "运营", "审核", "举报", "监控", "moderation", "report", "dashboard"])) {
+              labels.add("operations");
+            }
+
+            if (hasAny(["beta", "上线", "launch", "vercel", "deploy", "部署", "readiness", "验收"])) {
+              labels.add("beta-readiness");
+            }
+
+            if (labels.size > 0) {
+              await github.rest.issues.addLabels({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                issue_number: issue.number,
+                labels: [...labels],
+              });
+            }
+
+            if (context.payload.action === "opened") {
+              const securityNote = labels.has("security")
+                ? "\n\n⚠️ 如果这个问题涉及密钥、Token、用户材料或可被利用的安全细节，请不要在公开 Issue 里贴完整敏感信息。可以先只描述影响范围，等待维护者跟进。"
+                : "";
+
+              const nextStep = labels.has("content")
+                ? "我会按内容质量、适用场景、输入输出示例和 MCP 准入要求来评估。"
+                : labels.has("bug")
+                  ? "我会优先看复现步骤、影响页面和是否影响 Public Beta。"
+                  : labels.has("enhancement")
+                    ? "我会根据真实 PEVC 使用场景、上线优先级和实现复杂度来判断。"
+                    : "我会先帮这个 Issue 归类，再决定是否进入近期维护队列。";
+
+              await github.rest.issues.createComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                issue_number: issue.number,
+                body: [
+                  "谢谢贡献，这个 Issue 已由 N.E.I. GitHub Maintainer Agent 自动接收。",
+                  "",
+                  labels.size > 0 ? `已自动标记：${[...labels].map((label) => `\`${label}\``).join(", ")}` : "暂未识别出明确标签，维护者会手动补充。",
+                  "",
+                  nextStep,
+                  securityNote,
+                ].join("\n"),
+              });
+            }
