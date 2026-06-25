@@ -26,6 +26,7 @@ import { PreCopyButton } from './PreCopyButton';
 import { BackLink } from './BackLink';
 import { ExecuteButton } from './ExecuteButton';
 import { ReportButton } from './ReportButton';
+import { DeleteButton } from './DeleteButton';
 
 export default async function PostDetailPage({
   params,
@@ -137,6 +138,7 @@ export default async function PostDetailPage({
                 编辑
               </Link>
             )}
+            {canEdit && <DeleteButton postId={post.id} isAdmin={me?.isAdmin && me.id !== post.author.id} />}
             {uid && <ReportButton postId={post.id} />}
           </div>
         </div>
