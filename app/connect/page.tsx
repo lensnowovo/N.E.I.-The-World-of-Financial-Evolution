@@ -94,6 +94,15 @@ export default function ConnectPage() {
           N.E.I. 只分发 Skill，不读取本地文件，不上传项目材料。详情见{' '}
           <Link href="/security" className="text-wax-red underline">安全与保密原则</Link>。
         </p>
+        <div className="mb-4 rounded-md border border-gilded/40 bg-gilded/5 px-4 py-3">
+          <p className="font-serif text-sm text-ink-brown">
+            N.E.I. MCP 只分发方法，不接管你的项目材料。
+          </p>
+          <p className="mt-1 font-sans text-xs leading-5 text-leather">
+            它不会读取本地文件，不会上传 BP、财务模型或投委会材料，也不会保存你的项目敏感信息。
+            如果 Token 泄露，可以随时重新生成。
+          </p>
+        </div>
 
         {mcpToken ? (
           <div className="space-y-3">

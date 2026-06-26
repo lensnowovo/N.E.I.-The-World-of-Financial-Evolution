@@ -5,17 +5,13 @@ import { getCurrentUser } from '@/lib/session';
 import { cn } from '@/lib/cn';
 import { stripHtml } from '@/lib/validate';
 import { formatTime } from '@/lib/format';
+import { industryLabel, sceneLabel } from '@/lib/tags';
+import { roleFullName as investorRoleFullName } from '@/lib/roles';
 import { PostCard, type PostCardData } from '@/components/PostCard';
 import { RoleBadge } from '@/components/icons/RoleBadge';
 import { CrestCorners } from '@/components/icons/Crest';
 import { Ornament } from '@/components/icons/Ornament';
 import { FollowButton } from '@/components/FollowButton';
-
-const ROLE_FULL: Record<string, string> = {
-  VC: 'Venture Capital',
-  PE: 'Private Equity',
-  FA: 'Financial Advisor',
-};
 
 type SP = { tab?: string };
 type Tab = 'posts' | 'stars' | 'favorites';
@@ -47,7 +43,19 @@ export default async function ProfilePage({
   if (!isOwner && TAB_LABEL[tab]?.ownerOnly) redirect(`/profile/${id}`);
 
   /* —— 计数 —— */
-  const [postCount, starCount, favCount, receivedLikesAgg, followersCount, followingCount, myFollowRow] =
+  const [
+    postCount,
+    starCount,
+    favCount,
+    receivedLikesAgg,
+    followersCount,
+    followingCount,
+    workflowCount,
+    mcpReadyCount,
+    featuredCount,
+    focusRows,
+    myFollowRow,
+  ] =
     await Promise.all([
       prisma.post.count({
         where: isOwner ? { userId: id, deletedAt: null } : { userId: id, status: 'published', deletedAt: null },
@@ -62,6 +70,33 @@ export default async function ProfilePage({
       prisma.userFollow.count({ where: { followeeId: id } }),
       // 该用户关注的人数
       prisma.userFollow.count({ where: { followerId: id } }),
+      prisma.post.count({
+        where: {
+          userId: id,
+          status: 'published',
+          skillAsset: { is: { assetType: 'workflow' } },
+        },
+      }),
+      prisma.post.count({
+        where: {
+          userId: id,
+          status: 'published',
+          skillAsset: { isNot: null },
+        },
+      }),
+      prisma.post.count({
+        where: {
+          userId: id,
+          status: 'published',
+          featured: true,
+        },
+      }),
+      prisma.post.findMany({
+        where: { userId: id, status: 'published' },
+        select: { tagScene: true, tagIndustry: true },
+        orderBy: { createdAt: 'desc' },
+        take: 80,
+      }),
       // 当前登录用户是否已关注此人
       me && !isOwner
         ? prisma.userFollow.findUnique({
@@ -71,6 +106,21 @@ export default async function ProfilePage({
     ]);
   const receivedLikes = receivedLikesAgg;
   const isFollowing = !!myFollowRow;
+  const profileBadges = getProfileBadges({
+    postCount,
+    workflowCount,
+    mcpReadyCount,
+    featuredCount,
+    isAdmin: user.isAdmin,
+  });
+  const focusScenes = topLabels(
+    focusRows.map((row) => row.tagScene),
+    sceneLabel,
+  );
+  const focusIndustries = topLabels(
+    focusRows.map((row) => row.tagIndustry).filter(Boolean) as string[],
+    industryLabel,
+  );
 
   /* —— 取该 Tab 对应的内容 —— */
   let posts: any[] = [];
@@ -189,13 +239,37 @@ export default async function ProfilePage({
           {user.nickname}
         </h1>
         <p className="font-serif italic text-leather mt-1.5">
-          {ROLE_FULL[user.role] ?? user.role}
+          {investorRoleFullName(user.role)}
           {user.institution && <span className="text-sepia"> · {user.institution}</span>}
         </p>
         {user.bio && (
           <p className="mt-3 font-sans text-sm text-leather leading-relaxed max-w-lg mx-auto">
             {user.bio}
           </p>
+        )}
+
+        {profileBadges.length > 0 && (
+          <div className="mt-5 flex flex-wrap justify-center gap-2">
+            {profileBadges.map((badge) => (
+              <span
+                key={badge}
+                className="inline-flex items-center h-7 px-3 rounded-full border border-gilded/50 bg-gilded/10 font-sans text-[11px] text-ink-brown"
+              >
+                {badge}
+              </span>
+            ))}
+          </div>
+        )}
+
+        {(focusScenes.length > 0 || focusIndustries.length > 0) && (
+          <div className="mt-5 grid grid-cols-1 sm:grid-cols-2 gap-3 text-left">
+            {focusScenes.length > 0 && (
+              <ProfileFocus title="常写任务" items={focusScenes} />
+            )}
+            {focusIndustries.length > 0 && (
+              <ProfileFocus title="关注赛道" items={focusIndustries} />
+            )}
+          </div>
         )}
 
         {/* 本人主页：编辑资料入口 */}
@@ -228,6 +302,8 @@ export default async function ProfilePage({
         {/* —— 数据条 —— */}
         <dl className="mt-5 flex flex-wrap items-baseline justify-center gap-x-6 gap-y-2 font-sans text-xs text-sepia">
           <Stat n={postCount} label="发布" />
+          <Sep dot />
+          <Stat n={workflowCount} label="工作流" />
           <Sep dot />
           <Stat n={receivedLikes} label="获赞" />
           <Sep dot />
@@ -358,6 +434,60 @@ function formatStatNumber(n: number): string {
   if (n >= 10000) return `${(n / 10000).toFixed(1)}w`;
   if (n >= 1000) return `${(n / 1000).toFixed(1)}k`;
   return String(n);
+}
+
+function ProfileFocus({ title, items }: { title: string; items: string[] }) {
+  return (
+    <div className="rounded-md border border-paper-edge bg-parchment/45 px-3 py-2">
+      <p className="mb-1 font-display tracking-display text-[10px] uppercase text-sepia">
+        {title}
+      </p>
+      <div className="flex flex-wrap gap-1.5">
+        {items.map((item) => (
+          <span
+            key={item}
+            className="inline-flex items-center h-6 px-2 rounded-sm border border-paper-edge bg-vellum font-sans text-[11px] text-leather"
+          >
+            {item}
+          </span>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function getProfileBadges({
+  postCount,
+  workflowCount,
+  mcpReadyCount,
+  featuredCount,
+  isAdmin,
+}: {
+  postCount: number;
+  workflowCount: number;
+  mcpReadyCount: number;
+  featuredCount: number;
+  isAdmin: boolean;
+}) {
+  const badges: string[] = [];
+  if (isAdmin || featuredCount > 0) badges.push('Curated by N.E.I.');
+  if (postCount > 0) badges.push('Skill Contributor');
+  if (workflowCount > 0) badges.push('Workflow Builder');
+  if (mcpReadyCount > 0) badges.push('MCP Ready Builder');
+  if (postCount === 0) badges.push('Founding Member');
+  return badges.slice(0, 4);
+}
+
+function topLabels(values: string[], labeler: (value: string) => string) {
+  const counts = new Map<string, number>();
+  values.forEach((value) => {
+    if (!value) return;
+    counts.set(value, (counts.get(value) ?? 0) + 1);
+  });
+  return Array.from(counts.entries())
+    .sort((a, b) => b[1] - a[1])
+    .slice(0, 4)
+    .map(([value]) => labeler(value));
 }
 
 function EmptyTab({ tab, isOwner }: { tab: Tab; isOwner: boolean }) {

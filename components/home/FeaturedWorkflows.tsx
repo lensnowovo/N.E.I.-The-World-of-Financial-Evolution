@@ -10,6 +10,7 @@ import { SkillQualityBadge } from '@/components/SkillQualityPanel';
 const MAX_FEATURED = 6;
 const EXCERPT_LEN = 100;
 const MIN_HOME_QUALITY_SCORE = 80;
+const MIN_FALLBACK_QUALITY_SCORE = 75;
 
 type FeaturedPost = {
   id: number;
@@ -25,17 +26,19 @@ type FeaturedPost = {
     usageNotes: string | null;
   } | null;
   _count: { attachments: number };
+  featured: boolean;
+  mcpApproved: boolean;
   qualityScore: number;
   qualityLevel: string;
 };
 
 async function getFeaturedPosts(): Promise<FeaturedPost[]> {
-  const rows = await prisma.post.findMany({
+  const curatedRows = await prisma.post.findMany({
     where: {
       featured: true,
       deletedAt: null,
       status: POST_STATUS.PUBLISHED,
-      skillAsset: { is: { assetType: 'workflow' } },
+      skillAsset: { isNot: null },
     },
     select: {
       id: true,
@@ -44,6 +47,8 @@ async function getFeaturedPosts(): Promise<FeaturedPost[]> {
       tagScene: true,
       tagContent: true,
       tagSkill: true,
+      featured: true,
+      mcpApproved: true,
       skillAsset: {
         select: {
           assetType: true,
@@ -57,6 +62,55 @@ async function getFeaturedPosts(): Promise<FeaturedPost[]> {
     orderBy: [{ featuredOrder: 'asc' }, { createdAt: 'desc' }],
     take: MAX_FEATURED * 3,
   });
+
+  const curatedPosts = withQuality(curatedRows)
+    .filter((post) => post.qualityScore >= MIN_HOME_QUALITY_SCORE)
+    .slice(0, MAX_FEATURED);
+
+  if (curatedPosts.length >= MAX_FEATURED) return curatedPosts;
+
+  const fallbackRows = await prisma.post.findMany({
+    where: {
+      featured: false,
+      deletedAt: null,
+      status: POST_STATUS.PUBLISHED,
+      mcpApproved: true,
+      skillAsset: { isNot: null },
+      id: { notIn: curatedPosts.map((post) => post.id) },
+    },
+    select: {
+      id: true,
+      title: true,
+      body: true,
+      tagScene: true,
+      tagContent: true,
+      tagSkill: true,
+      featured: true,
+      mcpApproved: true,
+      skillAsset: {
+        select: {
+          assetType: true,
+          sourceUrl: true,
+          installHint: true,
+          usageNotes: true,
+        },
+      },
+      _count: { select: { attachments: true } },
+    },
+    orderBy: [{ viewCount: 'desc' }, { createdAt: 'desc' }],
+    take: MAX_FEATURED * 4,
+  });
+
+  const fallbackPosts = withQuality(fallbackRows)
+    .filter((post) => post.qualityScore >= MIN_FALLBACK_QUALITY_SCORE)
+    .slice(0, MAX_FEATURED - curatedPosts.length);
+
+  return [...curatedPosts, ...fallbackPosts];
+}
+
+function withQuality(
+  rows: Array<Omit<FeaturedPost, 'qualityScore' | 'qualityLevel'>>,
+): FeaturedPost[] {
   return rows
     .map((post) => {
       const quality = analyzeSkillQuality({
@@ -72,9 +126,7 @@ async function getFeaturedPosts(): Promise<FeaturedPost[]> {
         usageNotes: post.skillAsset?.usageNotes ?? null,
       });
       return { ...post, qualityScore: quality.score, qualityLevel: quality.level };
-    })
-    .filter((post) => post.qualityScore >= MIN_HOME_QUALITY_SCORE)
-    .slice(0, MAX_FEATURED);
+    });
 }
 
 function parseContentTags(raw: string): string[] {
@@ -95,19 +147,19 @@ export async function FeaturedWorkflows() {
       <div className="flex flex-col sm:flex-row sm:items-end sm:justify-between gap-3">
         <div>
           <p className="font-display tracking-display text-[10px] text-sepia uppercase mb-1">
-            Curated Workflows
+            Curated Skills
           </p>
-          <h2 className="font-serif text-2xl sm:text-3xl text-ink-brown">精选 PEVC 工作流</h2>
+          <h2 className="font-serif text-2xl sm:text-3xl text-ink-brown">精选 PEVC Skill / Workflow</h2>
         </div>
-        <Link href="/?skill=workflow" className="font-serif italic text-sm text-leather hover:text-wax-red">
-          浏览全部 Workflow →
+        <Link href="#skill-library" className="font-serif italic text-sm text-leather hover:text-wax-red">
+          继续浏览 Skill Library →
         </Link>
       </div>
 
       {posts.length === 0 ? (
         <div className="mt-6 border border-dashed border-paper-edge bg-vellum rounded-md p-10 text-center">
-          <p className="font-serif text-base text-leather">暂无达到精选标准的工作流</p>
-          <p className="mt-1 font-sans text-xs text-sepia">首页精选仅展示 workflow 且质量分 ≥80 的内容。</p>
+          <p className="font-serif text-base text-leather">暂无达到精选标准的内容</p>
+          <p className="mt-1 font-sans text-xs text-sepia">首页优先展示管理员精选；空位由高质量 MCP Ready 内容补足。</p>
         </div>
       ) : (
         <div className="mt-6 grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-3">
@@ -129,6 +181,16 @@ export async function FeaturedWorkflows() {
                 </div>
                 <div className="mt-2">
                   <SkillQualityBadge score={post.qualityScore} level={post.qualityLevel} />
+                  {post.featured && (
+                    <span className="ml-1.5 inline-flex items-center rounded-sm border border-gilded/50 bg-gilded/10 px-1.5 py-0.5 font-sans text-[10px] text-ink-brown">
+                      精选
+                    </span>
+                  )}
+                  {!post.featured && post.mcpApproved && (
+                    <span className="ml-1.5 inline-flex items-center rounded-sm border border-moss/40 bg-moss/5 px-1.5 py-0.5 font-sans text-[10px] text-moss">
+                      MCP Ready
+                    </span>
+                  )}
                 </div>
                 <h3 className="mt-3 font-serif text-xl text-ink-brown group-hover:text-wax-red transition-colors">
                   {post.title}

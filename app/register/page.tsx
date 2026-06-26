@@ -8,35 +8,16 @@ import { Button } from '@/components/ui/Button';
 import { Input } from '@/components/ui/Input';
 import { RoleBadge } from '@/components/icons/RoleBadge';
 import { cn } from '@/lib/cn';
-
-type Role = 'VC' | 'PE' | 'FA';
+import { INVESTOR_ROLES, type InvestorRole } from '@/lib/roles';
 
 const STEPS = ['验证邮箱', '选择身份', '设定资料'];
-
-const ROLE_INFO: Record<Role, { en: string; tagline: string; desc: string }> = {
-  VC: {
-    en: 'Venture Capital',
-    tagline: '关注早期成长',
-    desc: '在未被验证的雄心里寻找下一个曲线',
-  },
-  PE: {
-    en: 'Private Equity',
-    tagline: '聚焦成熟期结构',
-    desc: '以现金流与并购重塑成熟资产',
-  },
-  FA: {
-    en: 'Financial Advisor',
-    tagline: '撮合方与中介',
-    desc: '在项目与资本之间建立握手',
-  },
-};
 
 export default function RegisterPage() {
   const router = useRouter();
   const [stepIdx, setStepIdx] = useState(1); // 1 / 2 / 3
   const [email, setEmail] = useState('');
   const [code, setCode] = useState('');
-  const [role, setRole] = useState<Role | ''>('');
+  const [role, setRole] = useState<InvestorRole | ''>('');
   const [nickname, setNickname] = useState('');
   const [password, setPassword] = useState('');
 
@@ -120,7 +101,7 @@ export default function RegisterPage() {
       title="加入社区"
       subtitle="发布、收藏、和同行交流"
       step={{ current: stepIdx, labels: STEPS }}
-      size={stepIdx === 2 ? 'md' : 'sm'}
+      size={stepIdx === 2 ? 'lg' : 'sm'}
       crest={stepIdx === 2}
       footer={
         <>
@@ -212,22 +193,19 @@ export default function RegisterPage() {
       {stepIdx === 2 && (
         <div className="space-y-7">
           <p className="font-serif italic text-leather text-center">
-            身份一经确认，不可自助修改 ——
-            <br className="hidden sm:block" />
-            如同纹章一经授予，便属于持有者一生
+            请选择最贴近你当前工作的身份。之后仍可在个人设置里调整。
           </p>
 
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-            {(Object.keys(ROLE_INFO) as Role[]).map((r) => {
-              const info = ROLE_INFO[r];
-              const active = role === r;
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+            {INVESTOR_ROLES.map((info) => {
+              const active = role === info.value;
               return (
                 <button
-                  key={r}
+                  key={info.value}
                   type="button"
-                  onClick={() => setRole(r)}
+                  onClick={() => setRole(info.value)}
                   className={cn(
-                    'group text-center px-5 py-7 border transition-all duration-150',
+                    'group text-center px-4 py-6 border transition-all duration-150',
                     'focus:outline-none',
                     active
                       ? 'border-ink-brown bg-parchment'
@@ -235,7 +213,7 @@ export default function RegisterPage() {
                   )}
                 >
                   <div className="flex justify-center mb-4">
-                    <RoleBadge role={r} size={56} />
+                    <RoleBadge role={info.value} size={56} />
                   </div>
                   <p
                     className={cn(
@@ -243,10 +221,10 @@ export default function RegisterPage() {
                       active ? 'text-ink-brown' : 'text-leather',
                     )}
                   >
-                    {r}
+                    {info.label}
                   </p>
                   <p className="font-serif italic text-sm text-leather mb-2">
-                    {info.en}
+                    {info.fullName}
                   </p>
                   <p className="font-sans text-xs text-sepia leading-relaxed">
                     {info.desc}
@@ -289,7 +267,7 @@ export default function RegisterPage() {
                 你的身份
               </p>
               <p className="font-serif text-base text-ink-brown">
-                {role && ROLE_INFO[role as Role].en}
+                {INVESTOR_ROLES.find((item) => item.value === role)?.fullName}
               </p>
             </div>
             <button

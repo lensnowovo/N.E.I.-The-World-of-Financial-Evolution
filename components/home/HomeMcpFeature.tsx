@@ -14,9 +14,14 @@ export function HomeMcpFeature() {
         <span className="shrink-0 font-display tracking-display text-[10px] text-gilded uppercase">
           MCP
         </span>
-        <p className="font-serif text-sm text-ink-brown truncate">
-          把收藏的 Skill 接进 Claude / Cursor / Windsurf，在 AI 助手里直接调用
-        </p>
+        <div className="min-w-0">
+          <p className="font-serif text-sm text-ink-brown truncate">
+            将收藏库接入 Claude / Cursor / Windsurf，在工作环境中调用
+          </p>
+          <p className="font-sans text-[11px] text-sepia truncate">
+            只分发 Skill / Workflow 文本；不读取本地文件，不上传 BP 或投委会材料
+          </p>
+        </div>
       </div>
       <div className="flex items-center gap-3 shrink-0">
         <div className="hidden sm:flex gap-1.5">
@@ -33,7 +38,7 @@ export function HomeMcpFeature() {
           href="/connect"
           className="inline-flex items-center h-8 px-3 bg-ink-brown text-vellum hover:bg-wax-red font-serif text-xs rounded-sm transition-colors"
         >
-          配置 MCP →
+          连接 MCP →
         </Link>
       </div>
     </section>

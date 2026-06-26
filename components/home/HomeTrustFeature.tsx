@@ -16,9 +16,9 @@ export function HomeTrustFeature() {
           <p className="font-display tracking-display text-[10px] text-sepia uppercase mb-1">
             Trust & Safety
           </p>
-          <h2 className="font-serif text-xl text-ink-brown">安全连接你的 AI 客户端</h2>
+          <h2 className="font-serif text-xl text-ink-brown">MCP 安全边界</h2>
           <p className="mt-1 font-sans text-xs text-leather leading-relaxed">
-            N.E.I. MCP 只分发 Skill / Workflow，不接管你的 BP、财务模型和投委会材料。
+            N.E.I. MCP 只分发 Skill / Workflow 文本，不接管 BP、财务模型和投委会材料。
           </p>
         </div>
         <div className="flex flex-wrap gap-1.5">

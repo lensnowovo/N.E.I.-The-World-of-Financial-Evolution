@@ -59,6 +59,11 @@ export const ROLE_TAGS = [
   { value: 'VC', label: 'VC', desc: '风险投资机构从业者' },
   { value: 'PE', label: 'PE', desc: '私募股权机构从业者' },
   { value: 'FA', label: 'FA', desc: '财务顾问 / 中介机构从业者' },
+  { value: 'CVC', label: '产业投资', desc: '产业资本 / 战略投资从业者' },
+  { value: 'GOV_GUIDANCE', label: '政府引导基金', desc: '政府引导基金 / 母基金从业者' },
+  { value: 'PORTFOLIO', label: '投后', desc: '投后管理 / 增值服务从业者' },
+  { value: 'LP', label: 'LP', desc: '机构投资人 / 基金出资人' },
+  { value: 'RESEARCH', label: '研究员', desc: '投研 / 行业研究从业者' },
 ] as const;
 
 /**
@@ -152,7 +157,7 @@ export const ASSET_TYPE_HELPERS: Record<string, { body: string; installHint: str
  */
 export const HOW_TO_USE: Record<string, string> = {
   prompt:
-    '复制下面的提示词，粘贴到你信任的 AI 客户端或已登录对话框，把方括号 [像这样] 的部分换成你的实际内容。',
+    '复制下面的提示词，粘贴到你信任的客户端或已登录对话框，把方括号 [像这样] 的部分换成你的实际内容。',
   template:
     '下载文件后用 Excel / Word / PPT 打开（看文件后缀），按里面的说明填写。建议先复制一份原文件再改，保住模板。',
   'agent-skill':

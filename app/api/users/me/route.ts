@@ -3,6 +3,7 @@ import { prisma } from '@/lib/db';
 import { getCurrentUser, getSessionUid } from '@/lib/session';
 import { isNickname, hasSensitive } from '@/lib/validate';
 import { encryptApiKey } from '@/lib/crypto';
+import { isInvestorRole } from '@/lib/roles';
 
 export const dynamic = 'force-dynamic';
 
@@ -31,7 +32,7 @@ export async function PATCH(req: Request) {
     update.nickname = nickname;
   }
   if (role !== undefined) {
-    if (!['VC', 'PE', 'FA'].includes(role)) return NextResponse.json({ error: '身份无效' }, { status: 400 });
+    if (!isInvestorRole(role)) return NextResponse.json({ error: '身份无效' }, { status: 400 });
     update.role = role;
   }
   if (institution !== undefined) update.institution = institution;

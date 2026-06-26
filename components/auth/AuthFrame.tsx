@@ -14,7 +14,7 @@ type Props = {
   /** 卡片底部辅助文字（如 "已有账号？登录"） */
   footer?: React.ReactNode;
   /** 整体宽度（窄、中、宽） */
-  size?: 'sm' | 'md';
+  size?: 'sm' | 'md' | 'lg';
 };
 
 /**
@@ -36,7 +36,9 @@ export function AuthFrame({
     <div
       className={cn(
         'mx-auto',
-        size === 'sm' ? 'max-w-md' : 'max-w-lg',
+        size === 'sm' && 'max-w-md',
+        size === 'md' && 'max-w-lg',
+        size === 'lg' && 'max-w-4xl',
       )}
     >
       {/* —— 卷首大字 —— */}
