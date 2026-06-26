@@ -1,11 +1,10 @@
 import Link from 'next/link';
 import { prisma } from '@/lib/db';
 import { getSessionUid } from '@/lib/session';
-import { stripHtml } from '@/lib/validate';
 import { STAGE_GROUPS } from '@/lib/tags';
 import { POST_STATUS } from '@/lib/status';
 import { PostCard } from '@/components/PostCard';
-import { normalizeSort, sortPosts } from '@/lib/feed';
+import { fetchUserStars, mapPostToCardData, normalizeSort, sortPosts } from '@/lib/feed';
 
 const PAGE_SIZE = 12;
 
@@ -45,7 +44,16 @@ export default async function StagePage({
     include: {
       author: { select: { id: true, nickname: true, role: true, avatarUrl: true } },
       _count: { select: { comments: true, stars: true, attachments: true } },
-      skillAsset: { select: { id: true, assetType: true, originalAuthor: true } },
+      skillAsset: {
+        select: {
+          id: true,
+          assetType: true,
+          originalAuthor: true,
+          sourceUrl: true,
+          installHint: true,
+          usageNotes: true,
+        },
+      },
     },
     orderBy: { createdAt: 'desc' },
   });
@@ -55,29 +63,8 @@ export default async function StagePage({
   const paged = posts.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
   const totalPages = Math.ceil(total / PAGE_SIZE);
 
-  const items = paged.map((p) => ({
-    id: p.id,
-    title: p.title,
-    excerpt: stripHtml(p.body).slice(0, 160),
-    tagScene: p.tagScene,
-    tagIndustry: p.tagIndustry,
-    tagContent: (() => {
-      try { return JSON.parse(p.tagContent || '[]'); } catch { return []; }
-    })(),
-    tagSkill: p.tagSkill,
-    createdAt: p.createdAt.toISOString(),
-    viewCount: p.viewCount,
-    author: p.author,
-    counts: {
-      comments: p._count.comments,
-      stars: p._count.stars,
-      attachments: p._count.attachments,
-    },
-    starred: false,
-    skillAsset: p.skillAsset
-      ? { id: p.skillAsset.id, assetType: p.skillAsset.assetType, originalAuthor: p.skillAsset.originalAuthor }
-      : null,
-  }));
+  const { starredIds } = await fetchUserStars(uid, paged.map((p) => p.id));
+  const items = paged.map((p) => mapPostToCardData(p, starredIds.has(p.id)));
 
   const sortParam = sort === 'latest' ? '&sort=latest' : '';
 
@@ -104,9 +91,9 @@ export default async function StagePage({
       </div>
 
       {/* —— 卡片网格 —— */}
-      <ol className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
+      <ol className="columns-1 gap-4 md:columns-2 xl:columns-3">
         {items.map((p, i) => (
-          <li key={p.id} className="animate-fade-up" style={{ animationDelay: `${Math.min(i * 40, 320)}ms` }}>
+          <li key={p.id} className="mb-4 break-inside-avoid animate-fade-up" style={{ animationDelay: `${Math.min(i * 40, 320)}ms` }}>
             <PostCard post={p} currentUserId={uid} variant="compact" />
           </li>
         ))}

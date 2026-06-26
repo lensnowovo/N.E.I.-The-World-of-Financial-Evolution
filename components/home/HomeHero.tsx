@@ -23,7 +23,7 @@ export function HomeHero({
         Skill 与 Workflow 可检索、可收藏，并可通过 MCP 调用。
       </p>
 
-      <form action="/" method="get" className="mt-6 flex w-full max-w-2xl">
+      <form action="/#skill-library" method="get" className="mt-6 flex w-full max-w-2xl">
         <label htmlFor="home-skill-search" className="sr-only">
           搜索 Skill
         </label>
@@ -31,7 +31,7 @@ export function HomeHero({
           id="home-skill-search"
           name="q"
           type="search"
-          placeholder="搜索场景、行业、交付物或作者…"
+          placeholder="搜索 BP 初筛、半导体行研、IC Memo、专家访谈、LP 季报..."
           className="min-w-0 flex-1 h-11 bg-vellum border border-paper-edge border-r-0 px-4 font-serif italic text-sm text-ink-brown placeholder:text-sepia/70 focus:border-ink-brown"
         />
         <button
@@ -41,6 +41,19 @@ export function HomeHero({
           搜索 Skill
         </button>
       </form>
+
+      <div className="mt-3 flex flex-wrap items-center gap-2 font-sans text-xs">
+        <span className="font-display tracking-display text-[10px] text-sepia uppercase">Hot</span>
+        {HOT_TERMS.map((term) => (
+          <Link
+            key={term}
+            href={`/?q=${encodeURIComponent(term)}#skill-library`}
+            className="border border-paper-edge bg-vellum px-2 py-1 text-sepia hover:border-ink-brown hover:text-ink-brown transition-colors"
+          >
+            {term}
+          </Link>
+        ))}
+      </div>
 
       <div className="mt-5 flex flex-wrap items-center gap-2.5">
         <Link
@@ -72,6 +85,8 @@ export function HomeHero({
     </section>
   );
 }
+
+const HOT_TERMS = ['BP 初筛', '半导体行研', 'IC Memo', '专家访谈', 'LP 季报', '投后月报'];
 
 function Stat({ value, label }: { value: string; label: string }) {
   return (

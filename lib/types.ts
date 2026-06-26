@@ -21,6 +21,12 @@ export type PostCardData = {
   author: { id: number; nickname: string; role: string; avatarUrl: string | null };
   counts: { comments: number; stars: number; attachments: number };
   starred: boolean;
+  mcpApproved: boolean;
+  featured: boolean;
+  assetType: string | null;
+  inputExample: string;
+  outputExample: string;
+  usageBoundary: string;
   skillAsset: {
     id: number;
     assetType: string;

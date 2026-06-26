@@ -57,8 +57,8 @@ export function SiteHeader({ user }: { user: User }) {
   const onSearch = (e: React.FormEvent) => {
     e.preventDefault();
     const v = q.trim();
-    if (!v) router.push('/');
-    else router.push(`/?q=${encodeURIComponent(v)}`);
+    if (!v) router.push('/#skill-library');
+    else router.push(`/?q=${encodeURIComponent(v)}#skill-library`);
   };
 
   const logout = async () => {
@@ -110,7 +110,7 @@ export function SiteHeader({ user }: { user: User }) {
                 type="search"
                 value={q}
                 onChange={(e) => setQ(e.target.value)}
-                placeholder="按章节、行业或作者检索…"
+                placeholder="搜 BP 初筛、IC Memo、专家访谈..."
                 className={cn(
                   'w-full h-9 bg-vellum border border-paper-edge pl-9 pr-3',
                   'font-serif italic text-sm text-ink-brown placeholder:text-sepia/70',
@@ -210,7 +210,7 @@ export function SiteHeader({ user }: { user: User }) {
                     type="search"
                     value={q}
                     onChange={(e) => setQ(e.target.value)}
-                    placeholder="检索关键词…"
+                    placeholder="搜 BP 初筛、IC Memo、专家访谈..."
                     className="flex-1 bg-transparent border-0 outline-none font-serif italic text-lg text-ink-brown placeholder:text-sepia/60 py-1"
                   />
                 </div>

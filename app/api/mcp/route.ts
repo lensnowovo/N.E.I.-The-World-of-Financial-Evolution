@@ -3,7 +3,7 @@ import { createMcpHandler } from 'mcp-handler';
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { z } from 'zod';
 import { prisma } from '@/lib/db';
-import { buildFeedWhere } from '@/lib/feed';
+import { buildFeedWhere, filterByContent, normalizeSort, sortPosts } from '@/lib/feed';
 import { stripHtml } from '@/lib/validate';
 import { POST_STATUS } from '@/lib/status';
 import { extractPlainText } from '@/lib/skill-text';
@@ -110,7 +110,6 @@ function makeHandler(uid: number, clientName: string | null, requestId: string) 
           const start = Date.now();
           try {
             const where = buildFeedWhere({
-              q: args.query || '',
               scene: args.scene,
               skill: args.skillType,
               industry: args.industry,
@@ -134,24 +133,20 @@ function makeHandler(uid: number, clientName: string | null, requestId: string) 
                 _count: { select: { stars: true, comments: true } },
               },
               orderBy: { id: 'desc' },
-              take: args.tags?.length ? cap + 20 : cap,
+              take: args.query || args.tags?.length ? 200 : cap,
             });
 
             // tags（tagContent）内存 AND 过滤
             if (args.tags && args.tags.length > 0) {
-              posts = posts.filter((p) => {
-                const arr = safeJsonArray(p.tagContent);
-                return args.tags!.every((t) => arr.includes(t));
-              });
+              posts = filterByContent(posts, args.tags);
             }
 
             // 排序
-            const score = (p: (typeof posts)[number]) =>
-              (p.viewCount || 0) + p._count.stars * 5 + p._count.comments * 3;
-            const sorted =
-              args.sort === 'latest'
-                ? posts
-                : [...posts].sort((a, b) => score(b) - score(a));
+            const sorted = sortPosts(
+              posts,
+              normalizeSort(args.sort, !!args.query),
+              args.query || '',
+            );
 
             const items = sorted.slice(0, cap).map((p) => ({
               id: p.id,

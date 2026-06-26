@@ -4,7 +4,7 @@ import { getSessionUid } from '@/lib/session';
 import { sanitizeHtml, stripHtml } from '@/lib/validate';
 import { POST_STATUS } from '@/lib/status';
 import { SCENE_TAGS, INDUSTRY_TAGS, CONTENT_TAGS, SKILL_TAGS } from '@/lib/tags';
-import { buildFeedWhere, fetchUserStars, filterByContent, normalizeSort, sortPosts } from '@/lib/feed';
+import { fetchFeedPage, normalizeSort } from '@/lib/feed';
 import { withMetrics } from '@/lib/metrics';
 import { reviewPostSafety } from '@/lib/ai';
 
@@ -26,55 +26,23 @@ async function listPosts(req: Request) {
   const role = url.searchParams.get('role') || undefined;
   const time = url.searchParams.get('time') || undefined;
   const q = url.searchParams.get('q')?.trim() || '';
+  const mcp = url.searchParams.get('mcp') || undefined;
+  const attachment = url.searchParams.get('attachment') || undefined;
+  const featured = url.searchParams.get('featured') || undefined;
   const page = Math.max(1, parseInt(url.searchParams.get('page') || '1', 10));
-  const pageSize = 20;
-  const sort = normalizeSort(url.searchParams.get('sort'));
-
-  const where = buildFeedWhere({ scene, industry, skill, role, time, q });
-
-  let posts = await prisma.post.findMany({
-    where,
-    include: {
-      author: { select: { id: true, nickname: true, role: true, avatarUrl: true } },
-      _count: { select: { comments: true, stars: true, attachments: true } },
-      skillAsset: { select: { id: true, assetType: true } },
-    },
-    orderBy: { createdAt: 'desc' },
-    skip: (page - 1) * pageSize,
-    take: pageSize,
-  });
-
-  posts = filterByContent(posts, contentList);
-  // 当前页内排序（跨页排序在内存分页模型下有限制，但热门排序下首页用 fetchFeed 全量取，此处够用）
-  posts = sortPosts(posts, sort);
-
+  const pageSize = Math.min(50, Math.max(1, parseInt(url.searchParams.get('pageSize') || '20', 10)));
+  const sort = normalizeSort(url.searchParams.get('sort'), !!q);
   const uid = await getSessionUid();
-  const { starredIds } = await fetchUserStars(uid, posts.map((p) => p.id));
+  const result = await fetchFeedPage(
+    { scene, industry, skill, role, time, q, mcp, attachment, featured, contentList, page, pageSize, sort },
+    uid,
+  );
 
   return NextResponse.json({
-    items: posts.map((p) => ({
-      id: p.id,
-      title: p.title,
-      excerpt: stripHtml(p.body).slice(0, 160),
-      tagScene: p.tagScene,
-      tagIndustry: p.tagIndustry,
-      tagContent: JSON.parse(p.tagContent || '[]'),
-      tagSkill: p.tagSkill,
-      createdAt: p.createdAt,
-      viewCount: p.viewCount,
-      author: p.author,
-      counts: {
-        comments: p._count.comments,
-        stars: p._count.stars,
-        attachments: p._count.attachments,
-      },
-      starred: starredIds.has(p.id),
-      skillAsset: p.skillAsset
-        ? { id: p.skillAsset.id, assetType: p.skillAsset.assetType }
-        : null,
-    })),
-    page,
-    hasMore: posts.length === pageSize,
+    items: result.items,
+    page: result.page,
+    hasMore: result.hasMore,
+    total: result.total,
   });
 }
 

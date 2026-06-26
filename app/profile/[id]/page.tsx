@@ -3,11 +3,11 @@ import Link from 'next/link';
 import { prisma } from '@/lib/db';
 import { getCurrentUser } from '@/lib/session';
 import { cn } from '@/lib/cn';
-import { stripHtml } from '@/lib/validate';
 import { formatTime } from '@/lib/format';
+import { mapPostToCardData } from '@/lib/feed';
 import { industryLabel, sceneLabel } from '@/lib/tags';
 import { roleFullName as investorRoleFullName } from '@/lib/roles';
-import { PostCard, type PostCardData } from '@/components/PostCard';
+import { PostCard } from '@/components/PostCard';
 import { RoleBadge } from '@/components/icons/RoleBadge';
 import { CrestCorners } from '@/components/icons/Crest';
 import { Ornament } from '@/components/icons/Ornament';
@@ -131,7 +131,16 @@ export default async function ProfilePage({
       include: {
         author: { select: { id: true, nickname: true, role: true, avatarUrl: true } },
         _count: { select: { comments: true, stars: true, attachments: true } },
-        skillAsset: { select: { id: true, assetType: true } },
+        skillAsset: {
+          select: {
+            id: true,
+            assetType: true,
+            originalAuthor: true,
+            sourceUrl: true,
+            installHint: true,
+            usageNotes: true,
+          },
+        },
       },
       orderBy: { createdAt: 'desc' },
       take: 50,
@@ -144,7 +153,16 @@ export default async function ProfilePage({
           include: {
             author: { select: { id: true, nickname: true, role: true, avatarUrl: true } },
             _count: { select: { comments: true, stars: true, attachments: true } },
-            skillAsset: { select: { id: true, assetType: true } },
+            skillAsset: {
+              select: {
+                id: true,
+                assetType: true,
+                originalAuthor: true,
+                sourceUrl: true,
+                installHint: true,
+                usageNotes: true,
+              },
+            },
           },
         },
       },
@@ -160,7 +178,16 @@ export default async function ProfilePage({
           include: {
             author: { select: { id: true, nickname: true, role: true, avatarUrl: true } },
             _count: { select: { comments: true, stars: true, attachments: true } },
-            skillAsset: { select: { id: true, assetType: true } },
+            skillAsset: {
+              select: {
+                id: true,
+                assetType: true,
+                originalAuthor: true,
+                sourceUrl: true,
+                installHint: true,
+                usageNotes: true,
+              },
+            },
           },
         },
       },
@@ -181,45 +208,7 @@ export default async function ProfilePage({
         ).map((l) => l.postId),
       )
     : new Set<number>();
-  const myFavIds = me
-    ? new Set(
-        (
-          await prisma.postFavorite.findMany({
-            where: { userId: me.id, postId: { in: posts.map((p) => p.id) } },
-            select: { postId: true },
-          })
-        ).map((f) => f.postId),
-      )
-    : new Set<number>();
-
-  const items: PostCardData[] = posts.map((p) => ({
-    id: p.id,
-    title: p.title,
-    excerpt: stripHtml(p.body).slice(0, 160),
-    tagScene: p.tagScene,
-    tagIndustry: p.tagIndustry,
-    tagContent: (() => {
-      try { return JSON.parse(p.tagContent || '[]'); } catch { return []; }
-    })(),
-    tagSkill: p.tagSkill,
-    createdAt: p.createdAt.toISOString(),
-    author: {
-      id: p.author.id,
-      nickname: p.author.nickname,
-      role: p.author.role,
-      avatarUrl: p.author.avatarUrl,
-    },
-    counts: {
-      comments: p._count.comments,
-      stars: p._count.stars,
-      attachments: p._count.attachments,
-    },
-    viewCount: p.viewCount,
-    starred: myStarredIds.has(p.id),
-    skillAsset: p.skillAsset
-      ? { id: p.skillAsset.id, assetType: p.skillAsset.assetType }
-      : null,
-  }));
+  const items = posts.map((p) => mapPostToCardData(p, myStarredIds.has(p.id)));
 
   return (
     <div className="mx-auto max-w-prose">
