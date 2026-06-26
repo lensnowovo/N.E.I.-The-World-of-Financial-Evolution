@@ -155,8 +155,17 @@ N.E.I. MCP 默认：
 
 ## 本地开发
 
+推荐运行环境：
+
 ```bash
-npm install
+nvm use
+npm --version
+```
+
+仓库使用 `.nvmrc` 统一到 Node 20 LTS；`package.json` 中的 `engines` 允许 Node 20.17 到 24.x，方便已经升级到 Node 24 的同学本地开发。依赖安装以 `package-lock.json` 为准。
+
+```bash
+npm ci
 npm run db:push
 npm run dev
 ```
@@ -170,11 +179,12 @@ http://localhost:3000
 常用命令：
 
 ```bash
-npm run lint
-npx tsc --noEmit --pretty false
+npm run verify
 npm run smoke:public-posts
 npm run build
 ```
+
+`npm run verify` 会依次执行 Prisma schema 校验、lint 和 TypeScript typecheck；这也是 PR Quality Gate 的核心检查。
 
 生产构建：
 
@@ -187,6 +197,26 @@ Vercel 构建：
 ```bash
 npm run vercel-build
 ```
+
+---
+
+## 开发与上线流程
+
+`main` 是受保护分支，不直接 push。所有代码改动都通过 PR 进入生产：
+
+1. 从 `main` 拉新分支，例如 `feat/homepage-polish` 或 `chore/release-config`。
+2. 本地开发后运行 `npm ci`、`npm run verify`，涉及页面或构建逻辑时再运行 `npm run build`。
+3. push 到 feature branch，并创建 PR 到 `main`。
+4. 等 GitHub `Lint, typecheck, and validate schema` 与 Vercel Preview 都通过。
+5. Merge PR 到 `main`。
+6. Vercel 会基于 `main` 自动触发 production deployment。
+
+协作约定：
+
+- 不提交 `.env`、`.env.local`、`.vercel` 或任何密钥。
+- 改依赖必须提交同步后的 `package-lock.json`。
+- 如果 CI 报 `npm ci` lock mismatch，先在本地运行 `npm install` 或补齐跨平台 optional dependency，再用 `npm ci` 复验。
+- 线上配置和部署排障见 [部署与发布指南](./docs/DEPLOY.md)。
 
 ---
 

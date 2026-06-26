@@ -2,6 +2,11 @@
   "name": "pevc-platform",
   "version": "1.0.0",
   "private": true,
+  "packageManager": "npm@10.8.2",
+  "engines": {
+    "node": ">=20.17 <25",
+    "npm": ">=10 <12"
+  },
   "scripts": {
     "dev": "next dev -p 3000",
     "build": "prisma generate && next build",
@@ -9,6 +14,7 @@
     "postinstall": "prisma generate",
     "start": "next start",
     "lint": "next lint",
+    "verify": "prisma validate && npm run lint && tsc --noEmit --pretty false",
     "smoke:public-posts": "tsx scripts/smoke-public-posts.ts",
     "db:push": "prisma db push",
     "db:seed": "tsx prisma/seed.ts",
