@@ -6,6 +6,7 @@ import Link from 'next/link';
 import { cn } from '@/lib/cn';
 import { Input, Textarea } from '@/components/ui/Input';
 import { Button } from '@/components/ui/Button';
+import { INVESTOR_ROLES } from '@/lib/roles';
 
 type Profile = {
   id: number;
@@ -183,21 +184,21 @@ export default function SettingsPage() {
         </Field>
 
         {/* 身份 */}
-        <Field label="身份" hint="VC / PE / FA">
-          <div className="flex gap-2">
-            {(['VC', 'PE', 'FA'] as const).map((r) => (
+        <Field label="身份" hint="展示在个人主页和内容卡片上">
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+            {INVESTOR_ROLES.map((item) => (
               <button
-                key={r}
+                key={item.value}
                 type="button"
-                onClick={() => setRole(r)}
+                onClick={() => setRole(item.value)}
                 className={cn(
-                  'inline-flex items-center h-10 px-5 font-serif text-sm rounded-sm border transition-colors',
-                  role === r
+                  'inline-flex items-center justify-center min-h-10 px-3 py-2 font-serif text-sm rounded-sm border transition-colors text-center',
+                  role === item.value
                     ? 'border-ink-brown bg-ink-brown text-vellum'
                     : 'border-paper-edge text-leather hover:border-ink-brown',
                 )}
               >
-                {r}
+                {item.label}
               </button>
             ))}
           </div>

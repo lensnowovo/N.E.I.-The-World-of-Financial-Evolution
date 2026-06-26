@@ -3,6 +3,7 @@
 import { cn } from '@/lib/cn';
 import { CopyPromptButton } from './CopyPromptButton';
 import { formatCount } from '@/lib/format';
+import { ShareLinkButton } from './ShareLinkButton';
 
 type PrimaryAttachment = {
   id: number;
@@ -40,17 +41,19 @@ export function DetailActions({
   return (
     <div className="flex items-center justify-between gap-4 flex-wrap">
       {/* 主操作 */}
-      <div className="flex items-center gap-2">
-        {primaryAttachment ? (
+      <div className="flex flex-wrap items-center gap-2">
+        {primaryAttachment && (
           <DownloadButton
             postId={postId}
             isAuthed={isAuthed}
             attachmentId={primaryAttachment.id}
             fileName={primaryAttachment.fileName}
           />
-        ) : isPrompt ? (
+        )}
+        {isPrompt && (
           <CopyPromptButton bodyHtml={bodyHtml} postId={postId} isAuthed={isAuthed} />
-        ) : null}
+        )}
+        <ShareLinkButton />
       </div>
 
       {/* 热度数字 */}
@@ -82,7 +85,7 @@ function DownloadButton({
     <a
       href={`/api/files/${attachmentId}/download`}
       download
-      className="inline-flex items-center gap-2 h-10 px-5 bg-ink-brown text-vellum hover:bg-wax-red font-serif text-sm rounded-sm transition-colors"
+      className="inline-flex h-8 items-center gap-1.5 rounded-sm bg-ink-brown px-3 font-serif text-xs text-vellum transition-colors hover:bg-wax-red"
     >
       <DownloadIcon />
       下载 {label}

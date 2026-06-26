@@ -9,19 +9,25 @@ export function SiteFooter() {
           <Ornament />
         </div>
         <p className="text-center font-serif italic">
-          N.E.I. · New Era Investors · 一级市场投资人的 AI Skill Hub
+          N.E.I. · New Era Investors · 一级市场投资人的 AI Skills Hub
         </p>
         <p className="mt-2 text-center text-xs">
           © {new Date().getFullYear()} N.E.I. · The World of Financial Evolution
         </p>
-        <div className="mt-4 flex flex-wrap justify-center gap-x-4 gap-y-2 font-serif text-xs">
+        <nav className="mt-4 flex flex-wrap justify-center gap-x-4 gap-y-2 font-sans text-xs">
+          <Link href="/legal" className="hover:text-ink-brown transition-colors">
+            信任与使用规则
+          </Link>
           <Link href="/security" className="hover:text-ink-brown">
             MCP 安全与保密原则
           </Link>
           <Link href="/mcp" className="hover:text-ink-brown">
             MCP 配置指南
           </Link>
-        </div>
+          <Link href="/connect" className="hover:text-ink-brown transition-colors">
+            连接配置
+          </Link>
+        </nav>
       </div>
     </footer>
   );

@@ -1,5 +1,6 @@
 import { notFound } from 'next/navigation';
 import Link from 'next/link';
+import type { Metadata } from 'next';
 import { Prisma } from '@prisma/client';
 import { prisma } from '@/lib/db';
 import { cn } from '@/lib/cn';
@@ -29,7 +30,55 @@ import { ReportButton } from './ReportButton';
 import { DeleteButton } from './DeleteButton';
 import { analyzeSkillQuality } from '@/lib/skill-quality';
 import { SkillQualityPanel } from '@/components/SkillQualityPanel';
-import { normalizePublicText, normalizePublicUrl } from '@/lib/public-url';
+import { getPublicBaseUrl, normalizePublicText, normalizePublicUrl } from '@/lib/public-url';
+
+export async function generateMetadata({
+  params,
+}: {
+  params: Promise<{ id: string }>;
+}): Promise<Metadata> {
+  const id = parseInt((await params).id, 10);
+  if (Number.isNaN(id)) return {};
+
+  const post = await prisma.post.findFirst({
+    where: { id, status: POST_STATUS.PUBLISHED },
+    select: {
+      id: true,
+      title: true,
+      body: true,
+      tagScene: true,
+      skillAsset: { select: { assetType: true } },
+    },
+  });
+  if (!post) return {};
+
+  const baseUrl = getPublicBaseUrl();
+  const description =
+    cleanExcerpt(normalizePublicText(sanitizeHtml(post.body)), 110) ||
+    '面向一级市场投资人的 Skill、Prompt、模板和工作流。';
+  const assetType = post.skillAsset?.assetType ? skillLabel(post.skillAsset.assetType) : 'Skill';
+  const title = `${post.title} · ${assetType}`;
+
+  return {
+    title,
+    description,
+    alternates: {
+      canonical: `${baseUrl}/posts/${post.id}`,
+    },
+    openGraph: {
+      title,
+      description,
+      url: `${baseUrl}/posts/${post.id}`,
+      type: 'article',
+      siteName: 'N.E.I.',
+    },
+    twitter: {
+      card: 'summary',
+      title,
+      description,
+    },
+  };
+}
 
 export default async function PostDetailPage({
   params,
@@ -109,7 +158,7 @@ export default async function PostDetailPage({
   });
 
   // 摘要（去 HTML 标签）
-  const excerpt = safeBody.replace(/<[^>]*>/g, '').replace(/\s+/g, ' ').trim().slice(0, 120);
+  const excerpt = cleanExcerpt(safeBody, 120);
 
   // 提示词帖：把 body 按 <pre> 拆成「介绍」+「Prompt 块」（可能有多个）
   // 每个 Prompt 块单独配复制按钮
@@ -175,7 +224,7 @@ export default async function PostDetailPage({
           isAuthed={!!uid}
           primaryAttachment={primaryAttachment}
           isPrompt={isPrompt}
-            bodyHtml={safeBody}
+          bodyHtml={safeBody}
           viewCount={post.viewCount}
           stars={post._count.stars}
           commentsCount={post._count.comments}
@@ -200,12 +249,28 @@ export default async function PostDetailPage({
           </span>
           <div>
             <p className="font-serif text-ink-brown text-[13px] mb-0.5">
-              怎么用这个{isPrompt ? '提示词' : assetLabel || '东西'}
+              使用说明
             </p>
             <p className="font-sans text-xs text-leather leading-relaxed">{howToUse}</p>
           </div>
         </div>
       )}
+
+      <SkillUseSummary
+        scene={sceneLabel(post.tagScene)}
+        assetLabel={assetLabel || 'Skill'}
+        mcpApproved={post.mcpApproved}
+        securityLevel={post.securityLevel}
+        version={post.version}
+        bestFor={quality.bestFor}
+        inputExample={quality.inputExample}
+        outputExample={quality.outputExample}
+        boundary={getUsageBoundary({
+          assetType,
+          securityLevel: post.securityLevel,
+          mcpApproved: post.mcpApproved,
+        })}
+      />
 
       {/* —— 左主右栏 —— */}
       <div className="grid grid-cols-1 lg:grid-cols-[1fr_280px] gap-8">
@@ -395,6 +460,94 @@ export default async function PostDetailPage({
       </div>
     </article>
   );
+}
+
+function cleanExcerpt(html: string, maxLength: number) {
+  return html.replace(/<[^>]*>/g, '').replace(/\s+/g, ' ').trim().slice(0, maxLength);
+}
+
+function SkillUseSummary({
+  scene,
+  assetLabel,
+  mcpApproved,
+  securityLevel,
+  version,
+  bestFor,
+  inputExample,
+  outputExample,
+  boundary,
+}: {
+  scene: string;
+  assetLabel: string;
+  mcpApproved: boolean;
+  securityLevel: string;
+  version: number;
+  bestFor: string[];
+  inputExample: string;
+  outputExample: string;
+  boundary: string;
+}) {
+  const statusLabel = mcpApproved ? 'MCP Ready' : '网站可用';
+  const statusTone = mcpApproved
+    ? 'border-moss/40 bg-moss/5 text-moss'
+    : 'border-paper-edge bg-vellum text-sepia';
+  const securityLabel = securityLevel === 'safe' ? '安全通过' : securityLevel === 'suspicious' ? '待复核' : '不建议调用';
+
+  return (
+    <section className="mb-8 rounded-md border border-paper-edge bg-vellum/55 px-4 py-4">
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+        <div>
+          <p className="font-display tracking-display text-[10px] uppercase text-sepia mb-1">
+            Usage Brief
+          </p>
+          <h2 className="font-serif text-xl text-ink-brown">使用摘要</h2>
+        </div>
+        <div className="flex flex-wrap gap-1.5">
+          <span className={cn('inline-flex h-7 items-center rounded-sm border px-2.5 font-sans text-[11px]', statusTone)}>
+            {statusLabel}
+          </span>
+          <span className="inline-flex h-7 items-center rounded-sm border border-paper-edge bg-parchment px-2.5 font-sans text-[11px] text-leather">
+            v{version}
+          </span>
+          <span className="inline-flex h-7 items-center rounded-sm border border-paper-edge bg-parchment px-2.5 font-sans text-[11px] text-leather">
+            {securityLabel}
+          </span>
+        </div>
+      </div>
+
+      <div className="mt-4 grid gap-3 md:grid-cols-2">
+        <SummaryBlock title="适用场景" body={[scene, assetLabel, ...bestFor.slice(1, 3)].filter(Boolean).join(' / ')} />
+        <SummaryBlock title="输入材料" body={inputExample} />
+        <SummaryBlock title="输出结果" body={outputExample} />
+        <SummaryBlock title="使用边界" body={boundary} />
+      </div>
+    </section>
+  );
+}
+
+function SummaryBlock({ title, body }: { title: string; body: string }) {
+  return (
+    <div className="border-t border-paper-edge pt-3">
+      <p className="font-display tracking-display text-[10px] uppercase text-sepia mb-1">{title}</p>
+      <p className="font-sans text-xs leading-5 text-leather">{body}</p>
+    </div>
+  );
+}
+
+function getUsageBoundary({
+  assetType,
+  securityLevel,
+  mcpApproved,
+}: {
+  assetType: string | null;
+  securityLevel: string;
+  mcpApproved: boolean;
+}) {
+  if (securityLevel !== 'safe') return '该内容仍需复核，建议先在非敏感材料中试用。';
+  if (!mcpApproved) return '可在网页阅读、复制或下载；进入 MCP 前仍需审核确认。';
+  if (assetType === 'api-script') return '运行脚本前请在隔离环境检查代码、依赖和环境变量。';
+  if (assetType === 'template') return '模板适合脱敏后复用，正式材料仍需人工校对。';
+  return '适合处理已脱敏或可公开讨论的工作材料；最终判断仍由使用者负责。';
 }
 
 async function incrementViewCount(postId: number): Promise<void> {

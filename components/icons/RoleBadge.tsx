@@ -1,7 +1,8 @@
 import { clsx } from 'clsx';
+import { roleFullName as getRoleFullName } from '@/lib/roles';
 
 type Props = {
-  role: string;            // 'VC' | 'PE' | 'FA'
+  role: string;
   size?: number;           // px
   className?: string;
   title?: string;
@@ -9,7 +10,7 @@ type Props = {
 
 /**
  * 身份徽章 · 极简纹章
- * 三枚 SVG 共享同一盾形外框，仅内饰不同
+ * SVG 共享同一盾形外框，核心投资身份有专属内饰，其余身份使用通用投资人星标。
  *   VC —— 向上箭头（早期成长意象）
  *   PE —— 三柱式天平（成熟、结构）
  *   FA —— 交叉斜线（撮合、连接）
@@ -19,6 +20,7 @@ type Props = {
  */
 export function RoleBadge({ role, size = 20, className, title }: Props) {
   const label = title ?? roleFullName(role);
+  const hasCustomMark = role === 'VC' || role === 'PE' || role === 'FA';
   return (
     <svg
       width={size}
@@ -42,6 +44,7 @@ export function RoleBadge({ role, size = 20, className, title }: Props) {
       {role === 'VC' && <VCMark />}
       {role === 'PE' && <PEMark />}
       {role === 'FA' && <FAMark />}
+      {!hasCustomMark && <GenericInvestorMark />}
     </svg>
   );
 }
@@ -82,8 +85,14 @@ function FAMark() {
 }
 
 function roleFullName(r: string) {
-  if (r === 'VC') return 'VC · Venture Capital';
-  if (r === 'PE') return 'PE · Private Equity';
-  if (r === 'FA') return 'FA · Financial Advisor';
-  return r;
+  return getRoleFullName(r);
+}
+
+function GenericInvestorMark() {
+  return (
+    <g stroke="currentColor" strokeWidth="1" strokeLinecap="round" strokeLinejoin="round" fill="none">
+      <path d="M12 7.5 L13.3 10.2 L16.2 10.6 L14.1 12.7 L14.6 15.6 L12 14.2 L9.4 15.6 L9.9 12.7 L7.8 10.6 L10.7 10.2 Z" />
+      <path d="M8 17 H16" />
+    </g>
+  );
 }

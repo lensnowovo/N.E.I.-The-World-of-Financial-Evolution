@@ -5,8 +5,7 @@ import { setSession } from '@/lib/session';
 import { isEmail, isNickname, isPassword, isCode, hasSensitive } from '@/lib/validate';
 import { checkRateLimit, getClientIp } from '@/lib/rate-limit';
 import { shouldBootstrapAdmin } from '@/lib/admin';
-
-const VALID_ROLES = ['VC', 'PE', 'FA'];
+import { isInvestorRole } from '@/lib/roles';
 
 // IP 级别限流，防止脚本批量注册尝试（注册本身受验证码约束，这里做基础 IP 防护）
 const IP_LIMIT = 10;
@@ -28,7 +27,7 @@ export async function POST(req: Request) {
 
   if (!isEmail(email)) return NextResponse.json({ error: '请输入有效的邮箱地址' }, { status: 400 });
   if (!isCode(code)) return NextResponse.json({ error: '验证码格式不正确' }, { status: 400 });
-  if (!VALID_ROLES.includes(role)) return NextResponse.json({ error: '请选择身份' }, { status: 400 });
+  if (!isInvestorRole(role)) return NextResponse.json({ error: '请选择身份' }, { status: 400 });
   if (!isNickname(nickname)) return NextResponse.json({ error: '昵称需 2-20 字符' }, { status: 400 });
   if (hasSensitive(nickname)) return NextResponse.json({ error: '昵称包含敏感词' }, { status: 400 });
   if (!isPassword(password)) return NextResponse.json({ error: '密码需 8-20 位，含字母和数字' }, { status: 400 });
