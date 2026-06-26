@@ -164,7 +164,7 @@ function EmptyState({ query }: { query: { q?: string; scene?: string; industry?:
       <div className="mt-6">
         {hasQ || hasFilter ? (
           <Link
-            href="/"
+            href="/#skill-library"
             className="inline-flex items-center h-9 px-4 border border-ink-brown text-ink-brown hover:bg-ink-brown hover:text-vellum font-serif text-sm rounded-sm transition-colors"
           >
             清空 · 显示全部

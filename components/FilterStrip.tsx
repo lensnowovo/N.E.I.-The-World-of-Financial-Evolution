@@ -33,7 +33,7 @@ export function FilterStrip() {
       const u = new URLSearchParams(params.toString());
       if (value) u.set(key, value);
       else u.delete(key);
-      router.push(`/?${u.toString()}`);
+      router.push(toLibraryHref(u));
     },
     [params, router],
   );
@@ -51,7 +51,7 @@ export function FilterStrip() {
         next = [...current, v];
       }
       next.forEach((x) => u.append('content', x));
-      router.push(`/?${u.toString()}`);
+      router.push(toLibraryHref(u));
     },
     [params, router],
   );
@@ -76,7 +76,7 @@ export function FilterStrip() {
         {hasAnyFilter && (
           <button
             type="button"
-            onClick={() => router.push('/')}
+            onClick={() => router.push('/#skill-library')}
             className="ml-auto inline-flex items-center gap-1 h-6 px-2.5 text-xs font-sans text-wax-red hover:text-ink-brown transition-colors"
           >
             <svg width="10" height="10" viewBox="0 0 10 10" fill="none" stroke="currentColor" strokeWidth="1.4" aria-hidden="true">
@@ -187,6 +187,11 @@ export function FilterStrip() {
       </div>
     </section>
   );
+}
+
+function toLibraryHref(params: URLSearchParams) {
+  const query = params.toString();
+  return query ? `/?${query}#skill-library` : '/#skill-library';
 }
 
 const TIME_OPTIONS = [
