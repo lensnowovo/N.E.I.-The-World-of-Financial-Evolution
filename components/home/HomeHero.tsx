@@ -9,7 +9,7 @@ export function HomeHero({
 }) {
   return (
     <section className="pb-8 sm:pb-10 border-b border-paper-edge">
-      <p className="max-w-4xl font-serif text-3xl sm:text-5xl leading-tight text-wax-red mb-2">
+      <p className="max-w-4xl font-serif text-3xl sm:text-5xl leading-tight text-ink-brown mb-2">
         N.E.I. · New Era Investors
       </p>
 

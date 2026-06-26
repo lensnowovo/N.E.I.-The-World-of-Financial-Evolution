@@ -1,7 +1,7 @@
 # N.E.I. 部署与发布指南
 
 > 当前生产站点：[https://nei-pevc.com](https://nei-pevc.com)
-> 当前部署方式：GitHub PR + Vercel Production Deployment
+> 当前部署方式：直接 push `main` + Vercel Production Deployment
 
 本文档用于团队协作和上线排障。上线前请以这里为准，不再使用早期 VPS / SQLite / 本地 uploads 方案。
 
@@ -69,16 +69,34 @@ tsc --noEmit --pretty false
 
 ## 3. GitHub 协作流程
 
-`main` 是受保护分支，不允许直接 push。正常上线流程：
+上线前冲刺期只有少量维护者修改代码，暂时关闭 `main` 的强制 PR 保护，允许直接 push `main` 来减少发布摩擦。
+
+当前流程：
+
+1. 同步最新 `main`。
+2. 本地完成修改并运行验证命令。
+3. commit。
+4. 直接 push 到 `main`。
+5. GitHub required check 会在 `main` push 后运行。
+6. Vercel 自动从 `main` 触发 Production Deployment。
+
+```bash
+git pull --ff-only lensnowovo main
+npm ci
+npm run verify
+npm run build
+git push lensnowovo HEAD:main
+```
+
+上线稳定后恢复 PR 流程：
 
 1. 从最新 `main` 拉新分支。
-2. 本地完成修改并运行验证命令。
-3. push 到 feature branch。
-4. 创建 PR 到 `main`。
-5. 等待 GitHub required check 通过。
-6. 等待 Vercel Preview Deployment 通过。
-7. Merge PR。
-8. Vercel 自动从 `main` 触发 Production Deployment。
+2. push 到 feature branch。
+3. 创建 PR 到 `main`。
+4. 等待 GitHub required check 通过。
+5. 等待 Vercel Preview Deployment 通过。
+6. Merge PR。
+7. Vercel 自动从 `main` 触发 Production Deployment。
 
 建议命名：
 
@@ -101,7 +119,7 @@ git checkout -b chore/xxx
 
 ## 4. GitHub Actions
 
-PR 和 `main` push 都会运行：
+`main` push 会运行：
 
 ```text
 Lint, typecheck, and validate schema
@@ -122,7 +140,7 @@ npm run lint
 npx tsc --noEmit --pretty false
 ```
 
-注意：`npm run build` 暂时不作为 GitHub required check，因为构建依赖生产环境变量和数据库连接。Vercel Preview / Production 是实际构建 gate。
+注意：`npm run build` 暂时不作为 GitHub required check，因为构建依赖生产环境变量和数据库连接。Vercel Production 是实际构建 gate；恢复 PR 流程后，Vercel Preview 也会作为预览构建 gate。
 
 ---
 
@@ -136,8 +154,8 @@ lensnowovo/N.E.I.-The-World-of-Financial-Evolution
 
 部署规则：
 
-- PR：触发 Preview Deployment
-- merge 到 `main`：触发 Production Deployment
+- push 到 `main`：触发 Production Deployment
+- 恢复 PR 流程后，PR 会触发 Preview Deployment
 - 生产域名：`https://nei-pevc.com`
 
 Vercel 构建命令：
@@ -154,10 +172,9 @@ prisma generate && prisma db push --skip-generate && next build
 
 如果 Vercel 没有 deployment，先确认：
 
-1. PR 是否真的 merge 到 `main`
-2. `main` 是否有新 commit
-3. Vercel Git Integration 是否仍连接当前仓库
-4. Vercel 项目 Production Branch 是否为 `main`
+1. `main` 是否有新 commit
+2. Vercel Git Integration 是否仍连接当前仓库
+3. Vercel 项目 Production Branch 是否为 `main`
 
 ---
 
@@ -215,15 +232,15 @@ npm run verify
 
 ### push 分支后没有生产部署
 
-正常。feature branch 只会触发 PR / Preview 流程。只有 PR merge 到 `main` 后，Vercel 才会触发 production deployment。
+正常。只有 `main` 更新后，Vercel 才会触发 production deployment。
 
 ### 直接 push main 被拒绝
 
-正常。`main` 是保护分支，必须通过 PR 合并。
+说明 GitHub branch protection 或 ruleset 又被打开了。上线前冲刺期可以临时关闭；上线稳定后再恢复 PR 保护。
 
 ### Vercel Preview 通过，但生产站没变
 
-说明 PR 还没有 merge，或者 production branch 不是当前仓库的 `main`。
+说明改动还没有进入 `main`，或者 production branch 不是当前仓库的 `main`。
 
 ---
 
@@ -244,4 +261,4 @@ npm run smoke:public-posts -- --base https://nei-pevc.com
 - MCP 配置页正常
 - 文件下载正常
 
-如需回滚，优先在 Vercel Dashboard 回滚到上一个 Production Deployment；代码层面再开 revert PR，避免直接改保护分支。
+如需回滚，优先在 Vercel Dashboard 回滚到上一个 Production Deployment；代码层面可以直接提交 revert commit。恢复 PR 流程后，再改回 revert PR。

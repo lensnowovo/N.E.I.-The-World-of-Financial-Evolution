@@ -202,14 +202,15 @@ npm run vercel-build
 
 ## 开发与上线流程
 
-`main` 是受保护分支，不直接 push。所有代码改动都通过 PR 进入生产：
+当前处于上线前冲刺期，团队规模很小，暂时允许直接 push `main` 来减少协作成本：
 
-1. 从 `main` 拉新分支，例如 `feat/homepage-polish` 或 `chore/release-config`。
+1. 先同步最新代码：`git pull --ff-only lensnowovo main`。
 2. 本地开发后运行 `npm ci`、`npm run verify`，涉及页面或构建逻辑时再运行 `npm run build`。
-3. push 到 feature branch，并创建 PR 到 `main`。
-4. 等 GitHub `Lint, typecheck, and validate schema` 与 Vercel Preview 都通过。
-5. Merge PR 到 `main`。
-6. Vercel 会基于 `main` 自动触发 production deployment。
+3. commit 后直接 push 到 `main`。
+4. GitHub `Lint, typecheck, and validate schema` 会在 `main` push 后运行。
+5. Vercel 会基于 `main` 自动触发 production deployment。
+
+上线稳定后再恢复 PR 流程：feature branch → PR → GitHub check + Vercel Preview → merge `main`。
 
 协作约定：
 
