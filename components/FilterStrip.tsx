@@ -225,8 +225,8 @@ function FilterLabel({ children }: { children: React.ReactNode }) {
 
 function StageLabel({ mark, children }: { mark: string; children: React.ReactNode }) {
   return (
-    <div className="flex items-baseline gap-2 select-none">
-      <span className="font-mono text-[10px] text-gilded">{mark}</span>
+    <div className="grid grid-cols-[18px_44px] items-baseline gap-2 select-none">
+      <span className="text-right font-mono text-[10px] text-gilded">{mark}</span>
       <span className="font-serif text-lg leading-none text-ink-brown">{children}</span>
     </div>
   );
