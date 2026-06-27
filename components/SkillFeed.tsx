@@ -5,6 +5,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { useSearchParams } from 'next/navigation';
 import { PostCard } from '@/components/PostCard';
 import type { PostCardData } from '@/lib/types';
+import { taskBundles } from '@/lib/bundles';
 
 type SkillFeedResponse = {
   items: PostCardData[];
@@ -102,9 +103,12 @@ export function SkillFeed({
 
       <ol className="columns-1 gap-4 md:columns-2 xl:columns-3">
         {items.map((post, i) => (
-          <li key={post.id} className="mb-4 break-inside-avoid animate-fade-up" style={{ animationDelay: `${Math.min((i % PAGE_SIZE) * 28, 280)}ms` }}>
-            <PostCard post={post} currentUserId={currentUserId} variant="compact" />
-          </li>
+          <FeedItem
+            key={post.id}
+            post={post}
+            index={i}
+            currentUserId={currentUserId}
+          />
         ))}
       </ol>
 
@@ -128,6 +132,44 @@ export function SkillFeed({
         )}
       </div>
     </div>
+  );
+}
+
+function FeedItem({
+  post,
+  index,
+  currentUserId,
+}: {
+  post: PostCardData;
+  index: number;
+  currentUserId: number | null;
+}) {
+  const bundle = taskBundles[Math.floor(index / 12) % taskBundles.length];
+  return (
+    <>
+      <li className="mb-4 break-inside-avoid animate-fade-up" style={{ animationDelay: `${Math.min((index % PAGE_SIZE) * 28, 280)}ms` }}>
+        <PostCard post={post} currentUserId={currentUserId} variant="compact" />
+      </li>
+      {(index + 1) % 12 === 0 && (
+        <li className="mb-4 break-inside-avoid">
+          <Link
+            href={`/?bundle=${bundle.slug}#bundle`}
+            className="block rounded-md border border-gilded/45 bg-gilded/10 px-4 py-4 transition-colors hover:border-ink-brown"
+          >
+            <p className="font-display tracking-display text-[10px] uppercase text-sepia mb-1">
+              Bundle Recommendation
+            </p>
+            <h3 className="font-serif text-lg text-ink-brown">{bundle.title}</h3>
+            <p className="mt-1.5 font-sans text-xs leading-5 text-leather">
+              {bundle.description}
+            </p>
+            <p className="mt-3 font-serif italic text-sm text-sepia">
+              进入工作流 →
+            </p>
+          </Link>
+        </li>
+      )}
+    </>
   );
 }
 

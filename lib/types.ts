@@ -24,6 +24,11 @@ export type PostCardData = {
   mcpApproved: boolean;
   featured: boolean;
   assetType: string | null;
+  displaySummary: string;
+  displayUseCase: string;
+  displayOutput: string;
+  displaySteps: string[];
+  displayTags: string[];
   inputExample: string;
   outputExample: string;
   usageBoundary: string;

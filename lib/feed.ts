@@ -3,6 +3,7 @@ import { stripHtml } from '@/lib/validate';
 import { POST_STATUS } from '@/lib/status';
 import { normalizePublicText } from '@/lib/public-url';
 import { analyzeSkillQuality } from '@/lib/skill-quality';
+import { buildSkillDisplay } from '@/lib/skill-display';
 import {
   SCENE_TAGS,
   INDUSTRY_TAGS,
@@ -229,11 +230,21 @@ export function mapPostToCardData(p: any, starred: boolean): PostCardData {
     installHint: p.skillAsset?.installHint ?? null,
     usageNotes: p.skillAsset?.usageNotes ?? null,
   });
+  const display = buildSkillDisplay({
+    title: p.title,
+    body: p.body,
+    tagScene: p.tagScene,
+    tagIndustry: p.tagIndustry,
+    tagContent,
+    tagSkill: p.tagSkill,
+    assetType,
+    outputExample: quality.outputExample,
+  });
 
   return {
     id: p.id,
     title: p.title,
-    excerpt: buildCardSummary(p.body),
+    excerpt: display.displaySummary,
     tagScene: p.tagScene,
     tagIndustry: p.tagIndustry,
     tagContent,
@@ -255,6 +266,11 @@ export function mapPostToCardData(p: any, starred: boolean): PostCardData {
     mcpApproved: p.mcpApproved,
     featured: p.featured,
     assetType,
+    displaySummary: display.displaySummary,
+    displayUseCase: display.displayUseCase,
+    displayOutput: display.displayOutput,
+    displaySteps: display.displaySteps,
+    displayTags: display.displayTags,
     inputExample: quality.inputExample,
     outputExample: quality.outputExample,
     usageBoundary: getUsageBoundary({

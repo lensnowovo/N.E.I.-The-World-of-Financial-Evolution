@@ -29,6 +29,7 @@ import { ExecuteButton } from './ExecuteButton';
 import { ReportButton } from './ReportButton';
 import { DeleteButton } from './DeleteButton';
 import { analyzeSkillQuality } from '@/lib/skill-quality';
+import { buildSkillDisplay } from '@/lib/skill-display';
 import { SkillQualityPanel } from '@/components/SkillQualityPanel';
 import { getPublicBaseUrl, normalizePublicText, normalizePublicUrl } from '@/lib/public-url';
 
@@ -156,9 +157,19 @@ export default async function PostDetailPage({
     installHint: post.skillAsset?.installHint ?? null,
     usageNotes: post.skillAsset?.usageNotes ?? null,
   });
+  const display = buildSkillDisplay({
+    title: post.title,
+    body: safeBody,
+    tagScene: post.tagScene,
+    tagIndustry: post.tagIndustry,
+    tagContent,
+    tagSkill: post.tagSkill,
+    assetType,
+    outputExample: quality.outputExample,
+  });
 
   // 摘要（去 HTML 标签）
-  const excerpt = cleanExcerpt(safeBody, 120);
+  const excerpt = display.displaySummary || cleanExcerpt(safeBody, 120);
 
   // 提示词帖：把 body 按 <pre> 拆成「介绍」+「Prompt 块」（可能有多个）
   // 每个 Prompt 块单独配复制按钮
@@ -262,6 +273,8 @@ export default async function PostDetailPage({
         mcpApproved={post.mcpApproved}
         securityLevel={post.securityLevel}
         version={post.version}
+        displayUseCase={display.displayUseCase}
+        displayOutput={display.displayOutput}
         bestFor={quality.bestFor}
         inputExample={quality.inputExample}
         outputExample={quality.outputExample}
@@ -366,8 +379,6 @@ export default async function PostDetailPage({
 
           <div className="h-px bg-paper-edge" />
 
-          <SkillQualityPanel quality={quality} />
-
           {/* 来源链接 */}
           {post.skillAsset?.sourceUrl && (
             <div>
@@ -449,6 +460,37 @@ export default async function PostDetailPage({
         </aside>
       </div>
 
+      <section className="mt-10 border-t border-paper-edge pt-8">
+        <div className="mb-4">
+          <p className="font-display tracking-display text-[10px] uppercase text-sepia mb-1">
+            Quality & Source
+          </p>
+          <h2 className="font-serif text-2xl text-ink-brown">质量与来源</h2>
+        </div>
+        <div className="grid gap-5 lg:grid-cols-[1fr_280px]">
+          <SkillQualityPanel quality={quality} />
+          <div className="rounded-md border border-paper-edge bg-vellum/55 p-4">
+            <p className="font-display tracking-display text-[10px] uppercase text-sepia mb-2">
+              外显信息
+            </p>
+            <dl className="space-y-3 font-sans text-xs text-leather">
+              <div>
+                <dt className="text-sepia">一句话简介</dt>
+                <dd className="mt-1 leading-5">{display.displaySummary}</dd>
+              </div>
+              <div>
+                <dt className="text-sepia">适用场景</dt>
+                <dd className="mt-1 leading-5">{display.displayUseCase}</dd>
+              </div>
+              <div>
+                <dt className="text-sepia">输出结果</dt>
+                <dd className="mt-1 leading-5">{display.displayOutput}</dd>
+              </div>
+            </dl>
+          </div>
+        </div>
+      </section>
+
       {/* —— 浮动互动条 —— */}
       <div className="mt-12">
         <PostActions
@@ -472,6 +514,8 @@ function SkillUseSummary({
   mcpApproved,
   securityLevel,
   version,
+  displayUseCase,
+  displayOutput,
   bestFor,
   inputExample,
   outputExample,
@@ -482,6 +526,8 @@ function SkillUseSummary({
   mcpApproved: boolean;
   securityLevel: string;
   version: number;
+  displayUseCase: string;
+  displayOutput: string;
   bestFor: string[];
   inputExample: string;
   outputExample: string;
@@ -492,6 +538,8 @@ function SkillUseSummary({
     ? 'border-moss/40 bg-moss/5 text-moss'
     : 'border-paper-edge bg-vellum text-sepia';
   const securityLabel = securityLevel === 'safe' ? '安全通过' : securityLevel === 'suspicious' ? '待复核' : '不建议调用';
+  const useCaseBody = displayUseCase || [scene, assetLabel, ...bestFor.slice(1, 3)].filter(Boolean).join(' / ');
+  const outputBody = displayOutput || outputExample;
 
   return (
     <section className="mb-8 rounded-md border border-paper-edge bg-vellum/55 px-4 py-4">
@@ -516,9 +564,9 @@ function SkillUseSummary({
       </div>
 
       <div className="mt-4 grid gap-3 md:grid-cols-2">
-        <SummaryBlock title="适用场景" body={[scene, assetLabel, ...bestFor.slice(1, 3)].filter(Boolean).join(' / ')} />
+        <SummaryBlock title="适用场景" body={useCaseBody} />
         <SummaryBlock title="输入材料" body={inputExample} />
-        <SummaryBlock title="输出结果" body={outputExample} />
+        <SummaryBlock title="输出结果" body={outputBody} />
         <SummaryBlock title="使用边界" body={boundary} />
       </div>
     </section>
