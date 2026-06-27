@@ -1,14 +1,10 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { cn } from '@/lib/cn';
 import { formatCount } from '@/lib/format';
 
-/**
- * 浮动互动条 —— Star（收藏+点赞合并）
- * 点 Star = 收藏到控制台 + 表示认可
- */
 export function PostActions({
   postId,
   initialStarred,
@@ -20,47 +16,95 @@ export function PostActions({
   initialStars: number;
   isAuthed: boolean;
 }) {
+  return (
+    <div className="pointer-events-none sticky bottom-6 z-10 flex justify-center">
+      <div className="pointer-events-auto inline-flex items-center gap-1 border border-paper-edge bg-vellum rounded-md p-1 backdrop-blur-[2px]">
+        <PostStarButton
+          postId={postId}
+          initialStarred={initialStarred}
+          initialStars={initialStars}
+          isAuthed={isAuthed}
+          variant="bar"
+        />
+      </div>
+    </div>
+  );
+}
+
+export function PostStarButton({
+  postId,
+  initialStarred,
+  initialStars,
+  isAuthed,
+  variant = 'bar',
+}: {
+  postId: number;
+  initialStarred: boolean;
+  initialStars: number;
+  isAuthed: boolean;
+  variant?: 'bar' | 'title';
+}) {
   const router = useRouter();
   const [starred, setStarred] = useState(initialStarred);
   const [stars, setStars] = useState(initialStars);
 
-  const requireAuth = () => {
-    if (!isAuthed) {
-      router.push(`/login?next=/posts/${postId}`);
-      return false;
-    }
-    return true;
-  };
+  useEffect(() => {
+    const syncStar = (event: Event) => {
+      const detail = (event as CustomEvent<{ postId: number; starred: boolean; stars: number }>).detail;
+      if (!detail || detail.postId !== postId) return;
+      setStarred(detail.starred);
+      setStars(detail.stars);
+    };
+
+    window.addEventListener('nei:post-star', syncStar);
+    return () => window.removeEventListener('nei:post-star', syncStar);
+  }, [postId]);
 
   const onStar = async () => {
-    if (!requireAuth()) return;
+    if (!isAuthed) {
+      router.push(`/login?next=/posts/${postId}`);
+      return;
+    }
+
     const next = !starred;
+    const nextStars = stars + (next ? 1 : -1);
     setStarred(next);
-    setStars((n) => n + (next ? 1 : -1));
+    setStars(nextStars);
+    emitStarSync(postId, next, nextStars);
+
     const res = await fetch(`/api/posts/${postId}/favorite`, { method: 'POST' });
     if (!res.ok) {
       setStarred(!next);
-      setStars((n) => n + (next ? -1 : 1));
+      setStars(stars);
+      emitStarSync(postId, !next, stars);
     }
   };
 
   return (
-    <div className="pointer-events-none sticky bottom-6 z-10 flex justify-center">
-      <div className="pointer-events-auto inline-flex items-center gap-1 border border-paper-edge bg-vellum rounded-md p-1 backdrop-blur-[2px]">
-        <button
-          onClick={onStar}
-          className={cn(
-            'inline-flex items-center gap-2 h-9 px-4 rounded-sm transition-colors',
-            starred ? 'text-gilded' : 'text-leather hover:text-ink-brown',
-          )}
-        >
-          <StarIcon filled={starred} />
-          <span className="font-serif num-osf">{formatCount(stars)}</span>
-          <span className="font-sans text-xs text-sepia ml-0.5">{starred ? '已 Star' : 'Star'}</span>
-        </button>
-      </div>
-    </div>
+    <button
+      type="button"
+      onClick={onStar}
+      className={cn(
+        'inline-flex items-center gap-2 rounded-sm transition-colors',
+        variant === 'title'
+          ? 'h-10 border border-paper-edge bg-vellum px-3 font-sans text-xs hover:border-ink-brown'
+          : 'h-9 px-4',
+        starred ? 'text-gilded' : 'text-leather hover:text-ink-brown',
+      )}
+      aria-pressed={starred}
+      title={starred ? '取消 Star' : 'Star'}
+    >
+      <StarIcon filled={starred} />
+      <span className="font-serif num-osf">{formatCount(stars)}</span>
+      <span className={cn('font-sans text-xs', variant === 'title' ? 'hidden sm:inline' : 'text-sepia ml-0.5')}>
+        {starred ? '已 Star' : 'Star'}
+      </span>
+    </button>
   );
+}
+
+function emitStarSync(postId: number, starred: boolean, stars: number) {
+  window.dispatchEvent(new CustomEvent('nei:post-star', { detail: { postId, starred, stars } }));
 }
 
 function StarIcon({ filled }: { filled?: boolean }) {

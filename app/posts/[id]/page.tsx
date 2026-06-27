@@ -20,7 +20,7 @@ import { RoleBadge } from '@/components/icons/RoleBadge';
 import { SkillIcon } from '@/components/icons/SkillIcon';
 import { AttachmentList } from '@/components/AttachmentList';
 import { CommentSection } from '@/components/CommentSection';
-import { PostActions } from './PostActions';
+import { PostActions, PostStarButton } from './PostActions';
 import { DetailActions } from './DetailActions';
 import { SkillPreview } from './SkillPreview';
 import { PreCopyButton } from './PreCopyButton';
@@ -218,9 +218,20 @@ export default async function PostDetailPage({
           </div>
         </div>
 
-        <h1 className="font-serif text-3xl sm:text-4xl leading-tight text-ink-brown mb-2">
-          {post.title}
-        </h1>
+        <div className="mb-2 flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+          <h1 className="font-serif text-3xl sm:text-4xl leading-tight text-ink-brown">
+            {post.title}
+          </h1>
+          <div className="shrink-0 sm:pt-1">
+            <PostStarButton
+              postId={id}
+              initialStarred={starred}
+              initialStars={post._count.stars}
+              isAuthed={!!uid}
+              variant="title"
+            />
+          </div>
+        </div>
         {excerpt && (
           <p className="font-serif italic text-sm text-leather leading-relaxed">
             {excerpt}
