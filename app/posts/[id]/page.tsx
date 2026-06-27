@@ -48,6 +48,9 @@ export async function generateMetadata({
       title: true,
       body: true,
       tagScene: true,
+      createdAt: true,
+      updatedAt: true,
+      author: { select: { nickname: true } },
       skillAsset: { select: { assetType: true } },
     },
   });
@@ -72,11 +75,23 @@ export async function generateMetadata({
       url: `${baseUrl}/posts/${post.id}`,
       type: 'article',
       siteName: 'N.E.I.',
+      images: [
+        {
+          url: '/opengraph-image',
+          width: 1200,
+          height: 630,
+          alt: post.title,
+        },
+      ],
+      publishedTime: post.createdAt.toISOString(),
+      modifiedTime: post.updatedAt.toISOString(),
+      authors: [post.author.nickname],
     },
     twitter: {
-      card: 'summary',
+      card: 'summary_large_image',
       title,
       description,
+      images: ['/twitter-image'],
     },
   };
 }
