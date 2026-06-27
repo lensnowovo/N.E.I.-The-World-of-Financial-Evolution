@@ -36,6 +36,7 @@ export function SkillFeed({
   const [total, setTotal] = useState(initialTotal);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
+  const [columnCount, setColumnCount] = useState(1);
   const sentinelRef = useRef<HTMLDivElement | null>(null);
 
   useEffect(() => {
@@ -84,7 +85,22 @@ export function SkillFeed({
     return () => observer.disconnect();
   }, [loadNext]);
 
+  useEffect(() => {
+    const updateColumnCount = () => {
+      if (window.matchMedia('(min-width: 1280px)').matches) setColumnCount(3);
+      else if (window.matchMedia('(min-width: 768px)').matches) setColumnCount(2);
+      else setColumnCount(1);
+    };
+
+    updateColumnCount();
+    window.addEventListener('resize', updateColumnCount);
+    return () => window.removeEventListener('resize', updateColumnCount);
+  }, []);
+
   if (items.length === 0) return <EmptyFeed />;
+
+  const feedEntries = buildFeedEntries(items);
+  const columns = splitIntoColumns(feedEntries, columnCount);
 
   return (
     <div>
@@ -101,16 +117,19 @@ export function SkillFeed({
         <span className="flex-1 h-px bg-paper-edge" />
       </div>
 
-      <ol className="columns-1 gap-4 md:columns-2 xl:columns-3">
-        {items.map((post, i) => (
-          <FeedItem
-            key={post.id}
-            post={post}
-            index={i}
-            currentUserId={currentUserId}
-          />
+      <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3" role="list">
+        {columns.map((column, columnIndex) => (
+          <ol key={columnIndex} className="space-y-4">
+            {column.map((entry) => (
+              <FeedItem
+                key={entry.key}
+                entry={entry}
+                currentUserId={currentUserId}
+              />
+            ))}
+          </ol>
         ))}
-      </ol>
+      </div>
 
       <div ref={sentinelRef} className="h-16" aria-hidden="true" />
 
@@ -135,41 +154,71 @@ export function SkillFeed({
   );
 }
 
+type FeedEntry =
+  | { type: 'post'; key: string; post: PostCardData; index: number }
+  | { type: 'bundle'; key: string; bundleIndex: number };
+
+function buildFeedEntries(posts: PostCardData[]): FeedEntry[] {
+  const entries: FeedEntry[] = [];
+  posts.forEach((post, index) => {
+    entries.push({ type: 'post', key: `post-${post.id}`, post, index });
+    if ((index + 1) % 12 === 0) {
+      entries.push({
+        type: 'bundle',
+        key: `bundle-${index + 1}`,
+        bundleIndex: Math.floor(index / 12) % taskBundles.length,
+      });
+    }
+  });
+  return entries;
+}
+
+function splitIntoColumns(entries: FeedEntry[], columnCount: number) {
+  const count = Math.max(1, columnCount);
+  const columns: FeedEntry[][] = Array.from({ length: count }, () => []);
+  entries.forEach((entry, index) => {
+    columns[index % count].push(entry);
+  });
+  return columns;
+}
+
 function FeedItem({
-  post,
-  index,
+  entry,
   currentUserId,
 }: {
-  post: PostCardData;
-  index: number;
+  entry: FeedEntry;
   currentUserId: number | null;
 }) {
-  const bundle = taskBundles[Math.floor(index / 12) % taskBundles.length];
-  return (
-    <>
-      <li className="mb-4 break-inside-avoid animate-fade-up" style={{ animationDelay: `${Math.min((index % PAGE_SIZE) * 28, 280)}ms` }}>
-        <PostCard post={post} currentUserId={currentUserId} variant="compact" />
+  if (entry.type === 'post') {
+    return (
+      <li
+        className="animate-fade-up"
+        style={{ animationDelay: `${Math.min((entry.index % PAGE_SIZE) * 28, 280)}ms` }}
+      >
+        <PostCard post={entry.post} currentUserId={currentUserId} variant="compact" />
       </li>
-      {(index + 1) % 12 === 0 && (
-        <li className="mb-4 break-inside-avoid">
-          <Link
-            href={`/?bundle=${bundle.slug}#bundle`}
-            className="block rounded-md border border-gilded/45 bg-gilded/10 px-4 py-4 transition-colors hover:border-ink-brown"
-          >
-            <p className="font-display tracking-display text-[10px] uppercase text-sepia mb-1">
-              Bundle Recommendation
-            </p>
-            <h3 className="font-serif text-lg text-ink-brown">{bundle.title}</h3>
-            <p className="mt-1.5 font-sans text-xs leading-5 text-leather">
-              {bundle.description}
-            </p>
-            <p className="mt-3 font-serif italic text-sm text-sepia">
-              进入工作流 →
-            </p>
-          </Link>
-        </li>
-      )}
-    </>
+    );
+  }
+
+  const bundle = taskBundles[entry.bundleIndex];
+  return (
+    <li>
+      <Link
+        href={`/bundles/${bundle.slug}`}
+        className="block rounded-md border border-gilded/45 bg-gilded/10 px-4 py-4 transition-colors hover:border-ink-brown"
+      >
+        <p className="font-display tracking-display text-[10px] uppercase text-sepia mb-1">
+          Bundle Recommendation
+        </p>
+        <h3 className="font-serif text-lg text-ink-brown">{bundle.title}</h3>
+        <p className="mt-1.5 font-sans text-xs leading-5 text-leather">
+          {bundle.description}
+        </p>
+        <p className="mt-3 font-serif italic text-sm text-sepia">
+          进入工作流 →
+        </p>
+      </Link>
+    </li>
   );
 }
 

@@ -12,39 +12,48 @@ export function HomeBundleTimeline({
   bundle,
   stepCards,
   currentUserId,
+  framed = true,
+  showHeader = true,
 }: {
   bundle: TaskBundle;
   stepCards: BundleStepCards[];
   currentUserId: number | null;
+  framed?: boolean;
+  showHeader?: boolean;
 }) {
   return (
-    <section id="bundle" className="scroll-mt-24 py-10 sm:py-12 border-b border-paper-edge">
-      <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
-        <div>
-          <p className="font-display tracking-display text-[10px] text-sepia uppercase mb-1">
-            Bundle Workflow
-          </p>
-          <h2 className="font-serif text-2xl sm:text-3xl text-ink-brown">
-            {bundle.title}
-          </h2>
-          <p className="mt-2 max-w-2xl font-sans text-sm leading-6 text-leather">
-            {bundle.description}
-          </p>
+    <section
+      id="bundle"
+      className={framed ? 'scroll-mt-24 py-10 sm:py-12 border-b border-paper-edge' : 'scroll-mt-24'}
+    >
+      {showHeader && (
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
+          <div>
+            <p className="font-display tracking-display text-[10px] text-sepia uppercase mb-1">
+              Bundle Workflow
+            </p>
+            <h2 className="font-serif text-2xl sm:text-3xl text-ink-brown">
+              {bundle.title}
+            </h2>
+            <p className="mt-2 max-w-2xl font-sans text-sm leading-6 text-leather">
+              {bundle.description}
+            </p>
+          </div>
+          <div className="flex flex-wrap gap-1.5">
+            <span className="border border-paper-edge bg-vellum px-2.5 py-1 font-sans text-[11px] text-sepia">
+              {bundle.steps.length} 个步骤
+            </span>
+            <span className="border border-paper-edge bg-vellum px-2.5 py-1 font-sans text-[11px] text-sepia">
+              {bundle.skillCountLabel}
+            </span>
+            <span className="border border-moss/40 bg-moss/5 px-2.5 py-1 font-sans text-[11px] text-moss">
+              {bundle.mcpLabel}
+            </span>
+          </div>
         </div>
-        <div className="flex flex-wrap gap-1.5">
-          <span className="border border-paper-edge bg-vellum px-2.5 py-1 font-sans text-[11px] text-sepia">
-            {bundle.steps.length} 个步骤
-          </span>
-          <span className="border border-paper-edge bg-vellum px-2.5 py-1 font-sans text-[11px] text-sepia">
-            {bundle.skillCountLabel}
-          </span>
-          <span className="border border-moss/40 bg-moss/5 px-2.5 py-1 font-sans text-[11px] text-moss">
-            {bundle.mcpLabel}
-          </span>
-        </div>
-      </div>
+      )}
 
-      <div className="mt-8 space-y-7">
+      <div className={showHeader ? 'mt-8 space-y-7' : 'space-y-7'}>
         {bundle.steps.map((step, index) => {
           const cards = stepCards.find((row) => row.stepTitle === step.title)?.items || [];
           return (

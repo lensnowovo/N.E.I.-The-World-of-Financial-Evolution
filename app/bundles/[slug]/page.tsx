@@ -1,0 +1,74 @@
+import Link from 'next/link';
+import { notFound } from 'next/navigation';
+import { getSessionUid } from '@/lib/session';
+import { taskBundles } from '@/lib/bundles';
+import { fetchBundleStepCards } from '@/lib/bundle-posts';
+import { HomeBundleTimeline } from '@/components/home/HomeBundleTimeline';
+
+export const dynamic = 'force-dynamic';
+
+export async function generateStaticParams() {
+  return taskBundles.map((bundle) => ({ slug: bundle.slug }));
+}
+
+export default async function BundlePage({
+  params,
+}: {
+  params: Promise<{ slug: string }>;
+}) {
+  const { slug } = await params;
+  const bundle = taskBundles.find((item) => item.slug === slug);
+  if (!bundle) notFound();
+
+  const uid = await getSessionUid();
+  const stepCards = await fetchBundleStepCards(bundle, uid);
+  const sceneQuery = bundle.scenes[0] ? `/?scene=${bundle.scenes[0]}#skill-library` : '/#skill-library';
+
+  return (
+    <div className="py-8">
+      <div className="mb-6 border-b border-paper-edge pb-5">
+        <Link
+          href="/"
+          className="mb-4 inline-flex font-serif italic text-sm text-sepia transition-colors hover:text-ink-brown"
+        >
+          ← 回到首页
+        </Link>
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
+          <div>
+            <p className="font-display tracking-display text-[10px] uppercase text-sepia mb-1">
+              N.E.I. Bundle
+            </p>
+            <h1 className="font-serif text-3xl sm:text-4xl text-ink-brown">
+              {bundle.title}
+            </h1>
+            <p className="mt-3 max-w-2xl font-sans text-sm leading-6 text-leather">
+              {bundle.description}
+            </p>
+            <div className="mt-4 flex flex-wrap gap-1.5">
+              <span className="border border-paper-edge bg-vellum px-2.5 py-1 font-sans text-[11px] text-sepia">
+                {bundle.steps.length} 个步骤
+              </span>
+              <span className="border border-paper-edge bg-vellum px-2.5 py-1 font-sans text-[11px] text-sepia">
+                {bundle.skillCountLabel}
+              </span>
+            </div>
+          </div>
+          <Link
+            href={sceneQuery}
+            className="inline-flex h-9 items-center justify-center rounded-sm border border-ink-brown px-4 font-serif text-sm text-ink-brown transition-colors hover:bg-ink-brown hover:text-vellum"
+          >
+            查看相关 Skill
+          </Link>
+        </div>
+      </div>
+
+      <HomeBundleTimeline
+        bundle={bundle}
+        stepCards={stepCards}
+        currentUserId={uid}
+        framed={false}
+        showHeader={false}
+      />
+    </div>
+  );
+}
