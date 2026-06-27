@@ -3,8 +3,22 @@
 import { useCallback, useEffect, useState } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { cn } from '@/lib/cn';
-import { SCENE_TAGS, SKILL_TAGS, INDUSTRY_TAGS, CONTENT_TAGS } from '@/lib/tags';
-import { SkillIcon } from '@/components/icons/SkillIcon';
+import { INDUSTRY_TAGS, sceneLabel } from '@/lib/tags';
+
+const SCENE_GROUPS = [
+  {
+    title: '投前',
+    items: ['sourcing', 'screening', 'industry-research', 'business-dd'],
+  },
+  {
+    title: '投中',
+    items: ['financial', 'legal', 'ic'],
+  },
+  {
+    title: '投后',
+    items: ['post-investment', 'fundraising', 'fund-ops', 'crm'],
+  },
+] as const;
 
 export function FilterStrip() {
   const router = useRouter();
@@ -12,17 +26,15 @@ export function FilterStrip() {
 
   const q = params.get('q') || '';
   const scene = params.get('scene') || '';
-  const skill = params.get('skill') || '';
   const industry = params.get('industry') || '';
-  const contents = params.getAll('content');
+  const legacySkill = params.get('skill') || '';
+  const legacyContents = params.getAll('content');
   const mcp = params.get('mcp') || '';
   const attachment = params.get('attachment') || '';
   const featured = params.get('featured') || '';
   const time = params.get('time') || '';
   const sort = params.get('sort') || (q ? 'relevance' : 'popular');
-
-  const hasTopicFilter = !!industry || contents.length > 0;
-  const [topicsOpen, setTopicsOpen] = useState(hasTopicFilter);
+  const [industryOpen, setIndustryOpen] = useState(!!industry);
 
   useEffect(() => {
     if (window.location.hash !== '#skill-library') return;
@@ -62,28 +74,12 @@ export function FilterStrip() {
     [params, pushParams],
   );
 
-  const toggleContent = useCallback(
-    (value: string) => {
-      const next = new URLSearchParams(params.toString());
-      const current = next.getAll('content');
-      next.delete('content');
-      const selected = current.includes(value)
-        ? current.filter((item) => item !== value)
-        : current.length >= 3
-          ? current
-          : [...current, value];
-      selected.forEach((item) => next.append('content', item));
-      pushParams(next);
-    },
-    [params, pushParams],
-  );
-
   const hasAnyFilter = !!(
     q ||
     scene ||
-    skill ||
     industry ||
-    contents.length ||
+    legacySkill ||
+    legacyContents.length ||
     mcp ||
     attachment ||
     featured ||
@@ -94,16 +90,11 @@ export function FilterStrip() {
   return (
     <section className="border-y border-paper-edge py-4 mb-6">
       <div className="flex flex-col gap-4">
-        <div className="flex flex-wrap items-center gap-1.5">
-          <FilterLabel>任务阶段</FilterLabel>
+        <div className="flex flex-wrap items-center gap-2 border-b border-paper-edge pb-3">
+          <FilterLabel>目录</FilterLabel>
           <SealChip active={scene === ''} onClick={() => setParam('scene', '')}>
             全部
           </SealChip>
-          {SCENE_TAGS.map((item) => (
-            <SealChip key={item.value} active={scene === item.value} onClick={() => setParam('scene', item.value)}>
-              {item.label}
-            </SealChip>
-          ))}
           {hasAnyFilter && (
             <button
               type="button"
@@ -116,24 +107,67 @@ export function FilterStrip() {
           )}
         </div>
 
-        <div className="flex flex-wrap items-center gap-x-4 gap-y-3">
-          <div className="flex flex-wrap items-center gap-1.5">
-            <FilterLabel>交付物</FilterLabel>
-            <BadgeChip active={skill === ''} onClick={() => setParam('skill', '')}>
-              全部
-            </BadgeChip>
-            {SKILL_TAGS.map((item) => (
-              <BadgeChip key={item.value} active={skill === item.value} onClick={() => setParam('skill', item.value)}>
-                <SkillIcon skill={item.value} className="h-3 w-3" />
-                {item.label}
-              </BadgeChip>
-            ))}
-          </div>
+        <div className="space-y-2.5">
+          {SCENE_GROUPS.map((group) => (
+            <div key={group.title} className="grid gap-2 sm:grid-cols-[52px_1fr] sm:items-start">
+              <FilterLabel>{group.title}</FilterLabel>
+              <div className="flex flex-wrap items-center gap-1.5">
+                {group.items.map((value) => (
+                  <SealChip key={value} active={scene === value} onClick={() => setParam('scene', value)}>
+                    {sceneLabel(value)}
+                  </SealChip>
+                ))}
+              </div>
+            </div>
+          ))}
         </div>
 
-        <div className="flex flex-wrap items-center gap-x-4 gap-y-3">
+        <div>
+          <button
+            type="button"
+            onClick={() => setIndustryOpen((value) => !value)}
+            className="inline-flex items-center gap-1.5 font-sans text-xs text-sepia hover:text-ink-brown transition-colors"
+          >
+            <svg
+              className={cn('transition-transform', industryOpen && 'rotate-90')}
+              width="9"
+              height="9"
+              viewBox="0 0 10 10"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="1.5"
+              aria-hidden="true"
+            >
+              <path d="M3 1.5 L7 5 L3 8.5" strokeLinecap="round" strokeLinejoin="round" />
+            </svg>
+            行业
+            {industry && (
+              <span className="inline-flex items-center justify-center w-4 h-4 text-[10px] bg-wax-red text-vellum rounded-full num-osf">
+                1
+              </span>
+            )}
+          </button>
+
+          {industryOpen && (
+            <div className="mt-3 pt-3 border-t border-paper-edge">
+              <div className="flex flex-wrap items-center gap-1.5">
+                <FilterLabel>行业</FilterLabel>
+                <PillChip active={industry === ''} onClick={() => setParam('industry', '')}>
+                  不限
+                </PillChip>
+                {INDUSTRY_TAGS.map((item) => (
+                  <PillChip key={item.value} active={industry === item.value} onClick={() => setParam('industry', item.value)}>
+                    {item.label}
+                  </PillChip>
+                ))}
+              </div>
+            </div>
+          )}
+        </div>
+
+        <div className="flex flex-wrap items-center gap-x-4 gap-y-3 border-t border-paper-edge pt-3">
           <div className="flex flex-wrap items-center gap-1.5">
-            <FilterLabel>可用性</FilterLabel>
+            <FilterLabel>更多</FilterLabel>
             <TabChip active={mcp === 'ready'} onClick={() => toggleParam('mcp', 'ready')}>
               MCP Ready
             </TabChip>
@@ -165,66 +199,6 @@ export function FilterStrip() {
             </div>
           </div>
         </div>
-
-        <div>
-          <button
-            type="button"
-            onClick={() => setTopicsOpen((value) => !value)}
-            className="inline-flex items-center gap-1.5 font-sans text-xs text-sepia hover:text-ink-brown transition-colors"
-          >
-            <svg
-              className={cn('transition-transform', topicsOpen && 'rotate-90')}
-              width="9"
-              height="9"
-              viewBox="0 0 10 10"
-              fill="none"
-              stroke="currentColor"
-              strokeWidth="1.5"
-              aria-hidden="true"
-            >
-              <path d="M3 1.5 L7 5 L3 8.5" strokeLinecap="round" strokeLinejoin="round" />
-            </svg>
-            行业 / 主题
-            {hasTopicFilter && (
-              <span className="inline-flex items-center justify-center w-4 h-4 text-[10px] bg-wax-red text-vellum rounded-full num-osf">
-                {(industry ? 1 : 0) + contents.length}
-              </span>
-            )}
-          </button>
-
-          {topicsOpen && (
-            <div className="mt-3 pt-3 border-t border-paper-edge space-y-3">
-              <div className="flex flex-wrap items-center gap-1.5">
-                <FilterLabel>行业</FilterLabel>
-                <PillChip active={industry === ''} onClick={() => setParam('industry', '')}>
-                  不限
-                </PillChip>
-                {INDUSTRY_TAGS.map((item) => (
-                  <PillChip key={item.value} active={industry === item.value} onClick={() => setParam('industry', item.value)}>
-                    {item.label}
-                  </PillChip>
-                ))}
-              </div>
-
-              <div className="flex flex-wrap items-center gap-1.5">
-                <FilterLabel>主题{contents.length > 0 && `（${contents.length}/3）`}</FilterLabel>
-                {CONTENT_TAGS.map((item) => {
-                  const active = contents.includes(item.value);
-                  return (
-                    <FoldChip
-                      key={item.value}
-                      active={active}
-                      disabled={!active && contents.length >= 3}
-                      onClick={() => toggleContent(item.value)}
-                    >
-                      {item.label}
-                    </FoldChip>
-                  );
-                })}
-              </div>
-            </div>
-          )}
-        </div>
       </div>
     </section>
   );
@@ -253,23 +227,6 @@ function SealChip({ active, onClick, children }: ChipProps) {
         active
           ? 'border border-ink-brown bg-ink-brown text-vellum'
           : 'border border-paper-edge text-leather hover:border-ink-brown hover:text-ink-brown',
-      )}
-    >
-      {children}
-    </button>
-  );
-}
-
-function BadgeChip({ active, onClick, children }: ChipProps) {
-  return (
-    <button
-      type="button"
-      onClick={onClick}
-      className={cn(
-        'inline-flex items-center gap-1 px-2.5 h-6 text-xs font-sans rounded-full transition-colors',
-        active
-          ? 'bg-gilded/15 border border-gilded text-ink-brown'
-          : 'bg-vellum border border-gilded/40 text-leather hover:border-gilded',
       )}
     >
       {children}
@@ -315,30 +272,6 @@ function PillChip({ active, onClick, children }: ChipProps) {
       className={cn(
         'inline-flex items-center px-3 h-6 text-xs font-sans rounded-full transition-colors',
         active ? 'bg-leather text-vellum' : 'bg-linen text-leather hover:bg-paper-edge',
-      )}
-    >
-      {children}
-    </button>
-  );
-}
-
-function FoldChip({
-  active,
-  disabled,
-  onClick,
-  children,
-}: ChipProps & { disabled?: boolean }) {
-  return (
-    <button
-      type="button"
-      onClick={onClick}
-      disabled={disabled}
-      className={cn(
-        'inline-flex items-center px-2.5 h-6 text-xs font-sans transition-colors',
-        active
-          ? 'border border-ink-brown bg-parchment text-ink-brown'
-          : 'border border-paper-edge bg-parchment text-leather hover:border-sepia',
-        disabled && 'opacity-40 cursor-not-allowed',
       )}
     >
       {children}
