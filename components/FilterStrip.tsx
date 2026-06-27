@@ -8,14 +8,17 @@ import { INDUSTRY_TAGS, sceneLabel } from '@/lib/tags';
 const SCENE_GROUPS = [
   {
     title: '投前',
+    mark: 'I',
     items: ['sourcing', 'screening', 'industry-research', 'business-dd'],
   },
   {
     title: '投中',
+    mark: 'II',
     items: ['financial', 'legal', 'ic'],
   },
   {
     title: '投后',
+    mark: 'III',
     items: ['post-investment', 'fundraising', 'fund-ops', 'crm'],
   },
 ] as const;
@@ -109,9 +112,12 @@ export function FilterStrip() {
 
         <div className="space-y-2.5">
           {SCENE_GROUPS.map((group) => (
-            <div key={group.title} className="grid gap-2 sm:grid-cols-[52px_1fr] sm:items-start">
-              <FilterLabel>{group.title}</FilterLabel>
-              <div className="flex flex-wrap items-center gap-1.5">
+            <div
+              key={group.title}
+              className="grid gap-2 sm:grid-cols-[96px_1fr] sm:items-center"
+            >
+              <StageLabel mark={group.mark}>{group.title}</StageLabel>
+              <div className="flex flex-wrap items-center gap-1.5 sm:border-l sm:border-paper-edge sm:pl-4">
                 {group.items.map((value) => (
                   <SealChip key={value} active={scene === value} onClick={() => setParam('scene', value)}>
                     {sceneLabel(value)}
@@ -214,6 +220,15 @@ function FilterLabel({ children }: { children: React.ReactNode }) {
     <span className="font-display tracking-display text-[10px] text-sepia uppercase mr-0.5 select-none">
       {children}
     </span>
+  );
+}
+
+function StageLabel({ mark, children }: { mark: string; children: React.ReactNode }) {
+  return (
+    <div className="flex items-baseline gap-2 select-none">
+      <span className="font-mono text-[10px] text-gilded">{mark}</span>
+      <span className="font-serif text-lg leading-none text-ink-brown">{children}</span>
+    </div>
   );
 }
 
