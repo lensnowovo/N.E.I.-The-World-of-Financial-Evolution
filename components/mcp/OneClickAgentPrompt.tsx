@@ -36,9 +36,12 @@ export function OneClickAgentPrompt({
 - URL：${mcpUrl}
 - 鉴权：请求头 ${authLine}
 - 可用工具：
-  - search_skills：按关键词 / 场景 / 类型搜索公开 Skill
+  - search_skills：按关键词 / 任务阶段 / 场景 / 类型 / 行业搜索公开 Skill
+  - recommend_skills_for_task：按 BP 初筛、行研、IC Memo、LP 汇报等任务推荐 Skill 组合
   - get_skill：获取某个 Skill 的完整 Prompt 原文
   - list_my_skills：列出我在 N.E.I. 收藏的 Skill
+  - apply_skill：把上下文填入 Prompt 模板，返回可执行 Prompt
+  - favorite_skill / unfavorite_skill：收藏或取消收藏 Skill（取消收藏需要 confirm=true）
 
 ${tokenNote}
 

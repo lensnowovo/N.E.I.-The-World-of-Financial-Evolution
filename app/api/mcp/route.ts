@@ -14,17 +14,48 @@ import { normalizePublicText } from '@/lib/public-url';
 export const dynamic = 'force-dynamic';
 export const maxDuration = 60;
 
-/**
- * N.E.I. MCP Server
- *
- * 让用户的 AI 客户端通过 MCP 协议搜索、获取、应用、收藏 N.E.I. 上的 skill。
- * 鉴权：Authorization: Bearer nei_xxx
- *
- * 安全说明：uid 通过 per-request 闭包传入 tool handlers，避免模块级全局变量
- * 在并发请求间串号（US-001）。
- */
+const MCP_SAFETY = {
+  boundary: 'N.E.I. MCP only distributes Skill / Workflow text. It does not read local files or upload project materials.',
+  token: 'Store the MCP token only in trusted local or signed-in AI clients. If leaked, reset it at https://nei-pevc.com/connect.',
+  execution: 'Returned content is an analysis framework. Any file access, network call, write operation, or external sharing still requires explicit user approval.',
+};
 
-// 预构建 uid 查询（在每次请求入口处调用）
+const STAGE_SCENES = {
+  'pre-deal': ['sourcing', 'screening', 'industry-research', 'business-dd'],
+  deal: ['financial', 'legal', 'ic'],
+  'post-deal': ['post-investment', 'fundraising', 'fund-ops', 'knowledge'],
+} as const;
+
+const TASK_SCENE_ALIASES: Array<{ scene: string; terms: string[] }> = [
+  { scene: 'sourcing', terms: ['项目发现', '找项目', 'deal sourcing', 'sourcing'] },
+  { scene: 'screening', terms: ['bp', 'BP', '初筛', '拆BP', '拆 BP', 'screening'] },
+  { scene: 'industry-research', terms: ['行研', '行业研究', '产业研究', '市场研究', 'research'] },
+  { scene: 'business-dd', terms: ['尽调', '商业尽调', '客户访谈', '专家访谈', 'dd', 'diligence'] },
+  { scene: 'financial', terms: ['财务', '财务分析', '估值', '模型', '现金流', 'financial'] },
+  { scene: 'legal', terms: ['法务', '合规', '条款', 'legal'] },
+  { scene: 'ic', terms: ['ic', 'IC', 'memo', 'Memo', '投委会', '投资备忘录'] },
+  { scene: 'post-investment', terms: ['投后', '月报', '经营跟踪', '风险预警', 'post investment'] },
+  { scene: 'fundraising', terms: ['募资', 'lp', 'LP', 'LP汇报', '季报', 'ir'] },
+  { scene: 'fund-ops', terms: ['基金运营', '运营', 'fund ops'] },
+  { scene: 'knowledge', terms: ['知识管理', '文档', '沉淀', 'knowledge'] },
+];
+
+const RECOMMENDED_SEQUENCES: Record<string, string[]> = {
+  sourcing: ['Clarify mandate and target thesis', 'Collect comparable companies', 'Prepare outreach / tracking notes'],
+  screening: ['Extract company facts', 'Identify highlights and red flags', 'Generate follow-up questions'],
+  'industry-research': ['Map value chain', 'Estimate market size and growth', 'Compare competitors and investment logic'],
+  'business-dd': ['Prepare customer / supplier questions', 'Structure expert interview outline', 'Summarize diligence findings'],
+  financial: ['Normalize financial data', 'Check margin / cash flow / working capital', 'Review forecast assumptions'],
+  legal: ['Extract key terms', 'Flag compliance and structure issues', 'Prepare counsel follow-up list'],
+  ic: ['Draft investment logic', 'Summarize key risks and valuation view', 'Prepare IC Q&A'],
+  'post-investment': ['Review operating updates', 'Identify abnormal signals', 'Draft monthly portfolio note'],
+  fundraising: ['Summarize fund performance', 'Prepare portfolio progress update', 'Draft LP reporting narrative'],
+  'fund-ops': ['Structure fund operation checklist', 'Track recurring reporting work', 'Prepare internal operating notes'],
+  knowledge: ['Clean source material', 'Extract reusable knowledge blocks', 'Build searchable team notes'],
+};
+
+type JsonValue = Record<string, unknown> | Array<unknown> | string | number | boolean | null;
+
 async function getUidFromRequest(req: Request): Promise<number | null> {
   const auth = req.headers.get('authorization');
   if (!auth?.startsWith('Bearer ')) return null;
@@ -36,15 +67,14 @@ async function getUidFromRequest(req: Request): Promise<number | null> {
     select: { id: true },
   });
   if (!user) return null;
-  // SEC-008: 鉴权成功后 fire-and-forget 更新 token 最后使用时间（不阻塞请求）；
-  // 失败静默吞掉 —— 这只是可观测性字段，绝不能影响 MCP 主流程
+
   void prisma.user
     .update({ where: { id: user.id }, data: { tokenLastUsedAt: new Date() } })
     .catch(() => {});
+
   return user.id;
 }
 
-/** 把 tagContent（JSON string）安全解析成 string[] */
 function safeJsonArray(raw: string | null): string[] {
   try {
     const arr = JSON.parse(raw || '[]');
@@ -54,29 +84,146 @@ function safeJsonArray(raw: string | null): string[] {
   }
 }
 
-/** 从 body 里截取 query 命中片段（去 HTML，前后各带一点上下文），像搜索 snippet */
-function makeSnippet(html: string, query: string): string | null {
-  if (!query) return null;
-  const text = stripHtml(html);
-  const idx = text.toLowerCase().indexOf(query.toLowerCase());
-  if (idx < 0) return null;
-  const start = Math.max(0, idx - 40);
-  const end = Math.min(text.length, idx + query.length + 60);
-  return (start > 0 ? '…' : '') + text.slice(start, end) + (end < text.length ? '…' : '');
+function normalizeSearchText(value: string) {
+  return value
+    .toLowerCase()
+    .replace(/[，。、；：？！“”《》"'`~!@#$%^&*()[\]{}|\\/?+=_-]+/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
 }
 
-// 每次请求都新建 handler，把 uid + clientName + requestId 通过闭包传入 tool handlers，
-// 杜绝跨请求串号（US-001）并支持同请求多 tool 共享 requestId（SEC-009）
+function tokenizeQuery(value: string) {
+  const normalized = normalizeSearchText(value);
+  return Array.from(new Set([normalized, ...normalized.split(/\s+/)].filter(Boolean)));
+}
+
+function makeSnippet(html: string, query: string): string | null {
+  const tokens = tokenizeQuery(query).filter((token) => token.length >= 2);
+  if (tokens.length === 0) return null;
+  const text = stripHtml(html);
+  const lower = text.toLowerCase();
+  const token = tokens.find((part) => lower.includes(part.toLowerCase()));
+  if (!token) return null;
+  const idx = lower.indexOf(token.toLowerCase());
+  const start = Math.max(0, idx - 40);
+  const end = Math.min(text.length, idx + token.length + 70);
+  return `${start > 0 ? '...' : ''}${text.slice(start, end)}${end < text.length ? '...' : ''}`;
+}
+
+function jsonContent(payload: JsonValue) {
+  return {
+    content: [
+      {
+        type: 'text' as const,
+        text: JSON.stringify(payload, null, 2),
+      },
+    ],
+  };
+}
+
+function inferScenesFromText(text?: string | null) {
+  if (!text) return [];
+  const normalized = normalizeSearchText(text);
+  const scenes = TASK_SCENE_ALIASES.filter((entry) =>
+    entry.terms.some((term) => normalized.includes(normalizeSearchText(term))),
+  ).map((entry) => entry.scene);
+  return Array.from(new Set(scenes));
+}
+
+function resolveScenes({
+  scene,
+  task,
+  stage,
+}: {
+  scene?: string;
+  task?: string;
+  stage?: keyof typeof STAGE_SCENES;
+}) {
+  const explicit = scene ? [scene] : [];
+  const inferred = inferScenesFromText(task);
+  const staged = stage ? [...STAGE_SCENES[stage]] : [];
+  const groups = [explicit, inferred, staged].filter((group) => group.length > 0);
+  if (groups.length === 0) return [];
+
+  const intersection = groups.reduce((current, group) =>
+    current.filter((sceneValue) => group.includes(sceneValue)),
+  );
+  return intersection.length > 0 ? Array.from(new Set(intersection)) : Array.from(new Set(groups.flat()));
+}
+
+function buildMcpWhere(args: {
+  scene?: string;
+  task?: string;
+  stage?: keyof typeof STAGE_SCENES;
+  skillType?: string;
+  industry?: string;
+  author?: string;
+  cursor?: number;
+}) {
+  const scenes = resolveScenes({ scene: args.scene, task: args.task, stage: args.stage });
+  const where = buildFeedWhere({
+    scene: scenes.length === 1 ? scenes[0] : undefined,
+    skill: args.skillType,
+    industry: args.industry,
+    mcp: 'ready',
+  });
+
+  if (scenes.length > 1) where.tagScene = { in: scenes };
+  if (args.author) where.author = { ...(where.author || {}), nickname: { contains: args.author } };
+  if (args.cursor) where.id = { lt: args.cursor };
+
+  return { where, scenes };
+}
+
+function postToMcpItem(post: any, query = '') {
+  const body = normalizePublicText(post.body);
+  return {
+    id: post.id,
+    title: post.title,
+    scene: post.tagScene,
+    industry: post.tagIndustry ?? null,
+    type: post.skillAsset?.assetType ?? post.tagSkill ?? null,
+    author: post.skillAsset?.originalAuthor || post.author?.nickname || null,
+    excerpt: stripHtml(body).slice(0, 180),
+    snippet: query ? makeSnippet(body, query) : null,
+    tags: safeJsonArray(post.tagContent),
+    viewCount: post.viewCount ?? 0,
+    stars: post._count?.stars ?? 0,
+    comments: post._count?.comments ?? 0,
+    attachments: post._count?.attachments ?? 0,
+    featured: Boolean(post.featured),
+    updatedAt: post.updatedAt.toISOString(),
+  };
+}
+
+function scoreForRecommendation(post: any, task: string, industry?: string) {
+  const terms = tokenizeQuery(`${task} ${industry ?? ''}`);
+  const searchable = normalizeSearchText(
+    [
+      post.title,
+      post.tagScene,
+      post.tagIndustry,
+      post.tagSkill,
+      post.skillAsset?.assetType,
+      safeJsonArray(post.tagContent).join(' '),
+      stripHtml(normalizePublicText(post.body)),
+    ]
+      .filter(Boolean)
+      .join(' '),
+  );
+  const textScore = terms.reduce((sum, term) => sum + (searchable.includes(term) ? 20 : 0), 0);
+  const hotScore = (post.viewCount || 0) * 0.2 + (post._count?.stars || 0) * 3 + (post._count?.comments || 0);
+  const featuredScore = post.featured ? 15 : 0;
+  return textScore + hotScore + featuredScore;
+}
+
+function toolResultMessage(ok: boolean, message: string, extra: Record<string, unknown> = {}) {
+  return jsonContent({ ok, message, ...extra, safety: MCP_SAFETY });
+}
+
 function makeHandler(uid: number, clientName: string | null, requestId: string) {
   return createMcpHandler(
     async (server: McpServer) => {
-      /**
-       * SEC-009: 记录 MCP 调用日志（fire-and-forget），含溯源维度：
-       * - clientName: 调用方 User-Agent，识别客户端（Cursor / Claude Desktop / curl 等）
-       * - latencyMs:  tool 执行耗时（finally 测得，含异常路径）
-       * - requestId:  同一次 HTTP 请求内所有 tool 调用共享，便于回放批量调用
-       * 绝不记录 post body / prompt 全文 / token 明文（只记 userId / postId / tool 名）
-       */
       const logCall = (tool: string, start: number, postId?: number) => {
         void prisma.mcpCallLog
           .create({
@@ -91,97 +238,150 @@ function makeHandler(uid: number, clientName: string | null, requestId: string) 
           })
           .catch(() => {});
       };
-      // ============ search_skills（增强：多筛选 + 排序 + 游标 + 富返回 + snippet）============
+
       server.tool(
         'search_skills',
-        '搜索 N.E.I. 上的公开 Skill（Prompt / 模板 / 工作流等）。返回带摘要、热度、标签和命中片段。',
+        'Search public MCP-ready N.E.I. Skills by keyword, PEVC task, stage, type, industry, tags, author, and sort order.',
         {
-          query: z.string().optional().describe('搜索关键词（标题 / 正文 / 作者）'),
-          scene: z.string().optional().describe('工作场景，如 screening / financial / ic'),
-          skillType: z.string().optional().describe('Skill 类型，如 prompt / workflow / agent-skill'),
-          industry: z.string().optional().describe('行业赛道，如 ai-saas / biotech'),
-          tags: z.array(z.string()).optional().describe('工作内容标签（多选，AND 关系）'),
-          author: z.string().optional().describe('作者昵称（模糊匹配）'),
-          sort: z.enum(['latest', 'popular']).optional().describe('排序：latest 最新 / popular 最热（默认）'),
-          limit: z.number().optional().default(10).describe('返回条数（最大 30）'),
-          cursor: z.number().optional().describe('游标分页：传入上一页最后一条的 id'),
+          query: z.string().optional().describe('Keyword, for example BP, IC Memo, semiconductor research, LP report'),
+          task: z.string().optional().describe('Business task alias, for example BP screening, industry research, IC Memo, LP report'),
+          stage: z.enum(['pre-deal', 'deal', 'post-deal']).optional().describe('Investment workflow stage'),
+          scene: z.string().optional().describe('Exact scene code, for example screening / industry-research / ic'),
+          skillType: z.string().optional().describe('Skill type, for example prompt / workflow / agent-skill'),
+          industry: z.string().optional().describe('Industry code, for example ai-saas / semiconductor / biotech'),
+          tags: z.array(z.string()).optional().describe('Content tags; multiple tags use AND filtering'),
+          author: z.string().optional().describe('Fuzzy author nickname search'),
+          sort: z.enum(['relevance', 'latest', 'popular']).optional().describe('Default is relevance when query exists, otherwise popular'),
+          limit: z.number().optional().default(10).describe('Max 30'),
+          cursor: z.number().optional().describe('Pagination cursor: pass the last returned id'),
         },
         async (args) => {
           const start = Date.now();
           try {
-            const where = buildFeedWhere({
-              scene: args.scene,
-              skill: args.skillType,
-              industry: args.industry,
-            });
-            // SEC-003: MCP 只返回审核通过的 skill（mcpApproved=true），未审核的社区投稿不进 MCP
-            where.mcpApproved = true;
-            if (args.author) {
-              where.author = { ...(where.author || {}), nickname: { contains: args.author } };
-            }
-            if (args.cursor) {
-              where.id = { lt: args.cursor };
-            }
+            const cap = Math.min(Math.max(args.limit || 10, 1), 30);
+            const { where, scenes } = buildMcpWhere(args);
+            const query = [args.query, args.task].filter(Boolean).join(' ');
 
-            const cap = Math.min(args.limit || 10, 30);
-            // 多取一些以便 tags 内存过滤后仍有 cap 条
             let posts = await prisma.post.findMany({
               where,
               include: {
                 author: { select: { nickname: true } },
                 skillAsset: { select: { assetType: true, originalAuthor: true } },
-                _count: { select: { stars: true, comments: true } },
+                _count: { select: { stars: true, comments: true, attachments: true } },
               },
               orderBy: { id: 'desc' },
-              take: args.query || args.tags?.length ? 200 : cap,
+              take: query || args.tags?.length || args.sort === 'relevance' ? 240 : cap + 1,
             });
 
-            // tags（tagContent）内存 AND 过滤
-            if (args.tags && args.tags.length > 0) {
-              posts = filterByContent(posts, args.tags);
-            }
+            if (args.tags?.length) posts = filterByContent(posts, args.tags);
 
-            // 排序
-            const sorted = sortPosts(
-              posts,
-              normalizeSort(args.sort, !!args.query),
-              args.query || '',
-            );
+            const sort = normalizeSort(args.sort, Boolean(query));
+            const sorted = sortPosts(posts, sort, query);
+            const pageItems = sorted.slice(0, cap);
 
-            const items = sorted.slice(0, cap).map((p) => ({
-              id: p.id,
-              title: p.title,
-              scene: p.tagScene,
-              type: p.skillAsset?.assetType ?? null,
-              author: p.skillAsset?.originalAuthor || p.author.nickname,
-              excerpt: stripHtml(normalizePublicText(p.body)).slice(0, 120),
-              snippet: args.query ? makeSnippet(normalizePublicText(p.body), args.query) : null,
-              tags: safeJsonArray(p.tagContent),
-              viewCount: p.viewCount,
-              stars: p._count.stars,
-              updatedAt: p.updatedAt.toISOString(),
-            }));
-
-            const nextCursor = items.length === cap ? items[items.length - 1]?.id ?? null : null;
-
-            return {
-              content: [
-                {
-                  type: 'text' as const,
-                  text: JSON.stringify({ items, nextCursor, count: items.length }, null, 2),
-                },
-              ],
-            };
+            return jsonContent({
+              summary: pageItems.length
+                ? `Found ${pageItems.length} MCP-ready N.E.I. Skills.`
+                : 'No MCP-ready Skill matched this request.',
+              count: pageItems.length,
+              nextCursor: sorted.length > cap ? pageItems[pageItems.length - 1]?.id ?? null : null,
+              appliedFilters: {
+                query: args.query ?? null,
+                task: args.task ?? null,
+                stage: args.stage ?? null,
+                scenes,
+                skillType: args.skillType ?? null,
+                industry: args.industry ?? null,
+                tags: args.tags ?? [],
+                sort,
+              },
+              items: pageItems.map((post) => postToMcpItem(post, query)),
+              safety: MCP_SAFETY,
+            });
           } finally {
             logCall('search_skills', start);
           }
         },
       );
 
-      // ============ get_skill（不变）============
+      server.tool(
+        'recommend_skills_for_task',
+        'Recommend a short sequence of N.E.I. Skills for a PEVC work task, such as BP screening, IC Memo, industry research, post-investment update, or LP reporting.',
+        {
+          task: z.string().describe('The investment work task to complete'),
+          industry: z.string().optional().describe('Optional industry focus'),
+          stage: z.enum(['pre-deal', 'deal', 'post-deal']).optional().describe('Optional stage hint'),
+          limit: z.number().optional().default(6).describe('Max 10'),
+        },
+        async (args) => {
+          const start = Date.now();
+          try {
+            const cap = Math.min(Math.max(args.limit || 6, 1), 10);
+            const scenes = resolveScenes({ task: args.task, stage: args.stage });
+            const where = buildFeedWhere({
+              scene: scenes.length === 1 ? scenes[0] : undefined,
+              industry: args.industry,
+              mcp: 'ready',
+            });
+            if (scenes.length > 1) where.tagScene = { in: scenes };
+
+            let posts = await prisma.post.findMany({
+              where,
+              include: {
+                author: { select: { nickname: true } },
+                skillAsset: { select: { assetType: true, originalAuthor: true } },
+                _count: { select: { stars: true, comments: true, attachments: true } },
+              },
+              orderBy: { createdAt: 'desc' },
+              take: 200,
+            });
+
+            if (posts.length === 0 && args.industry) {
+              const fallbackWhere = buildFeedWhere({ scene: scenes.length === 1 ? scenes[0] : undefined, mcp: 'ready' });
+              if (scenes.length > 1) fallbackWhere.tagScene = { in: scenes };
+              posts = await prisma.post.findMany({
+                where: fallbackWhere,
+                include: {
+                  author: { select: { nickname: true } },
+                  skillAsset: { select: { assetType: true, originalAuthor: true } },
+                  _count: { select: { stars: true, comments: true, attachments: true } },
+                },
+                orderBy: { createdAt: 'desc' },
+                take: 200,
+              });
+            }
+
+            const ranked = posts
+              .map((post) => ({ post, score: scoreForRecommendation(post, args.task, args.industry) }))
+              .sort((a, b) => b.score - a.score)
+              .slice(0, cap)
+              .map(({ post }) => postToMcpItem(post, args.task));
+
+            const primaryScene = scenes[0] ?? 'industry-research';
+            return jsonContent({
+              summary: ranked.length
+                ? `Recommended ${ranked.length} Skills for: ${args.task}.`
+                : `No MCP-ready Skill is currently available for: ${args.task}.`,
+              task: args.task,
+              industry: args.industry ?? null,
+              inferredScenes: scenes,
+              suggestedSequence: RECOMMENDED_SEQUENCES[primaryScene] ?? [
+                'Clarify the task and source material',
+                'Run the closest matching Skill',
+                'Review output and adapt to the investment context',
+              ],
+              items: ranked,
+              safety: MCP_SAFETY,
+            });
+          } finally {
+            logCall('recommend_skills_for_task', start);
+          }
+        },
+      );
+
       server.tool(
         'get_skill',
-        '获取某个 Skill 的完整 Prompt / 内容原文',
+        'Get the full Prompt / content of a single MCP-ready Skill.',
         { id: z.number().describe('Skill ID') },
         async (args) => {
           const start = Date.now();
@@ -199,10 +399,10 @@ function makeHandler(uid: number, clientName: string | null, requestId: string) 
               },
             });
             if (!post || post.status !== POST_STATUS.PUBLISHED || post.deletedAt || !post.mcpApproved) {
-              return { content: [{ type: 'text' as const, text: '未找到该 Skill' }] };
+              return toolResultMessage(false, 'Skill not found or not available through MCP.', { id: args.id });
             }
+
             const text = normalizePublicText(extractPlainText(post.body));
-            // 提取占位符（apply_skill 用这些 key 做精确替换，显式列出避免调用方猜错 key）
             const placeholders = [
               ...new Set(
                 [...text.matchAll(/\[([^\]]{2,30})\]/g)]
@@ -210,15 +410,15 @@ function makeHandler(uid: number, clientName: string | null, requestId: string) 
                   .filter((s) => !/^\[\s*\]$/.test(s)),
               ),
             ];
+
             return {
               content: [
                 {
                   type: 'text' as const,
-                  // SEC-004: 在 skill 内容前注入安全规则前缀，降低 prompt injection 风险
                   text: wrapWithSafetyRules(
-                    `# ${post.title}\n场景：${post.tagScene}\n类型：${post.skillAsset?.assetType ?? '未知'}\n\n---\n\n${text}` +
+                    `# ${post.title}\nScene: ${post.tagScene}\nType: ${post.skillAsset?.assetType ?? 'unknown'}\n\n---\n\n${text}` +
                       (placeholders.length
-                        ? `\n\n---\n\n**占位符**（apply_skill 时传这些 key 做精确替换）：\n${placeholders.join('  ')}`
+                        ? `\n\n---\n\nPlaceholders for apply_skill:\n${placeholders.join('  ')}`
                         : ''),
                   ),
                 },
@@ -230,16 +430,15 @@ function makeHandler(uid: number, clientName: string | null, requestId: string) 
         },
       );
 
-      // ============ apply_skill（新：填好 context 的 prompt，客户端执行，平台零成本）============
       server.tool(
         'apply_skill',
-        '把 Skill 的 Prompt 模板填入你给的上下文，返回「填好的完整 Prompt」交给你的 AI 客户端直接执行。平台不消耗 AI 额度，执行用你自己客户端的模型。',
+        'Fill a Skill Prompt template with provided context and return the completed prompt for the trusted AI client to execute.',
         {
           id: z.number().describe('Skill ID'),
           context: z
             .record(z.string(), z.string())
             .optional()
-            .describe('占位符到值的映射，例如 {"[填入赛道名]": "合成生物学", "[阶段]": "Pre-A"}。key 通常是 prompt 里的 [填入xxx] / [xxx]'),
+            .describe('Mapping from placeholders to values, for example {"[行业]":"半导体","[阶段]":"Pre-A"}'),
         },
         async (args) => {
           const start = Date.now();
@@ -249,16 +448,14 @@ function makeHandler(uid: number, clientName: string | null, requestId: string) 
               select: { title: true, body: true, status: true, deletedAt: true, mcpApproved: true },
             });
             if (!post || post.status !== POST_STATUS.PUBLISHED || post.deletedAt || !post.mcpApproved) {
-              return { content: [{ type: 'text' as const, text: '未找到该 Skill' }] };
+              return toolResultMessage(false, 'Skill not found or not available through MCP.', { id: args.id });
             }
 
             let promptText = normalizePublicText(extractPlainText(post.body));
-            const ctx = args.context || {};
-            for (const [key, value] of Object.entries(ctx)) {
-              if (value) {
-                const escaped = key.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-                promptText = promptText.replace(new RegExp(escaped, 'g'), value);
-              }
+            for (const [key, value] of Object.entries(args.context || {})) {
+              if (!value) continue;
+              const escaped = key.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+              promptText = promptText.replace(new RegExp(escaped, 'g'), value);
             }
 
             const unfilled = [...promptText.matchAll(/\[([^\]]{2,30})\]/g)]
@@ -266,16 +463,18 @@ function makeHandler(uid: number, clientName: string | null, requestId: string) 
               .filter((s) => !/^\s*$/.test(s));
             const hint =
               unfilled.length > 0
-                ? `\n\n（提示：仍有 ${unfilled.length} 处占位符未填：${[...new Set(unfilled)].slice(0, 8).map((s) => `[${s}]`).join(' ')}。可再调用 apply_skill 补全。）`
+                ? `\n\nNote: ${unfilled.length} placeholders are still unfilled: ${[...new Set(unfilled)]
+                    .slice(0, 8)
+                    .map((s) => `[${s}]`)
+                    .join(' ')}.`
                 : '';
 
             return {
               content: [
                 {
                   type: 'text' as const,
-                  // SEC-004: 在填好的 prompt 前注入安全规则，apply 出来的内容直接给客户端 AI 执行，更需边界声明
                   text: wrapWithSafetyRules(
-                    `# ${post.title}\n\n以下是填好你上下文的 Prompt，请直接用你的 AI 执行：\n\n---\n\n${promptText}${hint}`,
+                    `# ${post.title}\n\nCompleted prompt for your trusted AI client:\n\n---\n\n${promptText}${hint}`,
                   ),
                 },
               ],
@@ -286,10 +485,9 @@ function makeHandler(uid: number, clientName: string | null, requestId: string) 
         },
       );
 
-      // ============ list_my_skills（增强：摘要 / 热度 / 标签 / 更新时间 / 收藏时间）============
       server.tool(
         'list_my_skills',
-        '列出你收藏的 Skill（带摘要、热度、标签和更新时间，方便区分每条是干嘛的）',
+        'List your favorited MCP-ready Skills with structured metadata.',
         {},
         async () => {
           const start = Date.now();
@@ -301,58 +499,50 @@ function makeHandler(uid: number, clientName: string | null, requestId: string) 
                   include: {
                     author: { select: { nickname: true } },
                     skillAsset: { select: { assetType: true, originalAuthor: true } },
-                    _count: { select: { stars: true, comments: true } },
+                    _count: { select: { stars: true, comments: true, attachments: true } },
                   },
                 },
               },
               orderBy: [{ sortOrder: 'asc' }, { createdAt: 'desc' }],
-              take: 50,
+              take: 80,
             });
 
-            const skills = favs
-              .filter(
-                (f) =>
-                  f.post.status === POST_STATUS.PUBLISHED &&
-                  !f.post.deletedAt &&
-                  f.post.mcpApproved,
-              )
-              .map((f) => ({
-                id: f.post.id,
-                title: f.post.title,
-                scene: f.post.tagScene,
-                type: f.post.skillAsset?.assetType ?? null,
-                author: f.post.skillAsset?.originalAuthor || f.post.author.nickname,
-                excerpt: stripHtml(normalizePublicText(f.post.body)).slice(0, 120),
-                tags: safeJsonArray(f.post.tagContent),
-                viewCount: f.post.viewCount,
-                stars: f.post._count.stars,
-                updatedAt: f.post.updatedAt.toISOString(),
-                favoritedAt: f.createdAt.toISOString(),
-              }));
+            const visible = favs.filter(
+              (f) =>
+                f.post.status === POST_STATUS.PUBLISHED &&
+                !f.post.deletedAt &&
+                f.post.mcpApproved,
+            );
+            const hiddenBecauseNotMcpApprovedCount = favs.length - visible.length;
+            const items = visible.map((f) => ({
+              ...postToMcpItem(f.post),
+              favoritedAt: f.createdAt.toISOString(),
+            }));
 
-            return {
-              content: [
-                {
-                  type: 'text' as const,
-                  // SEC-004: 收藏列表也注入安全规则前缀（列表里含 excerpt/title，且用户会继续 get/apply 其中某个）
-                  text: wrapWithSafetyRules(
-                    skills.length > 0
-                      ? `你收藏了 ${skills.length} 个 Skill：\n${JSON.stringify(skills, null, 2)}`
-                      : '你还没有收藏任何 Skill。请到 N.E.I. 网站发现并收藏，或用 favorite_skill 工具收藏。',
-                  ),
-                },
-              ],
-            };
+            return jsonContent({
+              summary: items.length
+                ? `You have ${items.length} MCP-ready favorited Skills.`
+                : 'You do not have any MCP-ready favorited Skills yet.',
+              visibleCount: items.length,
+              hiddenBecauseNotMcpApprovedCount,
+              warnings:
+                hiddenBecauseNotMcpApprovedCount > 0
+                  ? [
+                      `${hiddenBecauseNotMcpApprovedCount} favorite(s) are hidden because they are unpublished, deleted, or not approved for MCP.`,
+                    ]
+                  : [],
+              items,
+              safety: MCP_SAFETY,
+            });
           } finally {
             logCall('list_my_skills', start);
           }
         },
       );
 
-      // ============ favorite_skill（新：写）============
       server.tool(
         'favorite_skill',
-        '收藏一个 Skill（加入你的 Skill Library，list_my_skills 可见）。重复收藏幂等。',
+        'Favorite a Skill into your N.E.I. Skill Library. This operation is idempotent.',
         { id: z.number().describe('Skill ID') },
         async (args) => {
           const start = Date.now();
@@ -361,53 +551,61 @@ function makeHandler(uid: number, clientName: string | null, requestId: string) 
               where: { id: args.id },
               select: { id: true, title: true, status: true, deletedAt: true, mcpApproved: true },
             });
-            if (
-              !post ||
-              post.status !== POST_STATUS.PUBLISHED ||
-              post.deletedAt ||
-              !post.mcpApproved
-            ) {
-              return { content: [{ type: 'text' as const, text: '未找到该 Skill，无法收藏' }] };
+            if (!post || post.status !== POST_STATUS.PUBLISHED || post.deletedAt || !post.mcpApproved) {
+              return toolResultMessage(false, 'Skill not found or not available through MCP.', { id: args.id });
             }
+
+            const existing = await prisma.postFavorite.findUnique({
+              where: { userId_postId: { userId: uid, postId: args.id } },
+              select: { id: true },
+            });
             await prisma.postFavorite.upsert({
               where: { userId_postId: { userId: uid, postId: args.id } },
               create: { userId: uid, postId: args.id },
               update: {},
             });
-            return {
-              content: [
-                { type: 'text' as const, text: `✓ 已收藏《${post.title}》（#${args.id}）` },
-              ],
-            };
+
+            return toolResultMessage(true, existing ? 'Skill was already favorited.' : 'Skill favorited.', {
+              id: post.id,
+              title: post.title,
+              alreadyFavorited: Boolean(existing),
+            });
           } finally {
             logCall('favorite_skill', start, args.id);
           }
         },
       );
 
-      // ============ unfavorite_skill（新：写）============
       server.tool(
         'unfavorite_skill',
-        '取消收藏一个 Skill',
-        { id: z.number().describe('Skill ID') },
+        'Remove a Skill from your N.E.I. Skill Library. Requires confirm=true to avoid accidental deletion.',
+        {
+          id: z.number().describe('Skill ID'),
+          confirm: z.boolean().optional().default(false).describe('Must be true to remove the favorite'),
+        },
         async (args) => {
           const start = Date.now();
           try {
-            await prisma.postFavorite.deleteMany({
+            if (!args.confirm) {
+              return toolResultMessage(false, 'Confirmation required. Call unfavorite_skill again with confirm=true to remove this favorite.', {
+                id: args.id,
+                confirmationRequired: true,
+              });
+            }
+
+            const result = await prisma.postFavorite.deleteMany({
               where: { userId: uid, postId: args.id },
             });
-            return {
-              content: [{ type: 'text' as const, text: `已取消收藏 Skill #${args.id}` }],
-            };
+            return toolResultMessage(true, result.count > 0 ? 'Skill unfavorited.' : 'Skill was not in your favorites.', {
+              id: args.id,
+              removedCount: result.count,
+            });
           } finally {
             logCall('unfavorite_skill', start, args.id);
           }
         },
       );
     },
-    // N.E.I. 的 MCP 路由挂在 /api/mcp，必须把 basePath 设为 /api，
-    // 否则 mcp-handler 默认 endpoint 是 /mcp，与实际 pathname /api/mcp 不匹配 → 404
-    // 签名 createMcpHandler(initialize, serverOptions?, config?)：basePath 属于 config（第 3 参）
     undefined,
     { basePath: '/api' },
   );
@@ -420,18 +618,12 @@ function unauthorizedResponse(): Response {
   });
 }
 
-/**
- * SEC-009: 为每次 HTTP 请求生成溯源维度：
- * - clientName: 截断 User-Agent（256 上限避免长 UA 撑爆 DB），缺失时 null
- * - requestId:  crypto.randomUUID()，同请求内多 tool 调用共享
- */
 function perRequestCtx(req: Request): { clientName: string | null; requestId: string } {
   const ua = req.headers.get('user-agent');
   const clientName = ua ? ua.slice(0, 256) : null;
   return { clientName, requestId: crypto.randomUUID() };
 }
 
-// 包装 handler：在调用前解析 token → 把 uid 通过闭包注入到 tool handlers
 export const POST = withMetrics('POST /api/mcp', mcpPost);
 
 async function mcpPost(req: Request): Promise<Response> {

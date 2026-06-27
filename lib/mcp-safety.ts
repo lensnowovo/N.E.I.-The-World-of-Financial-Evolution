@@ -35,9 +35,9 @@ const SAFETY_RULES = `【N.E.I. MCP 安全规则 · 必读】
  * @param text 原始 skill 内容（prompt / 模板 / 列表 等）
  * @returns 形如「安全规则 + 空行 + 原始内容」的字符串；text 为空时仅返回安全规则
  *
- * 使用位置：app/api/mcp/route.ts 的 get_skill / apply_skill / list_my_skills。
- * 不要用于 unfavorite_skill（无内容返回）或 search_skills（返回的是结构化 JSON，
- * 安全规则应作为单独字段或前端提示，不应混进 items 数组——本 sprint 不动 search）。
+ * 使用位置：app/api/mcp/route.ts 的 get_skill / apply_skill。
+ * 不要用于 search_skills / recommend_skills_for_task / list_my_skills / favorite_skill /
+ * unfavorite_skill。它们返回的是结构化 JSON，安全规则应作为单独字段，不应混进 items 数组。
  */
 export function wrapWithSafetyRules(text: string): string {
   if (!text) return SAFETY_RULES;

@@ -76,11 +76,13 @@ N.E.I. 是 jammyssy 发起的新一代投资人社群，目前已有 500+ 位成
 
 当前工具包括：
 
-- `search_skills`：按关键词 / 场景 / 类型搜索公开 Skill
+- `search_skills`：按关键词 / 任务阶段 / 场景 / 类型 / 行业搜索公开 Skill，返回结构化结果
+- `recommend_skills_for_task`：按 BP 初筛、行研、IC Memo、LP 汇报等任务推荐 Skill 组合
 - `get_skill`：获取某个 Skill 的完整 Prompt / Workflow 原文
-- `list_my_skills`：列出当前用户收藏且已准入 MCP 的 Skill
+- `list_my_skills`：列出当前用户收藏且已准入 MCP 的 Skill，并说明被隐藏的未准入收藏数量
 - `apply_skill`：把上下文填入 Prompt 模板，返回可执行 Prompt
 - `favorite_skill`：从客户端把公开 Skill 加入收藏库
+- `unfavorite_skill`：从收藏库移除 Skill，需要 `confirm=true` 二次确认
 
 典型使用方式：
 
