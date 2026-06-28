@@ -5,7 +5,7 @@ import { redirect } from 'next/navigation';
 import { prisma } from '@/lib/db';
 import { getCurrentUser } from '@/lib/session';
 import { POST_STATUS } from '@/lib/status';
-import { extractPlainText } from '@/lib/skill-text';
+import { extractReadableText } from '@/lib/skill-text';
 import { normalizePublicText } from '@/lib/public-url';
 import { DashboardClient } from './DashboardClient';
 
@@ -198,7 +198,7 @@ export default async function DashboardPage() {
     assetType: post.skillAsset?.assetType ?? 'agent-discipline',
     usageNotes: post.skillAsset?.usageNotes ?? null,
     updatedAt: post.updatedAt.toISOString(),
-    text: normalizePublicText(extractPlainText(post.body)),
+    text: normalizePublicText(extractReadableText(post.body)),
     isDefault: post.body.includes('slug:nei-discipline/fiduciary-research-v1'),
   }));
   const defaultDiscipline = disciplines.find((discipline) => discipline.isDefault) ?? disciplines[0] ?? null;

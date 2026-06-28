@@ -6,7 +6,7 @@ import { OneClickAgentPrompt } from '@/components/mcp/OneClickAgentPrompt';
 import { getPublicBaseUrl } from '@/lib/public-url';
 import { prisma } from '@/lib/db';
 import { POST_STATUS } from '@/lib/status';
-import { extractPlainText } from '@/lib/skill-text';
+import { extractReadableText } from '@/lib/skill-text';
 
 export const metadata: Metadata = {
   title: 'N.E.I. MCP Server 配置指南',
@@ -117,7 +117,7 @@ export default async function McpGuidePage() {
               </h2>
               <p className="font-sans text-sm leading-7 text-leather">
                 {defaultDiscipline.skillAsset?.usageNotes ||
-                  cleanText(extractPlainText(defaultDiscipline.body), 150)}
+                  cleanText(extractReadableText(defaultDiscipline.body), 150)}
               </p>
               <div className="mt-3 flex flex-wrap gap-3">
                 <Link href={`/posts/${defaultDiscipline.id}`} className="font-serif italic text-sm text-wax-red hover:underline">

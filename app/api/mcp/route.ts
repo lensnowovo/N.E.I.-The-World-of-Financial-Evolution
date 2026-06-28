@@ -6,7 +6,7 @@ import { prisma } from '@/lib/db';
 import { buildFeedWhere, filterByContent, normalizeSort, sortPosts } from '@/lib/feed';
 import { stripHtml } from '@/lib/validate';
 import { POST_STATUS } from '@/lib/status';
-import { extractPlainText } from '@/lib/skill-text';
+import { extractPlainText, extractReadableText } from '@/lib/skill-text';
 import { withMetrics } from '@/lib/metrics';
 import { wrapWithSafetyRules } from '@/lib/mcp-safety';
 import { normalizePublicText } from '@/lib/public-url';
@@ -460,7 +460,7 @@ function makeHandler(uid: number, clientName: string | null, requestId: string) 
             }
             postId = post.id;
 
-            const text = normalizePublicText(extractPlainText(post.body));
+            const text = normalizePublicText(extractReadableText(post.body));
             return {
               content: [
                 {
@@ -500,7 +500,11 @@ function makeHandler(uid: number, clientName: string | null, requestId: string) 
               return toolResultMessage(false, 'Skill not found or not available through MCP.', { id: args.id });
             }
 
-            const text = normalizePublicText(extractPlainText(post.body));
+            const text = normalizePublicText(
+              post.skillAsset?.assetType === 'agent-discipline'
+                ? extractReadableText(post.body)
+                : extractPlainText(post.body),
+            );
             const placeholders = [
               ...new Set(
                 [...text.matchAll(/\[([^\]]{2,30})\]/g)]
