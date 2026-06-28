@@ -62,6 +62,7 @@ export async function generateMetadata({
     '面向一级市场投资人的 Skill、Prompt、模板和工作流。';
   const assetType = post.skillAsset?.assetType ? skillLabel(post.skillAsset.assetType) : 'Skill';
   const title = `${post.title} · ${assetType}`;
+  const imageUrl = `${baseUrl}/api/og/post/${post.id}`;
 
   return {
     title,
@@ -77,7 +78,7 @@ export async function generateMetadata({
       siteName: 'N.E.I.',
       images: [
         {
-          url: '/opengraph-image',
+          url: imageUrl,
           width: 1200,
           height: 630,
           alt: post.title,
@@ -91,7 +92,7 @@ export async function generateMetadata({
       card: 'summary_large_image',
       title,
       description,
-      images: ['/twitter-image'],
+      images: [imageUrl],
     },
   };
 }
@@ -316,6 +317,11 @@ export default async function PostDetailPage({
           viewCount={post.viewCount}
           stars={post._count.stars}
           commentsCount={post._count.comments}
+          shareTitle={post.title}
+          shareDescription={excerpt}
+          shareUrl={`${baseUrl}/posts/${post.id}`}
+          shareScene={sceneLabel(post.tagScene)}
+          shareAssetLabel={assetLabel || 'Skill'}
         />
         {/* 执行按钮（仅 prompt 类型） */}
         {isPrompt && (

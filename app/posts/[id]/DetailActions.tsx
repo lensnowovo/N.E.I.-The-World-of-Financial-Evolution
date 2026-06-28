@@ -28,6 +28,11 @@ export function DetailActions({
   viewCount,
   stars,
   commentsCount,
+  shareTitle,
+  shareDescription,
+  shareUrl,
+  shareScene,
+  shareAssetLabel,
 }: {
   postId: number;
   isAuthed: boolean;
@@ -37,6 +42,11 @@ export function DetailActions({
   viewCount: number;
   stars: number;
   commentsCount: number;
+  shareTitle: string;
+  shareDescription?: string | null;
+  shareUrl: string;
+  shareScene?: string | null;
+  shareAssetLabel?: string | null;
 }) {
   return (
     <div className="flex items-center justify-between gap-4 flex-wrap">
@@ -53,7 +63,13 @@ export function DetailActions({
         {isPrompt && (
           <CopyPromptButton bodyHtml={bodyHtml} postId={postId} isAuthed={isAuthed} />
         )}
-        <ShareLinkButton />
+        <ShareLinkButton
+          title={shareTitle}
+          description={shareDescription}
+          url={shareUrl}
+          scene={shareScene}
+          assetLabel={shareAssetLabel}
+        />
       </div>
 
       {/* 热度数字 */}

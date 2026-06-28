@@ -3,16 +3,29 @@
 import { useState } from 'react';
 import { cn } from '@/lib/cn';
 
-export function ShareLinkButton() {
-  const [copied, setCopied] = useState(false);
+type ShareLinkButtonProps = {
+  title: string;
+  description?: string | null;
+  url?: string;
+  scene?: string | null;
+  assetLabel?: string | null;
+};
 
-  const copyLink = async () => {
-    const url = window.location.href;
+export function ShareLinkButton({
+  title,
+  description,
+  url,
+  scene,
+  assetLabel,
+}: ShareLinkButtonProps) {
+  const [state, setState] = useState<'idle' | 'shared' | 'copied'>('idle');
+
+  const copyText = async (text: string) => {
     try {
-      await navigator.clipboard.writeText(url);
+      await navigator.clipboard.writeText(text);
     } catch {
       const textarea = document.createElement('textarea');
-      textarea.value = url;
+      textarea.value = text;
       textarea.style.position = 'fixed';
       textarea.style.opacity = '0';
       document.body.appendChild(textarea);
@@ -20,17 +33,52 @@ export function ShareLinkButton() {
       document.execCommand('copy');
       document.body.removeChild(textarea);
     }
-    setCopied(true);
-    setTimeout(() => setCopied(false), 2000);
+  };
+
+  const shareSkill = async () => {
+    const shareUrl = url || window.location.href;
+    const meta = [scene, assetLabel].filter(Boolean).join(' / ');
+    const shareTitle = `${title} | N.E.I.`;
+    const shareText = [description, meta ? `场景：${meta}` : null]
+      .filter(Boolean)
+      .join('\n');
+    const wechatText = [
+      `【N.E.I. Skill】${title}`,
+      description,
+      meta ? `场景：${meta}` : null,
+      shareUrl,
+    ]
+      .filter(Boolean)
+      .join('\n');
+
+    if (navigator.share) {
+      try {
+        await navigator.share({
+          title: shareTitle,
+          text: shareText || '来自 N.E.I. 的一级市场 Skill / Workflow',
+          url: shareUrl,
+        });
+        setState('shared');
+        setTimeout(() => setState('idle'), 2000);
+        return;
+      } catch (error) {
+        if (error instanceof DOMException && error.name === 'AbortError') return;
+      }
+    }
+
+    await copyText(wechatText);
+    setState('copied');
+    setTimeout(() => setState('idle'), 2400);
   };
 
   return (
     <button
       type="button"
-      onClick={copyLink}
+      onClick={shareSkill}
+      title="复制适合粘贴到微信的标题、摘要和链接；移动端会优先打开系统分享"
       className={cn(
         'inline-flex h-8 items-center gap-1.5 rounded-sm border px-3 font-sans text-xs transition-colors',
-        copied
+        state !== 'idle'
           ? 'border-moss/40 bg-moss/5 text-moss'
           : 'border-paper-edge text-leather hover:border-ink-brown hover:text-ink-brown',
       )}
@@ -40,7 +88,7 @@ export function ShareLinkButton() {
         <path d="M9.5 11 L6.5 13 A3 3 0 0 1 2.5 9 L4.5 7" strokeLinecap="round" />
         <path d="M6 9.5 L10 6.5" strokeLinecap="round" />
       </svg>
-      {copied ? '链接已复制' : '复制链接'}
+      {state === 'shared' ? '已打开分享' : state === 'copied' ? '已复制微信文案' : '微信分享'}
     </button>
   );
 }
