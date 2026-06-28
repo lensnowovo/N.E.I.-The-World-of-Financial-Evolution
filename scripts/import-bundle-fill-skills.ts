@@ -3,6 +3,11 @@ import { PrismaClient } from '@prisma/client';
 const prisma = new PrismaClient();
 
 const LIBRARY_EMAIL = 'library@pevc.local';
+// Coverage seeds are not production-ready official Skills. Keep imported items
+// out of public feed and MCP until each one has been manually reviewed and
+// strengthened by the editorial team.
+const SEED_STATUS = 'pending';
+const SEED_REVIEW_FLAG = 'editorial-review-required: bundle coverage seed';
 
 type SkillSeed = {
   title: string;
@@ -996,10 +1001,11 @@ async function main() {
         tagIndustry: skill.tagIndustry,
         tagContent: JSON.stringify(skill.tagContent),
         tagSkill: skill.assetType,
-        status: 'published',
-        mcpApproved: true,
+        status: SEED_STATUS,
+        mcpApproved: false,
         securityLevel: 'safe',
-        featured: true,
+        featured: false,
+        reviewFlag: SEED_REVIEW_FLAG,
         skillAsset: {
           create: {
             assetType: skill.assetType,
