@@ -3,8 +3,10 @@
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { cn } from '@/lib/cn';
+import { PUBLIC_BASE_URL } from '@/lib/public-url';
 import { Input } from '@/components/ui/Input';
 import { Button } from '@/components/ui/Button';
+import { McpQuickSetupPanel } from '@/components/mcp/McpQuickSetupPanel';
 import {
   McpOnboardingChecklist,
   type McpOnboardingStatus,
@@ -27,7 +29,9 @@ export default function ConnectPage() {
 
   const [mcpToken, setMcpToken] = useState('');
   const [mcpGenerating, setMcpGenerating] = useState(false);
-  const [copied, setCopied] = useState(false);
+
+  const mcpUrl = `${PUBLIC_BASE_URL}/api/mcp`;
+  const connectUrl = `${PUBLIC_BASE_URL}/connect`;
 
   useEffect(() => {
     Promise.all([
@@ -41,6 +45,19 @@ export default function ConnectPage() {
       .finally(() => setLoading(false));
   }, []);
 
+  const generateMcpToken = async () => {
+    setMcpGenerating(true);
+    const res = await fetch('/api/users/me/mcp-token', { method: 'POST' });
+    const data = await res.json();
+    setMcpGenerating(false);
+
+    if (res.ok) {
+      setMcpToken(data.token);
+      setProfile((p) => (p ? { ...p, hasMcpToken: true } : p));
+      setMcpStatus((s) => (s ? { ...s, hasMcpToken: true } : s));
+    }
+  };
+
   if (loading) {
     return (
       <div className="mx-auto max-w-prose py-20 text-center">
@@ -51,167 +68,186 @@ export default function ConnectPage() {
 
   if (!profile) return <ConnectGuestState />;
 
-  const generateMcpToken = async () => {
-    setMcpGenerating(true);
-    const res = await fetch('/api/users/me/mcp-token', { method: 'POST' });
-    const data = await res.json();
-    setMcpGenerating(false);
-    if (res.ok) {
-      setMcpToken(data.token);
-      setProfile((p) => (p ? { ...p, hasMcpToken: true } : p));
-      setMcpStatus((s) => (s ? { ...s, hasMcpToken: true } : s));
-    }
-  };
-
   return (
-    <div className="mx-auto max-w-prose px-4 sm:px-6 py-8">
+    <div className="mx-auto max-w-page px-4 sm:px-6 py-8">
       <div className="mb-6">
         <Link href={`/profile/${profile.id}`} className="inline-flex items-center gap-1.5 font-serif italic text-sm text-sepia hover:text-ink-brown transition-colors">
           ← 返回个人主页
         </Link>
       </div>
 
-      <header className="mb-8 pb-5 border-b border-paper-edge">
+      <header className="mb-8 max-w-3xl border-b border-paper-edge pb-5">
         <p className="font-display tracking-display text-[11px] text-sepia uppercase mb-1">
-          连接配置
+          Connect N.E.I.
         </p>
         <h1 className="font-serif text-3xl text-ink-brown">连接你的 AI 客户端</h1>
-        <p className="font-serif italic text-sm text-leather mt-2">
-          收藏 Skill，生成 Token，在 Claude Code / Cursor / Windsurf 等客户端里调用 N.E.I.
+        <p className="font-serif italic text-sm text-leather mt-2 leading-7">
+          收藏 Skill，生成 Token，一键复制配置包，在 Claude Code / Cursor / Windsurf 等客户端里调用 N.E.I.
         </p>
       </header>
 
-      {mcpStatus && (
-        <div className="mb-8">
-          <McpOnboardingChecklist status={mcpStatus} />
-        </div>
-      )}
+      <div className="grid grid-cols-1 gap-8 lg:grid-cols-[minmax(0,1fr)_320px]">
+        <main className="space-y-8">
+          <McpQuickSetupPanel
+            token={mcpToken}
+            hasExistingToken={profile.hasMcpToken}
+            generating={mcpGenerating}
+            mcpUrl={mcpUrl}
+            connectUrl={connectUrl}
+            onGenerate={generateMcpToken}
+          />
 
-      <section className="mb-10">
-        <h2 className="font-serif text-xl text-ink-brown mb-1">MCP Server（推荐）</h2>
-        <p className="font-sans text-xs text-sepia mb-4">
-          生成 Token 后，在你信任的本地或已登录 AI 客户端里配置 N.E.I. MCP Server。
-          N.E.I. 只分发 Skill，不读取本地文件，不上传项目材料。详情见{' '}
-          <Link href="/security" className="text-wax-red underline">安全与保密原则</Link>。
-        </p>
-        <div className="mb-4 rounded-md border border-gilded/40 bg-gilded/5 px-4 py-3">
-          <p className="font-serif text-sm text-ink-brown">
-            N.E.I. MCP 只分发方法，不接管你的项目材料。
-          </p>
-          <p className="mt-1 font-sans text-xs leading-5 text-leather">
-            它不会读取本地文件，不会上传 BP、财务模型或投委会材料，也不会保存你的项目敏感信息。
-            如果 Token 泄露，可以随时重新生成。
-          </p>
-        </div>
+          <ApiKeySection
+            hasApiKey={profile.hasApiKey}
+            apiKey={apiKey}
+            keySaving={keySaving}
+            keyMsg={keyMsg}
+            onApiKeyChange={setApiKey}
+            onClear={async () => {
+              setKeySaving(true);
+              await fetch('/api/users/me', { method: 'DELETE' });
+              setKeySaving(false);
+              setProfile((p) => (p ? { ...p, hasApiKey: false } : p));
+              setKeyMsg({ ok: true, text: '已清除' });
+            }}
+            onSave={async () => {
+              setKeyMsg(null);
+              if (!apiKey.trim()) return;
+              setKeySaving(true);
+              const res = await fetch('/api/users/me', {
+                method: 'PATCH',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ apiKey: apiKey.trim() }),
+              });
+              const data = await res.json();
+              setKeySaving(false);
 
-        {mcpToken ? (
-          <div className="space-y-3">
-            <div className="p-3 rounded-md border border-gilded/40 bg-gilded/5">
-              <p className="font-sans text-xs text-leather mb-1">你的 MCP Token（只显示一次，请保存）：</p>
-              <code className="font-mono text-sm text-ink-brown break-all">{mcpToken}</code>
-            </div>
-            <p className="font-sans text-xs text-wax-red">
-              不要把 Token 发给陌生网页、群聊、截图或不可信 Agent；泄露后请立即重新生成。
+              if (!res.ok) {
+                setKeyMsg({ ok: false, text: data.error || '保存失败' });
+                return;
+              }
+
+              setProfile((p) => (p ? { ...p, hasApiKey: true } : p));
+              setApiKey('');
+              setKeyMsg({ ok: true, text: 'API Key 已加密保存' });
+            }}
+          />
+        </main>
+
+        <aside className="space-y-5 lg:sticky lg:top-6 lg:self-start">
+          {mcpStatus && <McpOnboardingChecklist status={mcpStatus} compact />}
+
+          <div className="rounded-md border border-paper-edge bg-vellum p-4">
+            <p className="font-display tracking-display text-[10px] uppercase text-sepia mb-2">
+              安全边界
             </p>
-            <div className="flex flex-wrap gap-2">
-              <Button type="button" variant="secondary" onClick={() => { navigator.clipboard.writeText(mcpToken); setCopied(true); setTimeout(() => setCopied(false), 2000); }}>
-                {copied ? '已复制' : '复制 Token'}
-              </Button>
-              <Link href="/mcp" className="inline-flex items-center h-9 px-4 border border-paper-edge text-leather hover:border-ink-brown hover:text-ink-brown font-serif text-sm rounded-sm transition-colors">
-                配置指南 →
-              </Link>
-            </div>
-          </div>
-        ) : profile.hasMcpToken ? (
-          <div className="space-y-3">
-            <div className="flex items-center gap-3 flex-wrap">
-              <span className="inline-flex items-center gap-1.5 h-9 px-4 border border-moss/40 bg-moss/5 text-moss font-sans text-sm rounded-sm">
-                ✓ MCP Token 已配置
-              </span>
-              <Button type="button" variant="secondary" onClick={generateMcpToken} disabled={mcpGenerating}>
-                {mcpGenerating ? '生成中…' : '重新生成'}
-              </Button>
-            </div>
-            <Link href="/mcp" className="inline-flex items-center text-sm text-leather hover:text-ink-brown font-serif italic">
-              查看配置指南 →
+            <p className="font-sans text-xs leading-6 text-leather">
+              N.E.I. MCP 只分发 Skill / Workflow，不读取本地文件，不上传 BP、财务模型、投委会材料或 LP 名单。
+              Token 可随时重新生成。
+            </p>
+            <Link href="/security" className="mt-3 inline-flex font-serif text-sm italic text-leather hover:text-ink-brown">
+              查看安全原则 →
             </Link>
           </div>
-        ) : (
-          <Button type="button" onClick={generateMcpToken} disabled={mcpGenerating}>
-            {mcpGenerating ? '生成中…' : '生成 MCP Token'}
-          </Button>
-        )}
-      </section>
 
-      <section className="mt-10 pt-8 border-t border-paper-edge">
-        <h2 className="font-serif text-xl text-ink-brown mb-1">网站执行 API Key（选填）</h2>
-        <p className="font-sans text-xs text-sepia mb-4">
-          配置 Anthropic API key 后，可以在网站内直接执行 Prompt。Key 会加密存储，不会明文展示。
-        </p>
-        {profile.hasApiKey ? (
-          <div className="flex items-center gap-3">
-            <span className="inline-flex items-center gap-1.5 h-9 px-4 border border-moss/40 bg-moss/5 text-moss font-sans text-sm rounded-sm">
-              ✓ 已配置
-            </span>
-            <button
-              type="button"
-              onClick={async () => {
-                setKeySaving(true);
-                await fetch('/api/users/me', { method: 'DELETE' });
-                setKeySaving(false);
-                setProfile((p) => (p ? { ...p, hasApiKey: false } : p));
-                setKeyMsg({ ok: true, text: '已清除' });
-              }}
-              disabled={keySaving}
-              className="font-sans text-sm text-wax-red hover:underline"
-            >
-              {keySaving ? '清除中…' : '清除'}
-            </button>
+          <div className="rounded-md border border-paper-edge bg-vellum/60 p-4">
+            <p className="font-display tracking-display text-[10px] uppercase text-sepia mb-2">
+              调通后怎么用
+            </p>
+            <ul className="space-y-2 font-sans text-xs leading-6 text-leather">
+              <li>1. 收藏几个常用 Skill。</li>
+              <li>2. 在客户端调用 <code className="font-mono">list_my_skills</code>。</li>
+              <li>3. 让 AI 根据当前任务选择 Skill。</li>
+            </ul>
           </div>
-        ) : (
-          <form onSubmit={async (e) => {
-            e.preventDefault();
-            setKeyMsg(null);
-            if (!apiKey.trim()) return;
-            setKeySaving(true);
-            const res = await fetch('/api/users/me', {
-              method: 'PATCH',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({ apiKey: apiKey.trim() }),
-            });
-            const data = await res.json();
-            setKeySaving(false);
-            if (!res.ok) {
-              setKeyMsg({ ok: false, text: data.error || '保存失败' });
-              return;
-            }
-            setProfile((p) => (p ? { ...p, hasApiKey: true } : p));
-            setApiKey('');
-            setKeyMsg({ ok: true, text: 'API key 已加密保存' });
-          }}>
-            <Input type="password" value={apiKey} onChange={(e) => setApiKey(e.target.value)} placeholder="sk-ant-..." />
-            {keyMsg && <p className={cn('mt-2 font-sans text-sm border-l pl-3', keyMsg.ok ? 'text-moss border-moss' : 'text-wax-red border-wax-red')}>{keyMsg.text}</p>}
-            <div className="mt-3">
-              <Button type="submit" disabled={keySaving || !apiKey.trim()}>
-                {keySaving ? '保存中…' : '保存 API Key'}
-              </Button>
-            </div>
-          </form>
-        )}
-      </section>
+        </aside>
+      </div>
     </div>
+  );
+}
+
+function ApiKeySection({
+  hasApiKey,
+  apiKey,
+  keySaving,
+  keyMsg,
+  onApiKeyChange,
+  onSave,
+  onClear,
+}: {
+  hasApiKey: boolean;
+  apiKey: string;
+  keySaving: boolean;
+  keyMsg: { ok: boolean; text: string } | null;
+  onApiKeyChange: (value: string) => void;
+  onSave: () => Promise<void>;
+  onClear: () => Promise<void>;
+}) {
+  return (
+    <section className="border-t border-paper-edge pt-8">
+      <h2 className="font-serif text-xl text-ink-brown mb-1">网站执行 API Key（选填）</h2>
+      <p className="font-sans text-xs text-sepia mb-4 leading-6">
+        MCP 连接不需要填写这里。只有当你想在网站内直接执行 Prompt 时，才需要配置 Anthropic API Key。
+        Key 会加密存储，不会明文展示。
+      </p>
+
+      {hasApiKey ? (
+        <div className="flex flex-wrap items-center gap-3">
+          <span className="inline-flex h-9 items-center gap-1.5 rounded-sm border border-moss/40 bg-moss/5 px-4 font-sans text-sm text-moss">
+            ✓ 已配置
+          </span>
+          <button
+            type="button"
+            onClick={onClear}
+            disabled={keySaving}
+            className="font-sans text-sm text-wax-red hover:underline disabled:opacity-60"
+          >
+            {keySaving ? '清除中…' : '清除'}
+          </button>
+          {keyMsg && <StatusMessage message={keyMsg} />}
+        </div>
+      ) : (
+        <form
+          onSubmit={async (e) => {
+            e.preventDefault();
+            await onSave();
+          }}
+        >
+          <Input
+            type="password"
+            value={apiKey}
+            onChange={(e) => onApiKeyChange(e.target.value)}
+            placeholder="sk-ant-..."
+          />
+          {keyMsg && <StatusMessage message={keyMsg} />}
+          <div className="mt-3">
+            <Button type="submit" disabled={keySaving || !apiKey.trim()}>
+              {keySaving ? '保存中…' : '保存 API Key'}
+            </Button>
+          </div>
+        </form>
+      )}
+    </section>
+  );
+}
+
+function StatusMessage({ message }: { message: { ok: boolean; text: string } }) {
+  return (
+    <p className={cn('mt-2 border-l pl-3 font-sans text-sm', message.ok ? 'border-moss text-moss' : 'border-wax-red text-wax-red')}>
+      {message.text}
+    </p>
   );
 }
 
 function ConnectGuestState() {
   return (
     <div className="mx-auto max-w-prose px-4 sm:px-6 py-12">
-      <header className="mb-8 pb-5 border-b border-paper-edge">
+      <header className="mb-8 border-b border-paper-edge pb-5">
         <p className="font-display tracking-display text-[11px] text-sepia uppercase mb-1">
           Connect N.E.I.
         </p>
         <h1 className="font-serif text-3xl text-ink-brown">登录后连接你的 AI 客户端</h1>
-        <p className="font-serif italic text-sm text-leather mt-2">
+        <p className="font-serif italic text-sm text-leather mt-2 leading-7">
           登录后可以生成 MCP Token、查看你的收藏，并把 Skill Library 接入 Claude Code / Cursor / Windsurf。
         </p>
       </header>
@@ -223,14 +259,14 @@ function ConnectGuestState() {
           不读取本地文件，不上传你的 BP、财务模型或投委会材料。
         </p>
         <div className="mt-5 flex flex-wrap gap-3">
-          <Link href="/login?next=/connect" className="inline-flex items-center h-10 px-5 bg-ink-brown text-vellum hover:bg-wax-red font-serif text-sm rounded-sm transition-colors">
-            登录后生成 MCP Token
+          <Link href="/login?next=/connect" className="inline-flex h-10 items-center rounded-sm bg-ink-brown px-5 font-serif text-sm text-vellum transition-colors hover:bg-wax-red">
+            登录后生成配置包
           </Link>
-          <Link href="/register" className="inline-flex items-center h-10 px-5 border border-ink-brown text-ink-brown hover:bg-ink-brown hover:text-vellum font-serif text-sm rounded-sm transition-colors">
+          <Link href="/register" className="inline-flex h-10 items-center rounded-sm border border-ink-brown px-5 font-serif text-sm text-ink-brown transition-colors hover:bg-ink-brown hover:text-vellum">
             注册账号
           </Link>
-          <Link href="/mcp" className="inline-flex items-center h-10 px-2 font-serif italic text-sm text-leather hover:text-wax-red transition-colors">
-            查看配置指南 →
+          <Link href="/mcp" className="inline-flex h-10 items-center px-2 font-serif text-sm italic text-leather transition-colors hover:text-wax-red">
+            查看配置说明 →
           </Link>
         </div>
       </div>
