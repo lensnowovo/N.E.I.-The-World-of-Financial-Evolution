@@ -176,15 +176,12 @@ export default async function DashboardPage() {
 
   const stats = { totalCalls, last7Days: last7DaysLogs, topSkills, sleeping };
 
-  const defaultDisciplineRaw = await prisma.post.findFirst({
+  const disciplinePostsRaw = await prisma.post.findMany({
     where: {
       status: POST_STATUS.PUBLISHED,
       deletedAt: null,
       mcpApproved: true,
-      OR: [
-        { body: { contains: 'slug:nei-discipline/fiduciary-research-v1' } },
-        { skillAsset: { is: { assetType: 'agent-discipline' } } },
-      ],
+      skillAsset: { is: { assetType: 'agent-discipline' } },
     },
     select: {
       id: true,
@@ -193,18 +190,18 @@ export default async function DashboardPage() {
       updatedAt: true,
       skillAsset: { select: { assetType: true, usageNotes: true } },
     },
-    orderBy: { id: 'asc' },
+    orderBy: [{ featured: 'desc' }, { id: 'asc' }],
   });
-  const defaultDiscipline = defaultDisciplineRaw
-    ? {
-        id: defaultDisciplineRaw.id,
-        title: defaultDisciplineRaw.title,
-        assetType: defaultDisciplineRaw.skillAsset?.assetType ?? 'agent-discipline',
-        usageNotes: defaultDisciplineRaw.skillAsset?.usageNotes ?? null,
-        updatedAt: defaultDisciplineRaw.updatedAt.toISOString(),
-        text: normalizePublicText(extractPlainText(defaultDisciplineRaw.body)),
-      }
-    : null;
+  const disciplines = disciplinePostsRaw.map((post) => ({
+    id: post.id,
+    title: post.title,
+    assetType: post.skillAsset?.assetType ?? 'agent-discipline',
+    usageNotes: post.skillAsset?.usageNotes ?? null,
+    updatedAt: post.updatedAt.toISOString(),
+    text: normalizePublicText(extractPlainText(post.body)),
+    isDefault: post.body.includes('slug:nei-discipline/fiduciary-research-v1'),
+  }));
+  const defaultDiscipline = disciplines.find((discipline) => discipline.isDefault) ?? disciplines[0] ?? null;
 
   return (
     <div className="mx-auto max-w-page px-4 sm:px-6 py-8">
@@ -229,6 +226,7 @@ export default async function DashboardPage() {
         mcpTokenLastUsedAt={mcpTokenLastUsedAt}
         mcpCallLogs={mcpCallLogs}
         defaultDiscipline={defaultDiscipline}
+        disciplines={disciplines}
         mcpOnboardingStatus={{
           favoriteCount: items.length,
           hasMcpToken,

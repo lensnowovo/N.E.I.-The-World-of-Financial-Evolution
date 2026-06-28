@@ -62,6 +62,7 @@ type DefaultDiscipline = {
   usageNotes: string | null;
   updatedAt: string;
   text: string;
+  isDefault: boolean;
 };
 
 const SCENE_LABELS: Record<string, string> = {
@@ -81,6 +82,7 @@ export function DashboardClient({
   mcpTokenLastUsedAt,
   mcpCallLogs,
   defaultDiscipline,
+  disciplines,
   mcpOnboardingStatus,
   userId,
 }: {
@@ -94,10 +96,11 @@ export function DashboardClient({
   mcpTokenLastUsedAt: string | null;
   mcpCallLogs: McpCallLog[];
   defaultDiscipline: DefaultDiscipline | null;
+  disciplines: DefaultDiscipline[];
   mcpOnboardingStatus: McpOnboardingStatus;
   userId: number;
 }) {
-  const [tab, setTab] = useState<'stars' | 'mine' | 'mcp'>('stars');
+  const [tab, setTab] = useState<'stars' | 'mine' | 'discipline' | 'mcp'>('stars');
   const [items, setItems] = useState(initialItems);
   const [stats] = useState(initialStats);
   const [mcpToken, setMcpToken] = useState('');
@@ -193,6 +196,7 @@ export function DashboardClient({
         {([
           ['stars', '我的收藏'],
           ['mine', '我的发布'],
+          ['discipline', '工作纪律'],
           ['mcp', 'MCP 连接'],
         ] as const).map(([key, label]) => (
           <button
@@ -283,12 +287,55 @@ export function DashboardClient({
         </div>
       )}
 
+      {/* Tab: 工作纪律（Agent 默认上下文） */}
+      {tab === 'discipline' && (
+        <div className="space-y-6">
+          <div className="rounded-lg border border-paper-edge bg-vellum/50 p-5">
+            <p className="font-display tracking-display text-[10px] uppercase text-sepia mb-2">
+              Agent Context
+            </p>
+            <h2 className="font-serif text-2xl text-ink-brown mb-2">我的工作纪律</h2>
+            <p className="max-w-3xl font-sans text-sm leading-7 text-leather">
+              工作纪律是 Agent 的第一层上下文，用来约束后续 Skill / Workflow 的执行方式。
+              它不解决某个具体任务，而是要求 AI 在投研、尽调、建模、Memo 和汇报中保持真实、审慎、可追溯。
+            </p>
+          </div>
+
+          <DefaultDisciplinePanel discipline={defaultDiscipline} />
+
+          <div className="rounded-lg border border-paper-edge bg-vellum/40 p-5">
+            <div className="mb-4 flex items-baseline justify-between gap-3">
+              <div>
+                <p className="font-display tracking-display text-[10px] uppercase text-sepia mb-1">
+                  Available Disciplines
+                </p>
+                <h3 className="font-serif text-lg text-ink-brown">可用纪律</h3>
+              </div>
+              <span className="font-mono text-xs text-sepia">{disciplines.length} 条</span>
+            </div>
+            {disciplines.length === 0 ? (
+              <p className="font-sans text-sm text-sepia italic">还没有可用工作纪律。</p>
+            ) : (
+              <div className="space-y-2">
+                {disciplines.map((discipline) => (
+                  <DisciplineRow key={discipline.id} discipline={discipline} />
+                ))}
+              </div>
+            )}
+          </div>
+
+          <div className="grid gap-3 md:grid-cols-3">
+            <DisciplineHint title="MCP 调用" body="在客户端调用 get_default_discipline，先加载默认纪律，再执行具体 Skill。" />
+            <DisciplineHint title="站内阅读" body="打开纪律详情页，可直接复制原文或收藏到自己的 Skill Library。" />
+            <DisciplineHint title="未来扩展" body="后续可加入财务建模、证据分级、保密边界等更细分纪律。" />
+          </div>
+        </div>
+      )}
+
       {/* Tab: MCP 连接（DASH-003：token 状态 + 生成/撤销 + 调用历史） */}
       {tab === 'mcp' && (
         <div className="space-y-6">
           <McpOnboardingChecklist status={currentMcpOnboardingStatus} compact />
-
-          <DefaultDisciplinePanel discipline={defaultDiscipline} />
 
           {stats.totalCalls > 0 && (
             <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
@@ -457,7 +504,7 @@ function DefaultDisciplinePanel({ discipline }: { discipline: DefaultDiscipline 
           <div className="flex flex-wrap items-center gap-2 mb-2">
             <h3 className="font-serif text-lg text-ink-brown">默认工作纪律</h3>
             <span className="inline-flex h-6 items-center rounded-sm border border-gilded bg-vellum px-2 font-sans text-[11px] text-leather">
-              已加载建议
+              默认加载建议
             </span>
           </div>
           <Link href={`/posts/${discipline.id}`} className="font-serif text-base text-ink-brown hover:text-wax-red">
@@ -493,6 +540,43 @@ function DefaultDisciplinePanel({ discipline }: { discipline: DefaultDiscipline 
           <pre className="whitespace-pre-wrap font-sans text-xs leading-6 text-ink-brown">{discipline.text}</pre>
         </div>
       )}
+    </div>
+  );
+}
+
+function DisciplineRow({ discipline }: { discipline: DefaultDiscipline }) {
+  return (
+    <div className="flex flex-col gap-3 rounded-md border border-paper-edge bg-vellum/70 p-3 sm:flex-row sm:items-center sm:justify-between">
+      <div className="min-w-0">
+        <div className="mb-1 flex flex-wrap items-center gap-2">
+          <Link href={`/posts/${discipline.id}`} className="font-serif text-sm text-ink-brown hover:text-wax-red">
+            {discipline.title}
+          </Link>
+          {discipline.isDefault && (
+            <span className="inline-flex h-5 items-center rounded-sm border border-gilded bg-gilded/10 px-1.5 font-sans text-[10px] text-leather">
+              默认
+            </span>
+          )}
+        </div>
+        <p className="font-sans text-xs leading-5 text-sepia">
+          {discipline.usageNotes || '约束 Agent 工作方式的基础纪律。'}
+        </p>
+      </div>
+      <div className="flex shrink-0 items-center gap-2">
+        <Link href={`/posts/${discipline.id}`} className="inline-flex h-8 items-center rounded-sm border border-paper-edge px-3 font-serif text-xs text-leather hover:text-ink-brown">
+          查看
+        </Link>
+        <span className="font-mono text-[10px] text-sepia hidden sm:inline">#{discipline.id}</span>
+      </div>
+    </div>
+  );
+}
+
+function DisciplineHint({ title, body }: { title: string; body: string }) {
+  return (
+    <div className="rounded-md border border-paper-edge bg-vellum/45 p-4">
+      <p className="font-serif text-sm text-ink-brown mb-1">{title}</p>
+      <p className="font-sans text-xs leading-5 text-leather">{body}</p>
     </div>
   );
 }
