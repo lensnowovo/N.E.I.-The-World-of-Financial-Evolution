@@ -86,7 +86,7 @@ export function DashboardClient({
   mcpOnboardingStatus: McpOnboardingStatus;
   userId: number;
 }) {
-  const [tab, setTab] = useState<'overview' | 'stars' | 'mine' | 'mcp'>('overview');
+  const [tab, setTab] = useState<'stars' | 'mine' | 'mcp'>('stars');
   const [items, setItems] = useState(initialItems);
   const [stats] = useState(initialStats);
   const [mcpToken, setMcpToken] = useState('');
@@ -180,7 +180,6 @@ export function DashboardClient({
       {/* Tabs */}
       <div className="flex items-center gap-1 mb-6 border-b border-paper-edge">
         {([
-          ['overview', '概览'],
           ['stars', '我的收藏'],
           ['mine', '我的发布'],
           ['mcp', 'MCP 连接'],
@@ -201,62 +200,17 @@ export function DashboardClient({
         ))}
       </div>
 
-      {/* Tab: 概览（5 个数据卡片） */}
-      {tab === 'overview' && (
-        <div className="space-y-6">
-          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3">
+      {/* Tab: 我的收藏（收藏管理 + 控制台概览数据） */}
+      {tab === 'stars' && (
+        <div>
+          <div className="mb-6 grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3">
             <StatCard label="我的收藏" value={overviewStats.favoriteCount} />
             <StatCard label="我的发布" value={overviewStats.publishedCount} />
             <StatCard label="被收藏" value={overviewStats.receivedFavoritesCount} accent="wax-red" />
             <StatCard label="被浏览" value={overviewStats.viewSum} />
             <StatCard label="MCP 调用" value={overviewStats.mcpCallsCount} />
           </div>
-          <div className="border border-paper-edge bg-vellum rounded-md py-10 px-8 text-center">
-            <p className="font-serif italic text-leather text-lg mb-2">欢迎来到你的控制台</p>
-            <p className="font-sans text-sm text-sepia">
-              在「我的收藏」管理 Skill 库，在「我的发布」维护你的帖子，在「MCP 连接」配置 AI 客户端访问。
-            </p>
-          </div>
-        </div>
-      )}
 
-      {/* Tab: 我的收藏（沿用原 Skill 库内容，含使用统计） */}
-      {tab === 'stars' && (
-        <div>
-          {/* 使用统计（紧凑横条） */}
-          {stats.totalCalls > 0 && (
-            <div className="mb-6 grid grid-cols-4 gap-3">
-              <div className="border border-paper-edge bg-vellum rounded-md p-3 text-center">
-                <p className="font-serif text-xl text-ink-brown num-osf">{stats.totalCalls}</p>
-                <p className="font-sans text-[10px] text-sepia">总调用</p>
-              </div>
-              <div className="border border-paper-edge bg-vellum rounded-md p-3 text-center">
-                <p className="font-serif text-xl text-ink-brown num-osf">{stats.last7Days}</p>
-                <p className="font-sans text-[10px] text-sepia">近 7 天</p>
-              </div>
-              <div className="border border-paper-edge bg-vellum rounded-md p-3 text-center">
-                <p className="font-serif text-xl text-ink-brown num-osf">{items.length}</p>
-                <p className="font-sans text-[10px] text-sepia">已收藏</p>
-              </div>
-              <div className="border border-paper-edge bg-vellum rounded-md p-3 text-center">
-                <p className="font-serif text-xl text-wax-red num-osf">{stats.sleeping.length}</p>
-                <p className="font-sans text-[10px] text-sepia">沉睡</p>
-              </div>
-            </div>
-          )}
-
-          {/* Top 常用 + 沉睡提醒 */}
-          {stats.topSkills.length > 0 && (
-            <div className="mb-5 flex flex-wrap gap-3 text-xs">
-              {stats.topSkills.slice(0, 3).map((s, i) => (
-                <Link key={s.postId} href={`/posts/${s.postId}`} className="inline-flex items-center gap-1 text-leather hover:text-ink-brown font-serif italic">
-                  <span className="text-sepia num-osf">#{i + 1}</span>
-                  {s.title.slice(0, 16)}…
-                  <span className="font-mono text-sepia">{s.calls}×</span>
-                </Link>
-              ))}
-            </div>
-          )}
           {items.length === 0 ? (
             <div className="border border-paper-edge bg-vellum rounded-md py-14 px-8 text-center">
               <p className="font-serif italic text-leather text-lg mb-2">还没有收藏 Skill</p>
@@ -322,6 +276,39 @@ export function DashboardClient({
       {tab === 'mcp' && (
         <div className="space-y-6">
           <McpOnboardingChecklist status={currentMcpOnboardingStatus} compact />
+
+          {stats.totalCalls > 0 && (
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+              <div className="border border-paper-edge bg-vellum rounded-md p-3 text-center">
+                <p className="font-serif text-xl text-ink-brown num-osf">{stats.totalCalls}</p>
+                <p className="font-sans text-[10px] text-sepia">总调用</p>
+              </div>
+              <div className="border border-paper-edge bg-vellum rounded-md p-3 text-center">
+                <p className="font-serif text-xl text-ink-brown num-osf">{stats.last7Days}</p>
+                <p className="font-sans text-[10px] text-sepia">近 7 天</p>
+              </div>
+              <div className="border border-paper-edge bg-vellum rounded-md p-3 text-center">
+                <p className="font-serif text-xl text-ink-brown num-osf">{items.length}</p>
+                <p className="font-sans text-[10px] text-sepia">可调用收藏</p>
+              </div>
+              <div className="border border-paper-edge bg-vellum rounded-md p-3 text-center">
+                <p className="font-serif text-xl text-wax-red num-osf">{stats.sleeping.length}</p>
+                <p className="font-sans text-[10px] text-sepia">沉睡 Skill</p>
+              </div>
+            </div>
+          )}
+
+          {stats.topSkills.length > 0 && (
+            <div className="flex flex-wrap gap-3 text-xs">
+              {stats.topSkills.slice(0, 3).map((s, i) => (
+                <Link key={s.postId} href={`/posts/${s.postId}`} className="inline-flex items-center gap-1 text-leather hover:text-ink-brown font-serif italic">
+                  <span className="text-sepia num-osf">#{i + 1}</span>
+                  {s.title.slice(0, 16)}…
+                  <span className="font-mono text-sepia">{s.calls}×</span>
+                </Link>
+              ))}
+            </div>
+          )}
 
           {/* MCP */}
           <div className="rounded-lg border-2 border-gilded/40 bg-gilded/5 p-5">
