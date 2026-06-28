@@ -1,16 +1,59 @@
 export const dynamic = 'force-dynamic';
 
+import type { Metadata } from 'next';
 import Link from 'next/link';
 import { OneClickAgentPrompt } from '@/components/mcp/OneClickAgentPrompt';
 import { getPublicBaseUrl } from '@/lib/public-url';
+
+export const metadata: Metadata = {
+  title: 'N.E.I. MCP Server 配置指南',
+  description:
+    '把 N.E.I. 收藏的 PEVC Skill / Workflow 接入 Claude Code、Cursor、Windsurf 等 AI 客户端的配置指南。',
+  alternates: {
+    canonical: '/mcp',
+  },
+  openGraph: {
+    title: 'N.E.I. MCP Server 配置指南',
+    description:
+      '把 N.E.I. 收藏的 PEVC Skill / Workflow 接入 Claude Code、Cursor、Windsurf 等 AI 客户端。',
+    url: '/mcp',
+    type: 'article',
+    siteName: 'N.E.I.',
+    images: [{ url: '/opengraph-image', width: 1200, height: 630, alt: 'N.E.I. MCP Server 配置指南' }],
+  },
+  twitter: {
+    card: 'summary_large_image',
+    title: 'N.E.I. MCP Server 配置指南',
+    description:
+      '把 N.E.I. 收藏的 PEVC Skill / Workflow 接入 Claude Code、Cursor、Windsurf 等 AI 客户端。',
+    images: ['/twitter-image'],
+  },
+};
 
 export default async function McpGuidePage() {
   const baseUrl = getPublicBaseUrl();
   const mcpUrl = `${baseUrl}/api/mcp`;
   const connectUrl = `${baseUrl}/connect`;
+  const mcpJsonLd = {
+    '@context': 'https://schema.org',
+    '@type': 'HowTo',
+    name: 'N.E.I. MCP Server 配置指南',
+    description: '把 N.E.I. 收藏的 PEVC Skill / Workflow 接入受信任的 AI 客户端。',
+    url: `${baseUrl}/mcp`,
+    inLanguage: 'zh-CN',
+    step: [
+      { '@type': 'HowToStep', position: 1, name: '登录并生成 Token', text: '前往连接配置页生成 N.E.I. MCP Token。' },
+      { '@type': 'HowToStep', position: 2, name: '配置 MCP Server', text: `在客户端配置 Streamable HTTP Server：${mcpUrl}` },
+      { '@type': 'HowToStep', position: 3, name: '调用 list_my_skills', text: '收藏至少一个 Skill 后，在客户端调用 list_my_skills 验证连接。' },
+    ],
+  };
 
   return (
     <div className="mx-auto max-w-page px-4 sm:px-6 py-8">
+      <script
+        type="application/ld+json"
+        dangerouslySetInnerHTML={{ __html: JSON.stringify(mcpJsonLd) }}
+      />
       <div className="mb-6 pb-5 border-b border-paper-edge">
         <Link href="/" className="inline-flex items-center gap-1.5 font-serif italic text-sm text-sepia hover:text-ink-brown mb-3">
           ← 返回首页

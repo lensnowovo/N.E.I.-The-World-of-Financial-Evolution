@@ -1,14 +1,59 @@
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
+import type { Metadata } from 'next';
 import { getSessionUid } from '@/lib/session';
 import { taskBundles } from '@/lib/bundles';
 import { fetchBundleStepCards } from '@/lib/bundle-posts';
 import { HomeBundleTimeline } from '@/components/home/HomeBundleTimeline';
+import { getPublicBaseUrl } from '@/lib/public-url';
 
 export const dynamic = 'force-dynamic';
 
 export async function generateStaticParams() {
   return taskBundles.map((bundle) => ({ slug: bundle.slug }));
+}
+
+export async function generateMetadata({
+  params,
+}: {
+  params: Promise<{ slug: string }>;
+}): Promise<Metadata> {
+  const { slug } = await params;
+  const bundle = taskBundles.find((item) => item.slug === slug);
+  if (!bundle) return {};
+
+  const baseUrl = getPublicBaseUrl();
+  const title = `${bundle.title} · PEVC 工作流`;
+  const description = `${bundle.description} 输出：${bundle.output}`;
+
+  return {
+    title,
+    description,
+    alternates: {
+      canonical: `${baseUrl}/bundles/${bundle.slug}`,
+    },
+    openGraph: {
+      title,
+      description,
+      url: `${baseUrl}/bundles/${bundle.slug}`,
+      type: 'article',
+      siteName: 'N.E.I.',
+      images: [
+        {
+          url: '/opengraph-image',
+          width: 1200,
+          height: 630,
+          alt: title,
+        },
+      ],
+    },
+    twitter: {
+      card: 'summary_large_image',
+      title,
+      description,
+      images: ['/twitter-image'],
+    },
+  };
 }
 
 export default async function BundlePage({
@@ -23,9 +68,30 @@ export default async function BundlePage({
   const uid = await getSessionUid();
   const stepCards = await fetchBundleStepCards(bundle, uid);
   const sceneQuery = bundle.scenes[0] ? `/?scene=${bundle.scenes[0]}#skill-library` : '/#skill-library';
+  const baseUrl = getPublicBaseUrl();
+  const bundleJsonLd = {
+    '@context': 'https://schema.org',
+    '@type': 'HowTo',
+    name: bundle.title,
+    description: bundle.description,
+    url: `${baseUrl}/bundles/${bundle.slug}`,
+    inLanguage: 'zh-CN',
+    tool: 'N.E.I. Skill Library',
+    supply: bundle.output,
+    step: bundle.steps.map((step, index) => ({
+      '@type': 'HowToStep',
+      position: index + 1,
+      name: step.title,
+      text: step.description,
+    })),
+  };
 
   return (
     <div className="py-8">
+      <script
+        type="application/ld+json"
+        dangerouslySetInnerHTML={{ __html: JSON.stringify(bundleJsonLd) }}
+      />
       <div className="mb-6 border-b border-paper-edge pb-5">
         <Link
           href="/"

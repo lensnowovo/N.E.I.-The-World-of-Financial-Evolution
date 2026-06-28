@@ -185,6 +185,53 @@ export default async function PostDetailPage({
 
   // 摘要（去 HTML 标签）
   const excerpt = display.displaySummary || cleanExcerpt(safeBody, 120);
+  const baseUrl = getPublicBaseUrl();
+  const keywordLabels = [
+    sceneLabel(post.tagScene),
+    post.tagIndustry ? industryLabel(post.tagIndustry) : null,
+    ...tagContent.map((tag) => contentLabel(tag)),
+    assetType ? skillLabel(assetType) : null,
+  ].filter((item): item is string => Boolean(item));
+  const postJsonLd = {
+    '@context': 'https://schema.org',
+    '@type': 'CreativeWork',
+    '@id': `${baseUrl}/posts/${post.id}#skill`,
+    name: post.title,
+    headline: post.title,
+    description: excerpt,
+    url: `${baseUrl}/posts/${post.id}`,
+    inLanguage: 'zh-CN',
+    datePublished: post.createdAt.toISOString(),
+    dateModified: post.updatedAt.toISOString(),
+    author: {
+      '@type': post.skillAsset?.originalAuthor ? 'Organization' : 'Person',
+      name: post.skillAsset?.originalAuthor || post.author.nickname,
+    },
+    publisher: {
+      '@type': 'Organization',
+      name: 'N.E.I.',
+      url: baseUrl,
+    },
+    learningResourceType: assetLabel || 'Skill',
+    keywords: keywordLabels.join(', '),
+    interactionStatistic: [
+      {
+        '@type': 'InteractionCounter',
+        interactionType: 'https://schema.org/ViewAction',
+        userInteractionCount: post.viewCount,
+      },
+      {
+        '@type': 'InteractionCounter',
+        interactionType: 'https://schema.org/LikeAction',
+        userInteractionCount: post._count.stars,
+      },
+      {
+        '@type': 'InteractionCounter',
+        interactionType: 'https://schema.org/CommentAction',
+        userInteractionCount: post._count.comments,
+      },
+    ],
+  };
 
   // 提示词帖：把 body 按 <pre> 拆成「介绍」+「Prompt 块」（可能有多个）
   // 每个 Prompt 块单独配复制按钮
@@ -198,6 +245,10 @@ export default async function PostDetailPage({
 
   return (
     <article className="mx-auto max-w-page px-4 sm:px-6">
+      <script
+        type="application/ld+json"
+        dangerouslySetInnerHTML={{ __html: JSON.stringify(postJsonLd) }}
+      />
       {/* 返回 */}
       <div className="pt-6 mb-4">
         <BackLink />
