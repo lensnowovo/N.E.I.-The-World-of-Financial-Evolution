@@ -18,7 +18,10 @@ const MCP_SAFETY = {
   boundary: 'N.E.I. MCP only distributes Skill / Workflow text. It does not read local files or upload project materials.',
   token: 'Store the MCP token only in trusted local or signed-in AI clients. If leaked, reset it at https://nei-pevc.com/connect.',
   execution: 'Returned content is an analysis framework. Any file access, network call, write operation, or external sharing still requires explicit user approval.',
+  discipline: 'For PEVC work, load get_default_discipline before applying task Skills when you need the N.E.I. fiduciary research discipline.',
 };
+
+const DEFAULT_DISCIPLINE_SLUG = 'nei-discipline/fiduciary-research-v1';
 
 const STAGE_SCENES = {
   'pre-deal': ['sourcing', 'screening', 'industry-research', 'business-dd'],
@@ -173,6 +176,26 @@ function buildMcpWhere(args: {
   if (args.cursor) where.id = { lt: args.cursor };
 
   return { where, scenes };
+}
+
+async function findDefaultDiscipline() {
+  return prisma.post.findFirst({
+    where: {
+      status: POST_STATUS.PUBLISHED,
+      deletedAt: null,
+      mcpApproved: true,
+      OR: [
+        { body: { contains: `slug:${DEFAULT_DISCIPLINE_SLUG}` } },
+        { skillAsset: { is: { assetType: 'agent-discipline' } } },
+      ],
+    },
+    include: {
+      author: { select: { nickname: true } },
+      skillAsset: { select: { assetType: true, originalAuthor: true, sourceUrl: true, usageNotes: true } },
+      _count: { select: { stars: true, comments: true, attachments: true } },
+    },
+    orderBy: { id: 'asc' },
+  });
 }
 
 function postToMcpItem(post: any, query = '') {
@@ -375,6 +398,81 @@ function makeHandler(uid: number, clientName: string | null, requestId: string) 
             });
           } finally {
             logCall('recommend_skills_for_task', start);
+          }
+        },
+      );
+
+      server.tool(
+        'list_disciplines',
+        'List MCP-ready N.E.I. Agent Disciplines. Disciplines are working rules that constrain how AI agents should handle PEVC research, diligence, modeling, memo, and reporting tasks.',
+        {},
+        async () => {
+          const start = Date.now();
+          try {
+            const posts = await prisma.post.findMany({
+              where: {
+                status: POST_STATUS.PUBLISHED,
+                deletedAt: null,
+                mcpApproved: true,
+                skillAsset: { is: { assetType: 'agent-discipline' } },
+              },
+              include: {
+                author: { select: { nickname: true } },
+                skillAsset: { select: { assetType: true, originalAuthor: true, usageNotes: true } },
+                _count: { select: { stars: true, comments: true, attachments: true } },
+              },
+              orderBy: [{ featured: 'desc' }, { id: 'asc' }],
+              take: 30,
+            });
+
+            return jsonContent({
+              summary: posts.length
+                ? `Found ${posts.length} MCP-ready N.E.I. Agent Discipline(s).`
+                : 'No MCP-ready Agent Discipline is currently available.',
+              defaultDisciplineSlug: DEFAULT_DISCIPLINE_SLUG,
+              items: posts.map((post) => ({
+                ...postToMcpItem(post),
+                usageNotes: post.skillAsset?.usageNotes ?? null,
+                loadingHint:
+                  post.body.includes(`slug:${DEFAULT_DISCIPLINE_SLUG}`)
+                    ? 'Recommended default: load this before applying PEVC Skills / Workflows.'
+                    : 'Optional discipline: load when relevant to the task.',
+              })),
+              safety: MCP_SAFETY,
+            });
+          } finally {
+            logCall('list_disciplines', start);
+          }
+        },
+      );
+
+      server.tool(
+        'get_default_discipline',
+        'Get the default N.E.I. Agent Discipline to load before PEVC Skill / Workflow execution.',
+        {},
+        async () => {
+          const start = Date.now();
+          let postId: number | undefined;
+          try {
+            const post = await findDefaultDiscipline();
+            if (!post) {
+              return toolResultMessage(false, 'Default N.E.I. Agent Discipline is not configured.');
+            }
+            postId = post.id;
+
+            const text = normalizePublicText(extractPlainText(post.body));
+            return {
+              content: [
+                {
+                  type: 'text' as const,
+                  text: wrapWithSafetyRules(
+                    `# ${post.title}\nScene: ${post.tagScene}\nType: ${post.skillAsset?.assetType ?? 'agent-discipline'}\nDefault Discipline: true\nPost ID: ${post.id}\n\nLoading instruction:\nLoad and follow this discipline before executing PEVC Skills / Workflows unless the user explicitly overrides it.\n\n---\n\n${text}`,
+                  ),
+                },
+              ],
+            };
+          } finally {
+            logCall('get_default_discipline', start, postId);
           }
         },
       );

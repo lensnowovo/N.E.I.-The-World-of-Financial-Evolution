@@ -33,7 +33,10 @@ export function analyzeSkillQuality(input: SkillQualityInput): SkillQualityResul
   const hasInputOutput = /(输入|输出|input|output|示例|example|交付物|产出)/i.test(bodyText);
   const hasScenario = Boolean(input.tagScene);
   const hasAssetMeta = Boolean(input.sourceUrl || input.installHint || input.usageNotes);
-  const hasAttachmentWhenNeeded = assetType !== 'prompt' ? (input.attachmentsCount ?? 0) > 0 : true;
+  const attachmentOptionalTypes = new Set(['prompt', 'workflow', 'agent-discipline', 'case-study']);
+  const hasAttachmentWhenNeeded = assetType && !attachmentOptionalTypes.has(assetType)
+    ? (input.attachmentsCount ?? 0) > 0
+    : true;
   const longEnough = bodyText.length >= 180;
   const titleClear = input.title.trim().length >= 8;
   const hasContentTags = tagContent.length > 0;

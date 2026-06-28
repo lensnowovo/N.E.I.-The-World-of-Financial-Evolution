@@ -150,6 +150,7 @@ export default async function PostDetailPage({
   const assetType = post.skillAsset?.assetType ?? null;
   const howToUse = assetType ? HOW_TO_USE[assetType] : null;
   const isPrompt = assetType === 'prompt';
+  const isDiscipline = assetType === 'agent-discipline';
   const assetLabel = assetType ? skillLabel(assetType) : '';
 
   // 附件拆分：首个给顶部主操作，其余给右侧栏
@@ -347,6 +348,22 @@ export default async function PostDetailPage({
             </p>
             <p className="font-sans text-xs text-leather leading-relaxed">{howToUse}</p>
           </div>
+        </div>
+      )}
+
+      {isDiscipline && (
+        <div className="mb-6 rounded-md border-2 border-gilded/40 bg-parchment px-4 py-4">
+          <p className="font-display tracking-display text-[10px] uppercase text-sepia mb-1">
+            Agent Context
+          </p>
+          <h2 className="font-serif text-xl text-ink-brown mb-1">工作纪律不是普通 Prompt</h2>
+          <p className="font-sans text-sm leading-7 text-leather">
+            建议在执行 BP 初筛、行研、尽调、建模、IC Memo 或 LP 汇报等任务前，先通过 MCP 加载这张纪律卡。
+            它用于约束 Agent 不编造数据、不伪造来源、不把推断写成事实，并提示人工复核边界。
+          </p>
+          <p className="mt-2 font-sans text-xs text-sepia">
+            MCP 工具：<code className="font-mono">get_default_discipline</code>
+          </p>
         </div>
       )}
 
@@ -678,6 +695,7 @@ function getUsageBoundary({
   if (!mcpApproved) return '可在网页阅读、复制或下载；进入 MCP 前仍需审核确认。';
   if (assetType === 'api-script') return '运行脚本前请在隔离环境检查代码、依赖和环境变量。';
   if (assetType === 'template') return '模板适合脱敏后复用，正式材料仍需人工校对。';
+  if (assetType === 'agent-discipline') return '作为 Agent 第一层上下文加载，用于约束后续 Skill / Workflow 的执行方式。';
   return '适合处理已脱敏或可公开讨论的工作材料；最终判断仍由使用者负责。';
 }
 

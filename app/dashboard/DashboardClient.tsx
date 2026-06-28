@@ -55,6 +55,15 @@ type McpCallLog = {
   createdAt: string;
 };
 
+type DefaultDiscipline = {
+  id: number;
+  title: string;
+  assetType: string;
+  usageNotes: string | null;
+  updatedAt: string;
+  text: string;
+};
+
 const SCENE_LABELS: Record<string, string> = {
   sourcing: '项目发现', screening: '初筛判断', 'industry-research': '行业研究',
   'business-dd': '商业尽调', financial: '财务分析', legal: '法务合规',
@@ -71,6 +80,7 @@ export function DashboardClient({
   mcpTokenCreatedAt,
   mcpTokenLastUsedAt,
   mcpCallLogs,
+  defaultDiscipline,
   mcpOnboardingStatus,
   userId,
 }: {
@@ -83,6 +93,7 @@ export function DashboardClient({
   mcpTokenCreatedAt: string | null;
   mcpTokenLastUsedAt: string | null;
   mcpCallLogs: McpCallLog[];
+  defaultDiscipline: DefaultDiscipline | null;
   mcpOnboardingStatus: McpOnboardingStatus;
   userId: number;
 }) {
@@ -277,6 +288,8 @@ export function DashboardClient({
         <div className="space-y-6">
           <McpOnboardingChecklist status={currentMcpOnboardingStatus} compact />
 
+          <DefaultDisciplinePanel discipline={defaultDiscipline} />
+
           {stats.totalCalls > 0 && (
             <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
               <div className="border border-paper-edge bg-vellum rounded-md p-3 text-center">
@@ -408,6 +421,76 @@ export function DashboardClient({
           <Link href="/connect" className="inline-flex items-center text-sm text-leather hover:text-ink-brown font-serif italic">
             完整连接配置 →
           </Link>
+        </div>
+      )}
+    </div>
+  );
+}
+
+function DefaultDisciplinePanel({ discipline }: { discipline: DefaultDiscipline | null }) {
+  const [open, setOpen] = useState(false);
+  const [copied, setCopied] = useState<'instruction' | 'text' | null>(null);
+
+  if (!discipline) {
+    return (
+      <div className="rounded-lg border border-paper-edge bg-vellum/40 p-5">
+        <p className="font-display tracking-display text-[10px] uppercase text-sepia mb-2">Default Discipline</p>
+        <h3 className="font-serif text-base text-ink-brown mb-1">默认工作纪律</h3>
+        <p className="font-sans text-sm text-sepia">尚未配置默认纪律。</p>
+      </div>
+    );
+  }
+
+  const loadingInstruction = `请先通过 N.E.I. MCP 调用 get_default_discipline，并在本轮 PEVC 工作中遵守该纪律。\n\n当前默认纪律：${discipline.title}\n详情页：https://nei-pevc.com/posts/${discipline.id}\n\n后续执行任何 Skill / Workflow 时，请保持真实、审慎、可追溯，不编造数据、事实、来源或访谈结论，并明确标注待核实事项。`;
+
+  const copy = async (kind: 'instruction' | 'text', value: string) => {
+    await navigator.clipboard.writeText(value);
+    setCopied(kind);
+    window.setTimeout(() => setCopied(null), 1600);
+  };
+
+  return (
+    <div className="rounded-lg border-2 border-gilded/40 bg-gilded/5 p-5">
+      <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+        <div className="min-w-0">
+          <p className="font-display tracking-display text-[10px] uppercase text-sepia mb-2">Default Discipline</p>
+          <div className="flex flex-wrap items-center gap-2 mb-2">
+            <h3 className="font-serif text-lg text-ink-brown">默认工作纪律</h3>
+            <span className="inline-flex h-6 items-center rounded-sm border border-gilded bg-vellum px-2 font-sans text-[11px] text-leather">
+              已加载建议
+            </span>
+          </div>
+          <Link href={`/posts/${discipline.id}`} className="font-serif text-base text-ink-brown hover:text-wax-red">
+            {discipline.title}
+          </Link>
+          <p className="mt-2 max-w-3xl font-sans text-sm leading-6 text-leather">
+            {discipline.usageNotes ||
+              '约束通用 AI Agent 在一级市场任务中保持真实、审慎、可追溯和边界清晰。'}
+          </p>
+          <p className="mt-2 font-sans text-xs text-sepia">
+            更新：<TimeText value={discipline.updatedAt} /> · MCP 工具：<code className="font-mono">get_default_discipline</code>
+          </p>
+        </div>
+        <div className="flex shrink-0 flex-wrap gap-2">
+          <Button type="button" variant="secondary" onClick={() => copy('instruction', loadingInstruction)}>
+            {copied === 'instruction' ? '已复制' : '复制加载指令'}
+          </Button>
+          <Button type="button" variant="secondary" onClick={() => copy('text', discipline.text)}>
+            {copied === 'text' ? '已复制' : '复制原文'}
+          </Button>
+          <button
+            type="button"
+            onClick={() => setOpen((v) => !v)}
+            className="inline-flex h-9 items-center rounded-sm border border-paper-edge px-4 font-serif text-sm text-leather hover:text-ink-brown"
+          >
+            {open ? '收起原文' : '查看原文'}
+          </button>
+        </div>
+      </div>
+
+      {open && (
+        <div className="mt-4 max-h-[420px] overflow-auto rounded-md border border-paper-edge bg-vellum p-4">
+          <pre className="whitespace-pre-wrap font-sans text-xs leading-6 text-ink-brown">{discipline.text}</pre>
         </div>
       )}
     </div>

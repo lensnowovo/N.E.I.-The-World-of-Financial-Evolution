@@ -47,6 +47,7 @@ export const CONTENT_TAGS = [
 
 export const SKILL_TAGS = [
   { value: 'prompt', label: '提示词', desc: '一段复制就能用的 AI 指令' },
+  { value: 'agent-discipline', label: '工作纪律', desc: '约束 AI Agent 工作方式的基础规则' },
   { value: 'agent-skill', label: 'SKILL.md', desc: '给 Claude Code 用的结构化指令文件' },
   { value: 'workflow', label: '工作流程', desc: '可照做的完整工作流' },
   { value: 'tool-stack', label: '工具组合', desc: '一组工具的搭配推荐' },
@@ -124,6 +125,11 @@ export const ASSET_TYPE_HELPERS: Record<string, { body: string; installHint: str
     installHint: '如果安装方式特别，可以写一句（不懂的读者会跳过）。',
     usageNotes: '适合谁用、有什么要注意的？',
   },
+  'agent-discipline': {
+    body: '小建议：这不是具体 Prompt，而是约束 Agent 如何工作的规则。写清楚哪些事必须做、哪些事不能做。',
+    installHint: '建议说明这张纪律卡应在什么任务前加载。',
+    usageNotes: '适合哪些工作场景、能约束哪些风险？',
+  },
   workflow: {
     body: '小建议：按步骤写，每一步写清楚输入是什么、产出是什么。',
     installHint: '需要用到哪些工具或账号？',
@@ -162,6 +168,8 @@ export const HOW_TO_USE: Record<string, string> = {
     '下载文件后用 Excel / Word / PPT 打开（看文件后缀），按里面的说明填写。建议先复制一份原文件再改，保住模板。',
   'agent-skill':
     '这是个 SKILL.md 文件。在 Claude Code 里放到 ~/.claude/skills/ 目录下即可调用。（看不懂这步？先用其他类型就好）',
+  'agent-discipline':
+    '这是 Agent 工作纪律，建议在执行 PEVC Skill / Workflow 前作为第一层上下文加载，用来约束真实性、审慎性和复核边界。',
   'api-script':
     '下载脚本文件后，按正文里的「运行步骤」配置环境。需要会一点点命令行，不懂可以在评论区问作者。',
   workflow: '下面正文里是完整的工作流程，按步骤照做即可，每一步的输入产出都写清楚了。',

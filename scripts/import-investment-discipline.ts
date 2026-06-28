@@ -1,4 +1,4 @@
-import { PrismaClient } from '@prisma/client';
+﻿import { PrismaClient } from '@prisma/client';
 
 const prisma = new PrismaClient();
 const LIBRARY_EMAIL = 'library@pevc.local';
@@ -225,21 +225,21 @@ async function main() {
         tagScene: 'knowledge',
         tagIndustry: null,
         tagContent: JSON.stringify(['risk-id', 'info-gather', 'memo', 'report-gen']),
-        tagSkill: 'agent-skill',
+        tagSkill: 'agent-discipline',
         status: 'published',
         featured: true,
         mcpApproved: true,
         skillAsset: {
           upsert: {
             create: {
-              assetType: 'agent-skill',
+              assetType: 'agent-discipline',
               originalAuthor: 'N.E.I. Editorial',
               sourceUrl: 'https://nei-pevc.com',
               installHint: '建议作为所有 PEVC 分析任务的第一层纪律卡加载；可收藏后通过 N.E.I. MCP 调用。',
               usageNotes: '适合约束通用 AI Agent 在一级市场任务中保持真实、审慎、可追溯和边界清晰。',
             },
             update: {
-              assetType: 'agent-skill',
+              assetType: 'agent-discipline',
               originalAuthor: 'N.E.I. Editorial',
               sourceUrl: 'https://nei-pevc.com',
               installHint: '建议作为所有 PEVC 分析任务的第一层纪律卡加载；可收藏后通过 N.E.I. MCP 调用。',
@@ -261,13 +261,13 @@ async function main() {
       tagScene: 'knowledge',
       tagIndustry: null,
       tagContent: JSON.stringify(['risk-id', 'info-gather', 'memo', 'report-gen']),
-      tagSkill: 'agent-skill',
+      tagSkill: 'agent-discipline',
       status: 'published',
       featured: true,
       mcpApproved: true,
       skillAsset: {
         create: {
-          assetType: 'agent-skill',
+          assetType: 'agent-discipline',
           originalAuthor: 'N.E.I. Editorial',
           sourceUrl: 'https://nei-pevc.com',
           installHint: '建议作为所有 PEVC 分析任务的第一层纪律卡加载；可收藏后通过 N.E.I. MCP 调用。',

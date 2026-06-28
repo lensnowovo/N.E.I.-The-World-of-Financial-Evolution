@@ -5,6 +5,8 @@ import { redirect } from 'next/navigation';
 import { prisma } from '@/lib/db';
 import { getCurrentUser } from '@/lib/session';
 import { POST_STATUS } from '@/lib/status';
+import { extractPlainText } from '@/lib/skill-text';
+import { normalizePublicText } from '@/lib/public-url';
 import { DashboardClient } from './DashboardClient';
 
 export default async function DashboardPage() {
@@ -174,6 +176,36 @@ export default async function DashboardPage() {
 
   const stats = { totalCalls, last7Days: last7DaysLogs, topSkills, sleeping };
 
+  const defaultDisciplineRaw = await prisma.post.findFirst({
+    where: {
+      status: POST_STATUS.PUBLISHED,
+      deletedAt: null,
+      mcpApproved: true,
+      OR: [
+        { body: { contains: 'slug:nei-discipline/fiduciary-research-v1' } },
+        { skillAsset: { is: { assetType: 'agent-discipline' } } },
+      ],
+    },
+    select: {
+      id: true,
+      title: true,
+      body: true,
+      updatedAt: true,
+      skillAsset: { select: { assetType: true, usageNotes: true } },
+    },
+    orderBy: { id: 'asc' },
+  });
+  const defaultDiscipline = defaultDisciplineRaw
+    ? {
+        id: defaultDisciplineRaw.id,
+        title: defaultDisciplineRaw.title,
+        assetType: defaultDisciplineRaw.skillAsset?.assetType ?? 'agent-discipline',
+        usageNotes: defaultDisciplineRaw.skillAsset?.usageNotes ?? null,
+        updatedAt: defaultDisciplineRaw.updatedAt.toISOString(),
+        text: normalizePublicText(extractPlainText(defaultDisciplineRaw.body)),
+      }
+    : null;
+
   return (
     <div className="mx-auto max-w-page px-4 sm:px-6 py-8">
       <div className="mb-6 pb-5 border-b border-paper-edge">
@@ -196,6 +228,7 @@ export default async function DashboardPage() {
         mcpTokenCreatedAt={mcpTokenCreatedAt}
         mcpTokenLastUsedAt={mcpTokenLastUsedAt}
         mcpCallLogs={mcpCallLogs}
+        defaultDiscipline={defaultDiscipline}
         mcpOnboardingStatus={{
           favoriteCount: items.length,
           hasMcpToken,

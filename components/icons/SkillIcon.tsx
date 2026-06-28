@@ -2,6 +2,7 @@ import { clsx } from 'clsx';
 
 type SkillKey =
   | 'prompt'
+  | 'agent-discipline'
   | 'agent-skill'
   | 'workflow'
   | 'tool-stack'
@@ -47,6 +48,14 @@ const GLYPHS: Record<SkillKey, React.ReactElement> = {
       <path d="M10 9 C10 7, 11 6.5, 12 7 L12 9 C12 10, 11.5 11, 10.5 11" />
       <path d="M5 15 H19" />
       <path d="M5 17.5 H15" />
+    </>
+  ),
+
+  /** Agent Skill —— 节点图，三角形结构 */
+  'agent-discipline': (
+    <>
+      <path d="M12 3 L19 6 V11 C19 15.5 16.2 18.8 12 21 C7.8 18.8 5 15.5 5 11 V6 Z" />
+      <path d="M8.5 12 L11 14.5 L15.5 9.5" />
     </>
   ),
 

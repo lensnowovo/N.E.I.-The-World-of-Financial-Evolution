@@ -4,6 +4,9 @@ import type { Metadata } from 'next';
 import Link from 'next/link';
 import { OneClickAgentPrompt } from '@/components/mcp/OneClickAgentPrompt';
 import { getPublicBaseUrl } from '@/lib/public-url';
+import { prisma } from '@/lib/db';
+import { POST_STATUS } from '@/lib/status';
+import { extractPlainText } from '@/lib/skill-text';
 
 export const metadata: Metadata = {
   title: 'N.E.I. MCP Server 配置指南',
@@ -34,6 +37,24 @@ export default async function McpGuidePage() {
   const baseUrl = getPublicBaseUrl();
   const mcpUrl = `${baseUrl}/api/mcp`;
   const connectUrl = `${baseUrl}/connect`;
+  const defaultDiscipline = await prisma.post.findFirst({
+    where: {
+      status: POST_STATUS.PUBLISHED,
+      deletedAt: null,
+      mcpApproved: true,
+      OR: [
+        { body: { contains: 'slug:nei-discipline/fiduciary-research-v1' } },
+        { skillAsset: { is: { assetType: 'agent-discipline' } } },
+      ],
+    },
+    select: {
+      id: true,
+      title: true,
+      body: true,
+      skillAsset: { select: { usageNotes: true } },
+    },
+    orderBy: { id: 'asc' },
+  });
   const mcpJsonLd = {
     '@context': 'https://schema.org',
     '@type': 'HowTo',
@@ -85,6 +106,29 @@ export default async function McpGuidePage() {
               查看 MCP 安全与保密原则 →
             </Link>
           </div>
+
+          {defaultDiscipline && (
+            <div className="not-prose my-5 rounded-md border border-gilded/40 bg-gilded/5 p-4">
+              <p className="font-display tracking-display text-[10px] text-sepia uppercase mb-2">
+                默认工作纪律
+              </p>
+              <h2 className="font-serif text-xl text-ink-brown mb-2">
+                {defaultDiscipline.title}
+              </h2>
+              <p className="font-sans text-sm leading-7 text-leather">
+                {defaultDiscipline.skillAsset?.usageNotes ||
+                  cleanText(extractPlainText(defaultDiscipline.body), 150)}
+              </p>
+              <div className="mt-3 flex flex-wrap gap-3">
+                <Link href={`/posts/${defaultDiscipline.id}`} className="font-serif italic text-sm text-wax-red hover:underline">
+                  查看纪律原文 →
+                </Link>
+                <span className="font-sans text-xs text-sepia">
+                  MCP 工具：<code className="font-mono">get_default_discipline</code>
+                </span>
+              </div>
+            </div>
+          )}
 
           <h2>配置步骤</h2>
           <h3>第 1 步：登录并生成 Token</h3>
@@ -138,6 +182,8 @@ export default async function McpGuidePage() {
           <ul>
             <li><strong>search_skills</strong>：按关键词、任务阶段、场景、类型、行业搜索公开 Skill，返回结构化结果</li>
             <li><strong>recommend_skills_for_task</strong>：按 BP 初筛、行研、IC Memo、LP 汇报等任务推荐 Skill 组合</li>
+            <li><strong>list_disciplines</strong>：列出 N.E.I. 可通过 MCP 加载的 Agent 工作纪律</li>
+            <li><strong>get_default_discipline</strong>：获取默认工作纪律原文，建议在执行 PEVC Skill 前加载</li>
             <li><strong>get_skill</strong>：获取某个 Skill 的完整 Prompt / Workflow 原文</li>
             <li><strong>list_my_skills</strong>：列出你收藏且已准入 MCP 的 Skill，并说明被隐藏的未准入收藏数量</li>
             <li><strong>apply_skill</strong>：把上下文填入 Prompt 模板，返回可执行 Prompt</li>
@@ -180,4 +226,8 @@ export default async function McpGuidePage() {
       </div>
     </div>
   );
+}
+
+function cleanText(text: string, maxLength: number) {
+  return text.replace(/\s+/g, ' ').trim().slice(0, maxLength);
 }
