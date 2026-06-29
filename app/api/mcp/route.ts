@@ -10,6 +10,11 @@ import { extractPlainText, extractReadableText } from '@/lib/skill-text';
 import { withMetrics } from '@/lib/metrics';
 import { wrapWithSafetyRules } from '@/lib/mcp-safety';
 import { normalizePublicText } from '@/lib/public-url';
+import {
+  buildConnectorSetupPrompt,
+  getConnectorById,
+  recommendConnectorsForTask,
+} from '@/lib/mcp-library';
 
 export const dynamic = 'force-dynamic';
 export const maxDuration = 60;
@@ -381,6 +386,7 @@ function makeHandler(uid: number, clientName: string | null, requestId: string) 
               .map(({ post }) => postToMcpItem(post, args.task));
 
             const primaryScene = scenes[0] ?? 'industry-research';
+            const suggestedConnectors = recommendConnectorsForTask(args.task, args.industry, scenes);
             return jsonContent({
               summary: ranked.length
                 ? `Recommended ${ranked.length} Skills for: ${args.task}.`
@@ -394,6 +400,14 @@ function makeHandler(uid: number, clientName: string | null, requestId: string) 
                 'Review output and adapt to the investment context',
               ],
               items: ranked,
+              suggestedConnectors:
+                suggestedConnectors.length > 0
+                  ? {
+                      summary:
+                        '基于本任务的行业 / 关键词，N.E.I. 建议补充以下外部数据源。用户确认后，调用 get_connector_setup_prompt 获取加载指令。',
+                      items: suggestedConnectors,
+                    }
+                  : null,
               safety: MCP_SAFETY,
             });
           } finally {
@@ -704,6 +718,82 @@ function makeHandler(uid: number, clientName: string | null, requestId: string) 
             });
           } finally {
             logCall('unfavorite_skill', start, args.id);
+          }
+        },
+      );
+
+      server.tool(
+        'recommend_connectors_for_task',
+        'Recommend external MCP / API data sources that complement N.E.I. Skills for a PEVC task. Returns connector metadata and a confirm hint; call get_connector_setup_prompt after the user confirms.',
+        {
+          task: z.string().describe('The investment work task to complete'),
+          industry: z.string().optional().describe('Optional industry focus, e.g. biotech / semiconductor / ai-saas'),
+          stage: z.enum(['pre-deal', 'deal', 'post-deal']).optional().describe('Optional stage hint'),
+        },
+        async (args) => {
+          const start = Date.now();
+          try {
+            const scenes = resolveScenes({ task: args.task, stage: args.stage });
+            const items = recommendConnectorsForTask(args.task, args.industry, scenes);
+            return jsonContent({
+              summary: items.length
+                ? `N.E.I. recommends ${items.length} external data source(s) for: ${args.task}.`
+                : 'No external data source is currently recommended for this task.',
+              task: args.task,
+              industry: args.industry ?? null,
+              inferredScenes: scenes,
+              items,
+              nextStep:
+                items.length > 0
+                  ? 'For each recommended connector, ask the user to confirm, then call get_connector_setup_prompt(connector_id, confirmed=true) to fetch the install prompt. The Agent should install and connect the external MCP locally; N.E.I. does not proxy external calls.'
+                  : null,
+              safety: MCP_SAFETY,
+            });
+          } finally {
+            logCall('recommend_connectors_for_task', start);
+          }
+        },
+      );
+
+      server.tool(
+        'get_connector_setup_prompt',
+        'Get the install / setup prompt for a specific external MCP / API connector from the N.E.I. library. Requires confirm=true to surface the full prompt (mirrors the unfavorite_skill confirmation pattern).',
+        {
+          connector_id: z.string().describe('Connector ID, e.g. biomcp / arxiv-mcp / exa-mcp'),
+          confirmed: z.boolean().optional().default(false).describe('Must be true to receive the full setup prompt'),
+        },
+        async (args) => {
+          const start = Date.now();
+          try {
+            const item = getConnectorById(args.connector_id);
+            if (!item) {
+              return toolResultMessage(false, 'Connector not found in N.E.I. library.', {
+                connector_id: args.connector_id,
+              });
+            }
+
+            if (!args.confirmed) {
+              return toolResultMessage(false, 'Confirmation required. Ask the user whether to add this connector, then call again with confirmed=true.', {
+                connector_id: item.id,
+                name: item.name,
+                reason: item.highlight,
+                confirmationRequired: true,
+              });
+            }
+
+            const promptText = buildConnectorSetupPrompt(item);
+            return {
+              content: [
+                {
+                  type: 'text' as const,
+                  text: wrapWithSafetyRules(
+                    `# Connector Setup Prompt: ${item.name}\n\nThis is a setup instruction for your trusted AI client to install and connect an external data source.\n\n---\n\n${promptText}`,
+                  ),
+                },
+              ],
+            };
+          } finally {
+            logCall('get_connector_setup_prompt', start);
           }
         },
       );

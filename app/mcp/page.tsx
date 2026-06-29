@@ -169,7 +169,9 @@ export default async function McpGuidePage() {
           <h2>可用 MCP 工具</h2>
           <ul>
             <li><strong>search_skills</strong>：按关键词、任务阶段、场景、类型、行业搜索公开 Skill，返回结构化结果</li>
-            <li><strong>recommend_skills_for_task</strong>：按 BP 初筛、行研、IC Memo、LP 汇报等任务推荐 Skill 组合</li>
+            <li><strong>recommend_skills_for_task</strong>：按 BP 初筛、行研、IC Memo、LP 汇报等任务推荐 Skill 组合；同时返回 <code>suggestedConnectors</code> 字段，按任务推荐可补充的外部 MCP / API 数据源</li>
+            <li><strong>recommend_connectors_for_task</strong>：独立查询某个任务适合补充哪些外部 MCP / API（如 BioMCP / ArXiv / SEC EDGAR），返回推荐理由与确认提示</li>
+            <li><strong>get_connector_setup_prompt</strong>：在用户确认后，按 connector_id 拿到加载该外部 MCP 的完整 Prompt（需 <code>confirmed=true</code>）</li>
             <li><strong>list_disciplines</strong>：列出 N.E.I. 可通过 MCP 加载的 Agent 工作纪律</li>
             <li><strong>get_default_discipline</strong>：获取默认工作纪律原文，建议在执行 PEVC Skill 前加载</li>
             <li><strong>get_skill</strong>：获取某个 Skill 的完整 Prompt / Workflow 原文</li>
@@ -178,6 +180,20 @@ export default async function McpGuidePage() {
             <li><strong>favorite_skill</strong>：从客户端把公开 Skill 加入收藏库</li>
             <li><strong>unfavorite_skill</strong>：从收藏库移除 Skill，需要 <code>confirm=true</code> 二次确认</li>
           </ul>
+
+          <h2>外部数据源推荐流程</h2>
+          <p>
+            N.E.I. MCP 不只分发 Skill，还会按任务主动推荐外部数据源。流程是：
+          </p>
+          <ol>
+            <li>Agent 调 <code>recommend_skills_for_task</code> 或 <code>recommend_connectors_for_task</code>，N.E.I. 返回建议补充的外部 MCP（如 BioMCP / ArXiv / SEC EDGAR）。</li>
+            <li>Agent 把推荐结果给用户看，问"是否添加 XX 作为补充来源？"</li>
+            <li>用户确认后，Agent 调 <code>get_connector_setup_prompt(connector_id, confirmed=true)</code> 拿加载指令。</li>
+            <li>Agent 在本地客户端按指令安装并连接该外部 MCP。N.E.I. 只下发加载 Prompt，不代理外部调用。</li>
+          </ol>
+          <p className="font-serif italic text-sm text-sepia mt-2">
+            当前已收录的外部连接器目录见 <Link href="/mcp-library" className="text-wax-red underline">/mcp-library</Link>。
+          </p>
 
           <h2>推荐任务示例</h2>
           <ul>

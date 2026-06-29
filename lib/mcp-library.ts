@@ -457,3 +457,183 @@ export function getMcpLibraryItemsByCategory(category: McpLibraryCategoryKey) {
 export function getMcpLibraryCategory(category: McpLibraryCategoryKey) {
   return mcpLibraryCategories.find((item) => item.key === category);
 }
+
+export function getConnectorById(id: string): McpLibraryItem | undefined {
+  return mcpLibraryItems.find((item) => item.id === id);
+}
+
+// ───────────────────────────────────────────────────────────────────────────
+// 任务 → 外部连接器推荐
+// ───────────────────────────────────────────────────────────────────────────
+//
+// 用于 N.E.I. MCP 的「主动推荐外部数据源」能力：
+// Agent 调 recommend_skills_for_task / recommend_connectors_for_task 时，
+// N.E.I. 按 task + industry 关键词命中规则，返回建议补充的外部 MCP / API，
+// 用户确认后调 get_connector_setup_prompt 拿加载指令。
+//
+// 设计原则：
+// - 推荐规则集中在这一张表，新增 connector 只要加一行 trigger 即可
+// - internal=true（nei-pevc 自己）不参与推荐
+// - status='观察' 的只有在 task 显式提到该 connector 名字时才推荐
+// - 一次最多返回 3 条，避免淹没 Skill 推荐结果
+
+type ConnectorTrigger = {
+  id: string;
+  /** task / industry 文本中命中任一关键词即推荐 */
+  keywords: string[];
+  /** 推荐理由模板，{task} 会被替换为实际任务文本 */
+  reason: string;
+};
+
+const CONNECTOR_TRIGGERS: ConnectorTrigger[] = [
+  {
+    id: 'biomcp',
+    keywords: ['创新药', '生物医药', '医药', '生物科技', '靶点', '适应症', '临床试验', '管线',
+      'biotech', 'pharma', 'drug', 'clinical', 'biomarker', 'IVD', '基因', 'biomed', '医疗'],
+    reason: '本任务涉及生物医药，BioMCP 可补充 PubMed 文献、ClinicalTrials.gov 试验进度和 OpenFDA 药物安全公开数据。',
+  },
+  {
+    id: 'arxiv-mcp',
+    keywords: ['论文', '前沿技术', '技术追踪', '技术路线', '研究团队', 'arxiv', '预印本',
+      '机器人', '量子', '材料', 'AI 论文', '模型论文', '技术调研'],
+    reason: '本任务需要追踪前沿技术，ArXiv MCP 可检索预印本论文、整理主题订阅和引用线索。',
+  },
+  {
+    id: 'huggingface-mcp',
+    keywords: ['开源模型', 'AI 模型', '大模型', '基础模型', 'huggingface', '数据集评估',
+      '模型生态', 'AI 应用', 'ML', '开源 AI'],
+    reason: '本任务涉及 AI 模型生态，Hugging Face MCP 可评估模型热度、数据集和 Spaces。',
+  },
+  {
+    id: 'github-mcp',
+    keywords: ['开源项目', 'github', '代码活跃度', '贡献者', 'developer tool', 'AI Infra',
+      '开发者工具', '开源软件', '仓库', 'issue', 'PR'],
+    reason: '本任务涉及开源项目评估，GitHub MCP 可检查仓库活跃度、识别真实贡献者、分析 Issue 响应节奏。',
+  },
+  {
+    id: 'wolfram-alpha',
+    keywords: ['硬科技', 'LCOE', 'lawson', '退相干', '技术验算', '工程计算', '半导体物理',
+      '新材料性能', '新能源', '核聚变', '量子计算', '物理模型', '公式推导'],
+    reason: '本任务需要技术可行性验算，Wolfram Alpha MCP 可做 LCOE / Lawson 判据 / 材料性能上限等 sanity check。',
+  },
+  {
+    id: 'exa-mcp',
+    keywords: ['相似公司', '竞品发现', '赛道公司', '长名单', '语义搜索', '海外公司检索',
+      '相似产品', '相似论文'],
+    reason: '本任务需要找相似公司或产品，Exa MCP 的语义搜索适合生成赛道长名单和竞品发现。',
+  },
+  {
+    id: 'firecrawl-mcp',
+    keywords: ['官网分析', '抓取网页', '竞品页面', '政策网页', '产品资料', '招投标公告',
+      '批量阅读', '网页转 markdown', '结构化抽取'],
+    reason: '本任务需要抓取网页内容，Firecrawl MCP 可把官网 / 竞品页 / 政策网页转成 Agent 友好的 Markdown。',
+  },
+  {
+    id: 'playwright-mcp',
+    keywords: ['网站验收', '浏览器自动化', '投后运营检查', '竞品体验', 'smoke test',
+      '批量截图', '表单填写'],
+    reason: '本任务涉及网站交互验证，Playwright MCP 可做站点验收、竞品体验截图和自动化测试。',
+  },
+  {
+    id: 'semantic-scholar',
+    keywords: ['学术影响力', '引用网络', '核心 PI', '专家地图', '论文引用', '技术源头',
+      'author', '学者'],
+    reason: '本任务需要追溯学术影响力，Semantic Scholar API 适合找核心 PI、引用网络和论文源头。',
+  },
+  {
+    id: 'openalex',
+    keywords: ['高校成果转化', '研究机构', '机构分析', '专家网络', 'funders', '学术图谱',
+      '研究方向'],
+    reason: '本任务涉及机构 / 研究方向分析，OpenAlex API 可看高校研究方向、找同领域作者群。',
+  },
+  {
+    id: 'sec-edgar',
+    keywords: ['海外上市', 'S-1', '10-K', '10-Q', '8-K', 'SEC', '美国上市', '纳斯达克',
+      '纽交所', '可比公司风险披露', '退出案例'],
+    reason: '本任务涉及海外上市公司，SEC EDGAR 可查 10-K / S-1 / 8-K 披露，用于可比公司和退出案例对照。',
+  },
+  {
+    id: 'brave-search',
+    keywords: ['通用调研', '新闻监控', '公开信息补全', '公司动态', '政策新闻', '第三方报道',
+      '网页搜索'],
+    reason: '本任务需要补全公开信息，Brave Search MCP 可作为 Agent 的基础外部搜索入口。',
+  },
+  {
+    id: 'financial-datasets',
+    keywords: ['可比公司估值', '二级市场', '行业景气度', '产业链上市公司', '退出路径判断',
+      '股票价格', 'financial datasets'],
+    reason: '本任务涉及二级市场辅助分析，Financial Datasets MCP 可跟踪可比公司估值和产业链信号。',
+  },
+];
+
+function normalizeForMatch(value: string): string {
+  return value
+    .toLowerCase()
+    .replace(/[，。、；：？！""《》"'`~!@#$%^&*()[\]{}|\\/?+=_-]+/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+
+export type RecommendedConnector = {
+  id: string;
+  name: string;
+  category: McpLibraryCategoryKey;
+  kind: McpLibraryItem['kind'];
+  auth: McpLibraryItem['auth'];
+  reason: string;
+  /** 给 Agent 的下一步指令提示 */
+  confirmHint: string;
+};
+
+/**
+ * 按 task + industry 推荐外部 MCP / API 连接器。
+ *
+ * @returns 推荐连接器数组（最多 3 条），按命中权重降序
+ */
+export function recommendConnectorsForTask(
+  task: string,
+  industry?: string | null,
+  scenes?: string[],
+): RecommendedConnector[] {
+  const haystack = normalizeForMatch([task, industry ?? '', (scenes ?? []).join(' ')].join(' '));
+  if (!haystack) return [];
+
+  const scored: Array<{ trigger: ConnectorTrigger; item: McpLibraryItem; hits: number }> = [];
+
+  for (const trigger of CONNECTOR_TRIGGERS) {
+    const item = getConnectorById(trigger.id);
+    if (!item || item.internal) continue;
+
+    // 观察 中的 connector，只有 task 显式提到它的名字/id 才推荐
+    const isWatchlisted = item.status === '观察';
+    if (isWatchlisted) {
+      const explicitMention = normalizeForMatch(item.name).split(' ').some((part) =>
+        part.length >= 4 && haystack.includes(part),
+      ) || haystack.includes(normalizeForMatch(item.id));
+      if (!explicitMention) continue;
+    }
+
+    let hits = 0;
+    for (const kw of trigger.keywords) {
+      const normalizedKw = normalizeForMatch(kw);
+      if (normalizedKw && haystack.includes(normalizedKw)) hits += 1;
+    }
+    if (hits === 0) continue;
+
+    scored.push({ trigger, item, hits });
+  }
+
+  return scored
+    .sort((a, b) => b.hits - a.hits)
+    .slice(0, 3)
+    .map(({ trigger, item }) => ({
+      id: item.id,
+      name: item.name,
+      category: item.category,
+      kind: item.kind,
+      auth: item.auth,
+      reason: trigger.reason.replace('{task}', task.slice(0, 60)),
+      confirmHint:
+        `确认添加 ${item.name}？调用 get_connector_setup_prompt(connector_id="${item.id}", confirmed=true) 获取加载指令。`,
+    }));
+}
