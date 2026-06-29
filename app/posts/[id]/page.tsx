@@ -28,6 +28,7 @@ import { BackLink } from './BackLink';
 import { ExecuteButton } from './ExecuteButton';
 import { ReportButton } from './ReportButton';
 import { DeleteButton } from './DeleteButton';
+import { ShareLinkButton } from './ShareLinkButton';
 import { analyzeSkillQuality } from '@/lib/skill-quality';
 import { buildSkillDisplay } from '@/lib/skill-display';
 import { SkillQualityPanel } from '@/components/SkillQualityPanel';
@@ -282,6 +283,7 @@ export default async function PostDetailPage({
               </Link>
             )}
             {canEdit && <DeleteButton postId={post.id} isAdmin={me?.isAdmin && me.id !== post.author.id} />}
+            <ShareLinkButton title={post.title} description={excerpt} scene={sceneLabel(post.tagScene)} assetLabel={assetLabel} />
             {uid && <ReportButton postId={post.id} />}
           </div>
         </div>

@@ -46,9 +46,16 @@ export function WechatShareInit() {
             document.querySelector('meta[property="og:title"]')?.getAttribute('content') ||
             document.title ||
             'N.E.I. · PEVC AI Skill Hub';
-          const desc =
+          // 描述：优先 og:description，但如果为空或看起来是 URL，用 name=description 或默认值
+          let desc =
             document.querySelector('meta[property="og:description"]')?.getAttribute('content') ||
-            '一级市场投资人的 AI Skill Hub · 搜索 · 收藏 · MCP 调用';
+            document.querySelector('meta[name="description"]')?.getAttribute('content') ||
+            '';
+          if (!desc || /^https?:\/\//.test(desc) || desc === currentUrl) {
+            desc = '一级市场投资人的 AI Skill Hub · 搜索 · 收藏 · MCP 调用';
+          }
+          // 截断到 80 字（微信分享描述显示有限）
+          if (desc.length > 80) desc = desc.slice(0, 80) + '…';
           const link = currentUrl;
           const imgUrl =
             document.querySelector('meta[property="og:image"]')?.getAttribute('content') ||
