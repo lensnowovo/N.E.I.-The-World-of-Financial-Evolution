@@ -3,7 +3,6 @@
 import { cn } from '@/lib/cn';
 import { CopyPromptButton } from './CopyPromptButton';
 import { formatCount } from '@/lib/format';
-import { ShareLinkButton } from './ShareLinkButton';
 
 type PrimaryAttachment = {
   id: number;
@@ -63,13 +62,6 @@ export function DetailActions({
         {isPrompt && (
           <CopyPromptButton bodyHtml={bodyHtml} postId={postId} isAuthed={isAuthed} />
         )}
-        <ShareLinkButton
-          title={shareTitle}
-          description={shareDescription}
-          url={shareUrl}
-          scene={shareScene}
-          assetLabel={shareAssetLabel}
-        />
       </div>
 
       {/* 热度数字 */}
