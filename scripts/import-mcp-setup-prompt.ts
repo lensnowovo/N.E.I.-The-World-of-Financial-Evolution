@@ -8,7 +8,7 @@ const LIBRARY_EMAIL = 'library@pevc.local';
 
 const TITLE = '一键配置 Prompt：让你的 AI 客户端连上 N.E.I. Skill 库';
 
-const BODY = `<p>这个 Prompt 的作用：把它复制粘贴给你的 AI 客户端（Claude Code / Cursor / Windsurf 等），客户端会自动帮你配好 N.E.I. MCP Server，之后你就能在客户端里直接搜索和调用 N.E.I. 上所有的 Skill（Prompt / 模板 / 工作流等）。</p>
+const BODY = `<p>这个 Prompt 的作用：把它复制粘贴给你的 AI 客户端（Claude Code / Codex / Workbuddy 等），客户端会自动帮你配好 N.E.I. MCP Server，之后你就能在客户端里直接搜索和调用 N.E.I. 上所有的 Skill（Prompt / 模板 / 工作流等）。</p>
 
 <h2>使用前提</h2>
 <ol>
@@ -40,7 +40,7 @@ const BODY = `<p>这个 Prompt 的作用：把它复制粘贴给你的 AI 客户
 <li>完成！以后在客户端里说需求，AI 就会自动用 N.E.I. 上的 Skill</li>
 </ol>
 
-<blockquote>这个 Prompt 在 Claude Code / Cursor / Windsurf 等支持 MCP 的客户端上都能用。不同客户端的配置文件位置可能不同，AI 会自动识别。</blockquote>`;
+<blockquote>这个 Prompt 在 Claude Code / Codex / Workbuddy 等支持 MCP 的 Agent 客户端上都能用。不同客户端的配置文件位置可能不同，AI 会自动识别。</blockquote>`;
 
 async function main() {
   const dup = await prisma.post.findFirst({ where: { title: TITLE } });

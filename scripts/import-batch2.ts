@@ -52,7 +52,7 @@ const SKILLS: NewSkill[] = [
 <li>配置数据源（爱企查/天眼查 cookie 或 token）</li>
 <li>命令行运行：<code>./ENScan_GO -n 公司名</code>，或用 MCP 模式接入 AI 工具</li>
 </ol>
-<blockquote>支持 MCP 协议接入 Claude Code / Cursor 等 AI 工具，让 AI 直接帮你查公司。适合做尽调、竞品分析、赛道扫描的投资人。</blockquote>`,
+<blockquote>支持 MCP 协议接入 Claude Code / Codex / Workbuddy 等 Agent 客户端，让 AI 直接帮你查公司。适合做尽调、竞品分析、赛道扫描的投资人。</blockquote>`,
     tagScene: 'business-dd',
     tagContent: ['info-gather', 'company-profile'],
     tagSkill: 'tool-stack',
@@ -152,7 +152,7 @@ const SKILLS: NewSkill[] = [
 <ul>
 <li><strong>板块分析</strong>：查同花顺/东方财富的概念板块、行业板块指数和成分股</li>
 <li><strong>行情数据</strong>：获取板块/个股的开盘、收盘、涨跌幅、成交量</li>
-<li><strong>AI 直查</strong>：接入 Claude Code / Cursor，用自然语言查数据</li>
+<li><strong>AI 直查</strong>：接入 Claude Code / Codex / Workbuddy，用自然语言查数据</li>
 </ul>
 <h2>怎么用</h2>
 <ol>
@@ -184,7 +184,7 @@ const SKILLS: NewSkill[] = [
 <h2>怎么用</h2>
 <ol>
 <li>安装：<code>uvx excel-mcp-server stdio</code></li>
-<li>在 Claude Code / Cursor 的 MCP 配置里注册</li>
+<li>在 Claude Code / Codex / Workbuddy 的 MCP 配置里注册</li>
 <li>对 AI 说："帮我建一个 DCF 估值模型" 或 "读取这个 Excel 的所有 sheet"</li>
 </ol>
 <blockquote>支持公式、格式、图表、数据透视表、数据验证。MIT 许可，可商用。适合做财务建模、估值分析、数据处理的投资人。</blockquote>`,

@@ -63,7 +63,7 @@ export function BundleGuidePanel({
         <li className="flex gap-3">
           <span className="font-mono text-xs text-wax-red shrink-0 mt-0.5">02</span>
           <p className="font-sans text-sm leading-6 text-leather">
-            在 <strong className="text-ink-brown">Claude Code / Cursor</strong> 等客户端配置 N.E.I. MCP Server
+            在 <strong className="text-ink-brown">Claude Code / Codex / Workbuddy</strong> 等 Agent 客户端配置 N.E.I. MCP Server
           </p>
         </li>
         <li className="flex gap-3">

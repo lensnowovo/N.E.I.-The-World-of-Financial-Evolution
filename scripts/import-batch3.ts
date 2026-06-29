@@ -73,7 +73,7 @@ const SKILLS: NewSkill[] = [
 <ol>
 <li>在飞书开放平台创建一个 App，获取 app_id/app_secret</li>
 <li>配置 MCP server（飞书官方文档有详细步骤）</li>
-<li>在 Claude Code / Cursor 里注册后，AI 就能操作飞书</li>
+<li>在 Claude Code / Codex / Workbuddy 里注册后，AI 就能操作飞书</li>
 </ol>
 <blockquote>飞书官方维护，MIT 许可，免费档 App 即可用。适合用飞书做投研协作的团队。</blockquote>`,
     tagScene: 'crm',
@@ -102,7 +102,7 @@ const SKILLS: NewSkill[] = [
 <li>自带 SKILL.md，AI Agent 自动识别调用</li>
 <li>或命令行直接操作：<code>officecli create docx --template IC模板.docx</code></li>
 </ol>
-<blockquote>Apache-2.0 许可，7100+ star。自带 SKILL.md，Claude Code / Cursor 能自动识别。适合需要批量处理 Office 文件的投研团队。</blockquote>`,
+<blockquote>Apache-2.0 许可，7100+ star。自带 SKILL.md，Claude Code / Codex / Workbuddy 能自动识别。适合需要批量处理 Office 文件的投研团队。</blockquote>`,
     tagScene: 'ic',
     tagContent: ['automation', 'report-gen'],
     tagSkill: 'tool-stack',

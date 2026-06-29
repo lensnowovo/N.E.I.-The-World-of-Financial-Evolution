@@ -327,7 +327,7 @@ const SKILLS: SkillSeed[] = [
 4. 团队内部安全提醒文案。</code></pre>`,
   },
   {
-    title: 'Claude / Cursor / Windsurf MCP 配置排错手册',
+    title: 'Claude Code / Codex / Workbuddy MCP 配置排错手册',
     tagScene: 'crm',
     tagIndustry: null,
     tagContent: ['automation', 'doc-parse'],
@@ -345,7 +345,7 @@ const SKILLS: SkillSeed[] = [
 <pre><code>请帮我排查 N.E.I. MCP 连接失败。
 
 我使用的客户端：
-[Claude Code / Cursor / Windsurf / 其他]
+[Claude Code / Codex / Workbuddy / 其他]
 
 我当前的配置：
 [粘贴配置，注意不要发给不可信网页]
@@ -587,13 +587,13 @@ list_my_skills
 4. 客户端是否支持 Streamable HTTP。</code></pre>`,
   },
   {
-    title: '客户端配置卡：Claude、Cursor、Windsurf 的 MCP Header 写法',
+    title: '客户端配置卡：Claude Code、Codex、Workbuddy 的 MCP Header 写法',
     tagScene: 'crm',
     tagIndustry: null,
     tagContent: ['automation', 'doc-parse'],
     assetType: 'template',
     usageNotes: '适合把同一套 MCP 配置放到不同客户端。',
-    body: `<p>面向 Claude、Cursor、Windsurf 等客户端的配置卡，重点是 URL 和 Header 不写错。</p>
+    body: `<p>面向 Claude Code、Codex、Workbuddy 等 Agent 客户端的配置卡，重点是 URL 和 Header 不写错。</p>
 <pre><code>{
   "mcpServers": {
     "nei-pevc": {
