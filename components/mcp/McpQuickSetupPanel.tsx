@@ -51,11 +51,11 @@ export function McpQuickSetupPanel({
       <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
         <div>
           <p className="font-display tracking-display text-[10px] uppercase text-sepia mb-2">MCP Quick Setup</p>
-          <h2 className="font-serif text-2xl text-ink-brown">一页完成 MCP 连接</h2>
+          <h2 className="font-serif text-2xl text-ink-brown">三步连接 MCP</h2>
           <p className="mt-2 font-sans text-sm leading-7 text-leather">
-            生成 Token 后，不用再跳转、粘贴、拼配置。直接复制下面的一键配置 Prompt 到 Claude Code / Cursor / Windsurf，让客户端完成连接并调用
+            生成 Token 后，复制下方配置到 Claude Code、Cursor 或 Windsurf。配好后调用
             <code className="mx-1 rounded-sm bg-vellum px-1 py-0.5 font-mono text-[12px]">list_my_skills</code>
-            验证。
+            验证连接。
           </p>
         </div>
 
@@ -75,6 +75,12 @@ export function McpQuickSetupPanel({
         </p>
       </div>
 
+      <div className="mt-3 rounded-md border border-paper-edge bg-vellum/70 px-4 py-3">
+        <p className="font-sans text-xs leading-6 text-leather">
+          推荐先用 Claude Code、Cursor 或 Windsurf 连接。豆包暂未验证通过，不建议作为首选 MCP 客户端。
+        </p>
+      </div>
+
       {hasVisibleToken ? (
         <div className="mt-5 space-y-5">
           <div className="rounded-md border border-paper-edge bg-vellum p-4">
@@ -91,7 +97,7 @@ export function McpQuickSetupPanel({
 
           <SetupCopyCard
             title="推荐：复制一键配置 Prompt"
-            description="粘贴到你正在使用的 AI 客户端。它会按安全前提保存 MCP Server，并调用 list_my_skills 验证连接。"
+            description="粘贴到 Claude Code、Cursor 或 Windsurf。它会按安全前提保存 MCP Server，并调用 list_my_skills 验证连接。"
             body={setupPrompt}
             active={copied === 'prompt'}
             onCopy={() => copy('prompt', setupPrompt)}
@@ -112,7 +118,7 @@ export function McpQuickSetupPanel({
         <div className="mt-5 grid gap-3 sm:grid-cols-3">
           <EmptyStep number="01" title="收藏 Skill" text="先收藏至少一个你想在客户端调用的 Skill。" />
           <EmptyStep number="02" title="生成配置包" text={hasExistingToken ? '已有 Token；如需明文配置包，请重新生成。' : '点击上方按钮生成 Token。'} />
-          <EmptyStep number="03" title="粘贴到客户端" text="复制 Prompt 或 JSON，直接粘贴到 Claude / Cursor / Windsurf。" />
+          <EmptyStep number="03" title="粘贴到客户端" text="复制 Prompt 或 JSON，粘贴到 Claude Code / Cursor / Windsurf。" />
         </div>
       )}
 
@@ -121,7 +127,7 @@ export function McpQuickSetupPanel({
           {copied === 'url' ? '已复制地址' : '复制 Server URL'}
         </CopyButton>
         <Link href="/mcp" className="font-serif text-sm italic text-leather hover:text-ink-brown">
-          查看完整配置说明 →
+          查看原理与排障 →
         </Link>
         <Link href="/security" className="font-serif text-sm italic text-leather hover:text-ink-brown">
           安全边界 →
@@ -240,6 +246,12 @@ function buildSetupPrompt({
     : `我的 Token 还没填。请提醒我先去 ${connectUrl} 生成 Token，再把 Token 只粘贴到我信任的本地或已登录 AI 客户端。`;
 
   return `请帮我在当前受信任的 AI 客户端中接入 N.E.I.（一级市场 PEVC AI Skill Hub）的 MCP Server，命名为 "nei-pevc"。
+
+推荐客户端：
+- Claude Code
+- Cursor
+- Windsurf
+- 豆包当前未验证通过，请不要优先使用豆包配置这个 MCP。
 
 安全前提：
 - 只在我信任的本地客户端或已登录客户端中保存这个 Token。

@@ -82,7 +82,7 @@ export default function ConnectPage() {
         </p>
         <h1 className="font-serif text-3xl text-ink-brown">连接你的 AI 客户端</h1>
         <p className="font-serif italic text-sm text-leather mt-2 leading-7">
-          收藏 Skill，生成 Token，一键复制配置包，在 Claude Code / Cursor / Windsurf 等客户端里调用 N.E.I.
+          最短路径：收藏 Skill → 生成 Token → 复制配置包 → 粘贴到 Claude Code / Cursor / Windsurf → 调用 list_my_skills 验证。
         </p>
       </header>
 
@@ -137,6 +137,8 @@ export default function ConnectPage() {
         <aside className="space-y-5 lg:sticky lg:top-6 lg:self-start">
           {mcpStatus && <McpOnboardingChecklist status={mcpStatus} compact />}
 
+          <ClientSupportCard />
+
           <div className="rounded-md border border-paper-edge bg-vellum p-4">
             <p className="font-display tracking-display text-[10px] uppercase text-sepia mb-2">
               安全边界
@@ -155,9 +157,9 @@ export default function ConnectPage() {
               调通后怎么用
             </p>
             <ul className="space-y-2 font-sans text-xs leading-6 text-leather">
-              <li>1. 收藏几个常用 Skill。</li>
+              <li>1. 收藏至少一个 Skill。</li>
               <li>2. 在客户端调用 <code className="font-mono">list_my_skills</code>。</li>
-              <li>3. 让 AI 根据当前任务选择 Skill。</li>
+              <li>3. 能看到收藏列表，就说明 MCP 已连通。</li>
             </ul>
           </div>
         </aside>
@@ -248,7 +250,7 @@ function ConnectGuestState() {
         </p>
         <h1 className="font-serif text-3xl text-ink-brown">登录后连接你的 AI 客户端</h1>
         <p className="font-serif italic text-sm text-leather mt-2 leading-7">
-          登录后可以生成 MCP Token、查看你的收藏，并把 Skill Library 接入 Claude Code / Cursor / Windsurf。
+          登录后生成 MCP Token，一键复制配置包，把 Skill Library 接入 Claude Code、Cursor 或 Windsurf。
         </p>
       </header>
 
@@ -266,9 +268,27 @@ function ConnectGuestState() {
             注册账号
           </Link>
           <Link href="/mcp" className="inline-flex h-10 items-center px-2 font-serif text-sm italic text-leather transition-colors hover:text-wax-red">
-            查看配置说明 →
+            查看原理与排障 →
           </Link>
         </div>
+      </div>
+    </div>
+  );
+}
+
+function ClientSupportCard() {
+  return (
+    <div className="rounded-md border border-paper-edge bg-vellum/60 p-4">
+      <p className="font-display tracking-display text-[10px] uppercase text-sepia mb-2">
+        推荐客户端
+      </p>
+      <div className="space-y-2 font-sans text-xs leading-6 text-leather">
+        <p>
+          已按当前配置口径优先支持：<span className="text-ink-brown">Claude Code、Cursor、Windsurf</span>。
+        </p>
+        <p>
+          豆包目前不作为推荐连接客户端展示；实测连接不稳定，等有明确可用的 MCP Client 配置方式后再补教程。
+        </p>
       </div>
     </div>
   );

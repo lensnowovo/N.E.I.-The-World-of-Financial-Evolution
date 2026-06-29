@@ -2,33 +2,32 @@ export const dynamic = 'force-dynamic';
 
 import type { Metadata } from 'next';
 import Link from 'next/link';
-import { OneClickAgentPrompt } from '@/components/mcp/OneClickAgentPrompt';
 import { getPublicBaseUrl } from '@/lib/public-url';
 import { prisma } from '@/lib/db';
 import { POST_STATUS } from '@/lib/status';
 import { extractReadableText } from '@/lib/skill-text';
 
 export const metadata: Metadata = {
-  title: 'N.E.I. MCP Server 配置指南',
+  title: 'N.E.I. MCP Server 说明与排障',
   description:
-    '把 N.E.I. 收藏的 PEVC Skill / Workflow 接入 Claude Code、Cursor、Windsurf 等 AI 客户端的配置指南。',
+    '了解 N.E.I. MCP Server 的安全边界、可用工具、推荐客户端与连接排障。连接操作请前往 /connect。',
   alternates: {
     canonical: '/mcp',
   },
   openGraph: {
-    title: 'N.E.I. MCP Server 配置指南',
+    title: 'N.E.I. MCP Server 说明与排障',
     description:
-      '把 N.E.I. 收藏的 PEVC Skill / Workflow 接入 Claude Code、Cursor、Windsurf 等 AI 客户端。',
+      '了解 N.E.I. MCP Server 的安全边界、可用工具、推荐客户端与连接排障。',
     url: '/mcp',
     type: 'article',
     siteName: 'N.E.I.',
-    images: [{ url: '/opengraph-image', width: 1200, height: 630, alt: 'N.E.I. MCP Server 配置指南' }],
+    images: [{ url: '/opengraph-image', width: 1200, height: 630, alt: 'N.E.I. MCP Server 说明与排障' }],
   },
   twitter: {
     card: 'summary_large_image',
-    title: 'N.E.I. MCP Server 配置指南',
+    title: 'N.E.I. MCP Server 说明与排障',
     description:
-      '把 N.E.I. 收藏的 PEVC Skill / Workflow 接入 Claude Code、Cursor、Windsurf 等 AI 客户端。',
+      '了解 N.E.I. MCP Server 的安全边界、可用工具、推荐客户端与连接排障。',
     images: ['/twitter-image'],
   },
 };
@@ -58,8 +57,8 @@ export default async function McpGuidePage() {
   const mcpJsonLd = {
     '@context': 'https://schema.org',
     '@type': 'HowTo',
-    name: 'N.E.I. MCP Server 配置指南',
-    description: '把 N.E.I. 收藏的 PEVC Skill / Workflow 接入受信任的 AI 客户端。',
+    name: 'N.E.I. MCP Server 说明与排障',
+    description: '了解 N.E.I. MCP Server 的安全边界、可用工具、推荐客户端与连接排障。',
     url: `${baseUrl}/mcp`,
     inLanguage: 'zh-CN',
     step: [
@@ -79,9 +78,9 @@ export default async function McpGuidePage() {
         <Link href="/" className="inline-flex items-center gap-1.5 font-serif italic text-sm text-sepia hover:text-ink-brown mb-3">
           ← 返回首页
         </Link>
-        <h1 className="font-serif text-3xl text-ink-brown mb-1">MCP Server 配置指南</h1>
+        <h1 className="font-serif text-3xl text-ink-brown mb-1">MCP Server 说明与排障</h1>
         <p className="font-sans text-sm text-sepia">
-          把 N.E.I. 收藏的 Skill / Workflow 接进 Claude Code、Cursor、Windsurf 等 AI 客户端。
+          这里解释 MCP 做什么、支持哪些工具、以及连不上时怎么排查。实际连接请从连接配置页开始。
         </p>
       </div>
 
@@ -130,53 +129,42 @@ export default async function McpGuidePage() {
             </div>
           )}
 
-          <h2>配置步骤</h2>
-          <h3>第 1 步：登录并生成 Token</h3>
-          <p>
-            前往 <Link href="/connect" className="text-wax-red underline">连接配置页</Link> 生成 MCP Token。
-            Token 只显示一次，请保存到密码管理器。泄露后可随时重置。
-          </p>
+          <h2>最快连接路径</h2>
+          <ol>
+            <li>在网站收藏至少一个 Skill。</li>
+            <li>前往 <Link href="/connect" className="text-wax-red underline">连接配置页</Link> 登录并生成 MCP Token。</li>
+            <li>复制一键配置 Prompt 或 JSON，粘贴到 Claude Code、Cursor 或 Windsurf。</li>
+            <li>在客户端调用 <code>list_my_skills</code>。能看到收藏列表，就说明连接成功。</li>
+          </ol>
 
-          <h3>第 2 步：在客户端配置 MCP Server</h3>
-          <h4>方式一：复制安全配置 Prompt</h4>
-          <p>
-            只把下面的 Prompt 粘贴到你信任的本地或已登录 AI 客户端。不要把 MCP Token 发给陌生网页、
-            群聊、截图或不可信 Agent。
-          </p>
-          <OneClickAgentPrompt mcpUrl={mcpUrl} connectUrl={connectUrl} />
+          <div className="not-prose my-5 rounded-md border border-gilded/40 bg-gilded/5 p-4">
+            <h2 className="font-serif text-xl text-ink-brown mb-2">推荐从 /connect 开始</h2>
+            <p className="font-sans text-sm leading-7 text-leather">
+              为了减少复制 Token、拼 Headers 和找配置格式的步骤，N.E.I. 把 Token 生成和配置包复制都集中到了连接配置页。
+              本页只保留说明、工具清单和排障。
+            </p>
+            <Link href="/connect" className="mt-3 inline-flex h-10 items-center rounded-sm bg-ink-brown px-5 font-serif text-sm text-vellum transition-colors hover:bg-wax-red">
+              去连接配置页 →
+            </Link>
+          </div>
 
-          <h4>方式二：手动配置</h4>
+          <h2>手动配置参数</h2>
           <div className="bg-vellum/60 border border-paper-edge rounded-md p-4 mb-4">
             <p className="font-sans text-xs text-sepia mb-2">MCP Server 地址：</p>
             <code className="font-mono text-sm text-ink-brown">{mcpUrl}</code>
           </div>
-
-          <h4>Claude Code</h4>
-          <div className="bg-linen text-ink-brown rounded-md p-4 text-xs font-mono overflow-x-auto whitespace-pre">
-{`{
-  "mcpServers": {
-    "nei-pevc": {
-      "url": "${mcpUrl}",
-      "headers": {
-        "Authorization": "Bearer 你的Token"
-      }
-    }
-  }
-}`}
-          </div>
-
-          <h4>Cursor / Windsurf / 其他支持 MCP 的客户端</h4>
           <ul>
             <li>类型：Streamable HTTP</li>
             <li>URL：<code>{mcpUrl}</code></li>
             <li>Headers：<code>Authorization: Bearer 你的Token</code></li>
           </ul>
 
-          <h3>第 3 步：收藏并调通</h3>
-          <p>
-            在 N.E.I. 网站收藏至少一个 Skill，然后在客户端调用 <code>list_my_skills</code>。
-            如果能看到收藏列表，说明“收藏 → Token → 配置 → 调通”的闭环已经跑通。
-          </p>
+          <h2>客户端兼容性</h2>
+          <ul>
+            <li><strong>优先推荐</strong>：Claude Code、Cursor、Windsurf。</li>
+            <li><strong>暂不推荐</strong>：豆包。当前实测连接不稳定，暂不作为 N.E.I. MCP 的推荐客户端；等有明确可用的 MCP Client 配置方式后再补教程。</li>
+            <li><strong>其他客户端</strong>：需要支持 Streamable HTTP MCP Server，并允许配置 Authorization 请求头。</li>
+          </ul>
 
           <h2>可用 MCP 工具</h2>
           <ul>
@@ -199,13 +187,22 @@ export default async function McpGuidePage() {
             <li>用 N.E.I. 帮我起草投后月报，并列出需要补充的数据。</li>
             <li>用 N.E.I. 起草一份给政府引导基金的正式回复函。</li>
           </ul>
+
+          <h2>连不上时先查这几项</h2>
+          <ul>
+            <li>确认 Server URL 是 <code>{mcpUrl}</code>，不是旧的 Vercel 域名。</li>
+            <li>确认请求头是 <code>Authorization: Bearer 你的Token</code>，中间有空格。</li>
+            <li>确认 Token 没有泄露或重新生成；重新生成后旧 Token 会失效。</li>
+            <li>确认账号至少收藏了一个已经准入 MCP 的 Skill，否则 <code>list_my_skills</code> 可能返回空列表。</li>
+            <li>如果客户端不支持 Streamable HTTP 或不能加 Authorization Header，就暂时无法连接。</li>
+          </ul>
         </div>
 
         <aside className="lg:sticky lg:top-6 lg:self-start space-y-4">
           <div className="border border-paper-edge bg-vellum rounded-md p-4">
             <p className="font-display tracking-display text-[10px] text-sepia uppercase mb-2">快速操作</p>
             <Link href="/connect" className="block font-serif text-sm text-wax-red hover:underline mb-2">
-              → 生成 / 管理 Token
+              → 开始连接 MCP
             </Link>
             <Link href="/security" className="block font-serif text-sm text-leather hover:text-ink-brown mb-2">
               → 安全与保密原则
