@@ -133,7 +133,7 @@ export default async function McpGuidePage() {
           <ol>
             <li>在网站收藏至少一个 Skill。</li>
             <li>前往 <Link href="/connect" className="text-wax-red underline">连接配置页</Link> 登录并生成 MCP Token。</li>
-            <li>复制一键配置 Prompt 或 JSON，粘贴到 Claude Code、Cursor 或 Windsurf。</li>
+            <li>复制一键配置 Prompt 或 JSON，粘贴到 Claude Code、Codex、Workbuddy 或其它 Agent 客户端。</li>
             <li>在客户端调用 <code>list_my_skills</code>。能看到收藏列表，就说明连接成功。</li>
           </ol>
 
@@ -161,7 +161,7 @@ export default async function McpGuidePage() {
 
           <h2>客户端兼容性</h2>
           <ul>
-            <li><strong>优先推荐</strong>：Claude Code、Cursor、Windsurf。</li>
+            <li><strong>优先推荐</strong>：Claude Code、Codex、Workbuddy 或其它 Agent 客户端。</li>
             <li><strong>暂不推荐</strong>：豆包。当前实测连接不稳定，暂不作为 N.E.I. MCP 的推荐客户端；等有明确可用的 MCP Client 配置方式后再补教程。</li>
             <li><strong>其他客户端</strong>：需要支持 Streamable HTTP MCP Server，并允许配置 Authorization 请求头。</li>
           </ul>

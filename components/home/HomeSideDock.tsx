@@ -99,7 +99,7 @@ function SignedInDock({ data }: { data: HomeSideDockData }) {
           {mcpReady
             ? user.tokenLastUsedAt
               ? `最近调用 ${formatDate(user.tokenLastUsedAt)}`
-              : '可接入 Claude / Cursor / Windsurf'
+              : '可接入 Claude Code / Codex / Workbuddy'
             : '生成 Token 后，可在客户端调用收藏库。'}
         </p>
       </div>

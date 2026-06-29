@@ -53,7 +53,7 @@ export function McpQuickSetupPanel({
           <p className="font-display tracking-display text-[10px] uppercase text-sepia mb-2">MCP Quick Setup</p>
           <h2 className="font-serif text-2xl text-ink-brown">三步连接 MCP</h2>
           <p className="mt-2 font-sans text-sm leading-7 text-leather">
-            生成 Token 后，复制下方配置到 Claude Code、Cursor 或 Windsurf。配好后调用
+            生成 Token 后，复制下方配置到 Claude Code、Codex、Workbuddy 或其它 Agent 客户端。配好后调用
             <code className="mx-1 rounded-sm bg-vellum px-1 py-0.5 font-mono text-[12px]">list_my_skills</code>
             验证连接。
           </p>
@@ -77,7 +77,7 @@ export function McpQuickSetupPanel({
 
       <div className="mt-3 rounded-md border border-paper-edge bg-vellum/70 px-4 py-3">
         <p className="font-sans text-xs leading-6 text-leather">
-          推荐先用 Claude Code、Cursor 或 Windsurf 连接。豆包暂未验证通过，不建议作为首选 MCP 客户端。
+          推荐先用 Claude Code、Codex、Workbuddy 或其它 Agent 客户端连接。豆包暂未验证通过，不建议作为首选 MCP 客户端。
         </p>
       </div>
 
@@ -97,7 +97,7 @@ export function McpQuickSetupPanel({
 
           <SetupCopyCard
             title="推荐：复制一键配置 Prompt"
-            description="粘贴到 Claude Code、Cursor 或 Windsurf。它会按安全前提保存 MCP Server，并调用 list_my_skills 验证连接。"
+            description="粘贴到 Claude Code、Codex、Workbuddy 或其它 Agent 客户端。它会按安全前提保存 MCP Server，并调用 list_my_skills 验证连接。"
             body={setupPrompt}
             active={copied === 'prompt'}
             onCopy={() => copy('prompt', setupPrompt)}
@@ -118,7 +118,7 @@ export function McpQuickSetupPanel({
         <div className="mt-5 grid gap-3 sm:grid-cols-3">
           <EmptyStep number="01" title="收藏 Skill" text="先收藏至少一个你想在客户端调用的 Skill。" />
           <EmptyStep number="02" title="生成配置包" text={hasExistingToken ? '已有 Token；如需明文配置包，请重新生成。' : '点击上方按钮生成 Token。'} />
-          <EmptyStep number="03" title="粘贴到客户端" text="复制 Prompt 或 JSON，粘贴到 Claude Code / Cursor / Windsurf。" />
+          <EmptyStep number="03" title="粘贴到客户端" text="复制 Prompt 或 JSON，粘贴到 Claude Code / Codex / Workbuddy 或其它 Agent 客户端。" />
         </div>
       )}
 
@@ -249,8 +249,9 @@ function buildSetupPrompt({
 
 推荐客户端：
 - Claude Code
-- Cursor
-- Windsurf
+- Codex
+- Workbuddy
+- 其它支持 Streamable HTTP MCP 的 Agent 客户端
 - 豆包当前未验证通过，请不要优先使用豆包配置这个 MCP。
 
 安全前提：

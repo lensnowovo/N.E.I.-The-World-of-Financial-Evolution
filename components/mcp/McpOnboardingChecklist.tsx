@@ -30,7 +30,7 @@ export function McpOnboardingChecklist({ status, compact = false }: Props) {
       key: 'token',
       title: '生成 MCP Token',
       done: status.hasMcpToken,
-      detail: status.hasMcpToken ? 'Token 已存在；为了安全只在生成时显示明文' : '生成后复制到 Claude / Cursor / Windsurf 的 MCP 配置中',
+      detail: status.hasMcpToken ? 'Token 已存在；为了安全只在生成时显示明文' : '生成后复制到 Claude Code / Codex / Workbuddy 或其它 Agent 客户端的 MCP 配置中',
       href: '/connect',
       cta: '生成 Token',
     },

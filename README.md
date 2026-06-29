@@ -21,14 +21,14 @@ N.E.I. 是 jammyssy 发起的新一代投资人社群，目前已有 500+ 位成
 - BP 太多，能不能先有个靠谱的初筛框架？
 - 行研、尽调、IC、投后这些活，能不能少从空白文档开始？
 - 大家各自写过的好 Prompt、好模板，能不能放到一个地方复用？
-- 如果已经在 Claude Code、Cursor、Windsurf 里工作，能不能直接把这些 Skill 调出来？
+- 如果已经在 Claude Code、Codex、Workbuddy 或其它 Agent 客户端里工作，能不能直接把这些 Skill 调出来？
 
 现阶段，项目先把一级市场常用的 Prompt、Skill、Workflow 和模板整理出来，支持搜索、收藏、复制，并通过 MCP 提供给 AI 客户端调用。
 
 你可以把它理解成三件东西的组合：
 
 - 一个一级市场从业者能看懂的 Prompt / Skill 库；
-- 一个可以接进 Claude Code、Cursor、Windsurf 的 PEVC MCP Server；
+- 一个可以接进 Claude Code、Codex、Workbuddy 或其它 Agent 客户端的 PEVC MCP Server；
 - 一个慢慢积累机构方法论和工作模板的地方。
 
 项目目前处于小范围 Public Beta 前后的打磨阶段，功能、内容和协作方式都会继续调整。

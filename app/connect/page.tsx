@@ -82,7 +82,7 @@ export default function ConnectPage() {
         </p>
         <h1 className="font-serif text-3xl text-ink-brown">连接你的 AI 客户端</h1>
         <p className="font-serif italic text-sm text-leather mt-2 leading-7">
-          最短路径：收藏 Skill → 生成 Token → 复制配置包 → 粘贴到 Claude Code / Cursor / Windsurf → 调用 list_my_skills 验证。
+          最短路径：收藏 Skill → 生成 Token → 复制配置包 → 粘贴到 Claude Code、Codex、Workbuddy 或其它 Agent 客户端 → 调用 list_my_skills 验证。
         </p>
       </header>
 
@@ -250,7 +250,7 @@ function ConnectGuestState() {
         </p>
         <h1 className="font-serif text-3xl text-ink-brown">登录后连接你的 AI 客户端</h1>
         <p className="font-serif italic text-sm text-leather mt-2 leading-7">
-          登录后生成 MCP Token，一键复制配置包，把 Skill Library 接入 Claude Code、Cursor 或 Windsurf。
+          登录后生成 MCP Token，一键复制配置包，把 Skill Library 接入 Claude Code、Codex、Workbuddy 或其它 Agent 客户端。
         </p>
       </header>
 
@@ -284,7 +284,7 @@ function ClientSupportCard() {
       </p>
       <div className="space-y-2 font-sans text-xs leading-6 text-leather">
         <p>
-          已按当前配置口径优先支持：<span className="text-ink-brown">Claude Code、Cursor、Windsurf</span>。
+          已按当前配置口径优先支持：<span className="text-ink-brown">Claude Code、Codex、Workbuddy 或其它 Agent 客户端</span>。
         </p>
         <p>
           豆包目前不作为推荐连接客户端展示；实测连接不稳定，等有明确可用的 MCP Client 配置方式后再补教程。

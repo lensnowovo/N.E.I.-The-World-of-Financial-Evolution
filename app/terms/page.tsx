@@ -11,7 +11,7 @@ export default function TermsPage() {
       <div className="prose-manuscript max-w-none space-y-6 text-sm leading-7 text-leather">
         <section>
           <h2 className="font-serif text-xl text-ink-brown">一、服务内容</h2>
-          <p>N.E.I.（nei-pevc.com）是一个面向一级市场从业者的 PEVC AI Skill Hub。平台提供以下服务：浏览和搜索 Skill / Workflow / 方法论；收藏、评论、投稿；通过 MCP 协议将收藏的 Skill 分发给用户的 AI 客户端（如 Claude Code、Cursor、Windsurf 等）。</p>
+          <p>N.E.I.（nei-pevc.com）是一个面向一级市场从业者的 PEVC AI Skill Hub。平台提供以下服务：浏览和搜索 Skill / Workflow / 方法论；收藏、评论、投稿；通过 MCP 协议将收藏的 Skill 分发给用户的 Agent 客户端（如 Claude Code、Codex、Workbuddy 或其它支持 MCP 的 Agent 客户端）。</p>
         </section>
         <section>
           <h2 className="font-serif text-xl text-ink-brown">二、账号责任</h2>

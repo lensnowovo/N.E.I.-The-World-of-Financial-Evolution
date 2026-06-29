@@ -16,7 +16,7 @@ export function HomeMcpFeature() {
         </span>
         <div className="min-w-0">
           <p className="font-serif text-sm text-ink-brown truncate">
-            将收藏库接入 Claude / Cursor / Windsurf，在工作环境中调用
+            将收藏库接入 Claude Code / Codex / Workbuddy，在 Agent 工作环境中调用
           </p>
           <p className="font-sans text-[11px] text-sepia truncate">
             只分发 Skill / Workflow 文本；不读取本地文件，不上传 BP 或投委会材料
@@ -25,7 +25,7 @@ export function HomeMcpFeature() {
       </div>
       <div className="flex items-center gap-3 shrink-0">
         <div className="hidden sm:flex gap-1.5">
-          {['Claude', 'Cursor', 'Windsurf'].map((c) => (
+          {['Claude Code', 'Codex', 'Workbuddy'].map((c) => (
             <span
               key={c}
               className="border border-paper-edge px-2 py-0.5 font-mono text-[10px] text-sepia rounded-full"
