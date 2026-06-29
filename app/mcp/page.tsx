@@ -21,14 +21,14 @@ export const metadata: Metadata = {
     url: '/mcp',
     type: 'article',
     siteName: 'N.E.I.',
-    images: [{ url: '/opengraph-image', width: 1200, height: 630, alt: 'N.E.I. MCP Server 说明与排障' }],
+    images: [{ url: '/share-cover.png', width: 1200, height: 630, alt: 'N.E.I. MCP Server 说明与排障' }],
   },
   twitter: {
     card: 'summary_large_image',
     title: 'N.E.I. MCP Server 说明与排障',
     description:
       '了解 N.E.I. MCP Server 的安全边界、可用工具、推荐客户端与连接排障。',
-    images: ['/twitter-image'],
+    images: ['/share-cover.png'],
   },
 };
 
