@@ -1,7 +1,7 @@
 import { PrismaClient } from '@prisma/client';
 import fs from 'fs';
 import path from 'path';
-import { saveBuffer } from '../lib/storage';
+import { removeKey, saveBuffer } from '../lib/storage';
 
 const prisma = new PrismaClient();
 
@@ -70,7 +70,7 @@ const SKILLS: LaunchSkill[] = [
   {
     file: '11_MCP与API工具箱_投研信息获取.md',
     slug: 'nei-skill/mcp-api-toolbox',
-    title: 'PE/VC 投研 MCP & API 工具箱：政策、学术、工商、金融与网页抓取信息源',
+    title: 'PE/VC 投研 MCP & API 工具箱：政策、学术、工商、金融、工程计算与网页抓取信息源',
     tagScene: 'industry-research',
     tagIndustry: null,
     tagContent: ['info-gather', 'automation', 'report-gen'],
@@ -79,26 +79,36 @@ const SKILLS: LaunchSkill[] = [
     sourceUrl: 'https://nei-pevc.com',
     installHint: '先按信息需求选择 MCP/API，再在 Claude Code、Codex、Workbuddy 或其它可信 Agent 客户端中配置。第三方 API Key 请只保存在本地环境变量或客户端安全配置里。',
     usageNotes: '这是外部信息源选型目录，不代表 N.E.I. 已托管或验证全部第三方 MCP。付费数据源、企业工商、金融终端、法律数据库需自行确认授权和合规边界。',
-    body: `<p>这是一份按投研工作流组织的 MCP / API 目录。它不是技术百科，而是回答一个更实用的问题：当投资经理要查政策、论文、工商、临床、SEC、新闻或网页资料时，应该优先接哪个外部信息源。</p>
+    body: `<p>这是一份按投研工作流组织的 MCP / API 目录。它不是技术百科，而是回答一个更实用的问题：当投资经理要查政策、论文、工商、临床、SEC、新闻、工程参数或网页资料时，应该优先接哪个外部信息源。</p>
 <h2>为什么值得收藏</h2>
 <ul>
-  <li>把信息获取分成政策法规、学术前沿、企业工商、金融市场、新闻舆情、网页抓取六类。</li>
+  <li>把信息获取分成政策法规、学术前沿、企业工商、金融市场、新闻舆情、网页抓取、科技工程七类。</li>
   <li>区分免费开源、免费层、付费订阅和机构级数据源，方便按预算选型。</li>
-  <li>把 BioMCP、OpenAlex、Semantic Scholar、ClinicalTrials.gov、SEC EDGAR、GitHub MCP、Firecrawl、Exa、Tavily、Brave Search 等工具放进投研场景。</li>
+  <li>把 BioMCP、ArXiv MCP、HuggingFace MCP、Microchip MCP、Wolfram Alpha MCP、SEC EDGAR、GitHub MCP、Firecrawl、Exa、Tavily、Brave Search 等工具放进投研场景。</li>
   <li>明确安全边界：外部 MCP 需要自行确认来源、权限、API Key 管理和数据使用合规。</li>
 </ul>
-<h2>推荐从这 6 类开始</h2>
+<h2>推荐从这 7 类开始</h2>
 <ul>
   <li><strong>生物医药 / CGT：</strong>BioMCP + ClinicalTrials.gov + PubMed / Europe PMC。</li>
-  <li><strong>学术前沿：</strong>OpenAlex + Semantic Scholar + arXiv。</li>
+  <li><strong>学术前沿：</strong>ArXiv MCP + Semantic Scholar + OpenAlex。</li>
+  <li><strong>AI / ML 生态：</strong>HuggingFace MCP + GitHub MCP。</li>
+  <li><strong>半导体 / 硬科技：</strong>Microchip MCP + Wolfram Alpha MCP。</li>
   <li><strong>海外上市公司：</strong>SEC EDGAR / EdgarTools。</li>
   <li><strong>技术尽调：</strong>GitHub MCP + 论文检索 + 招聘/官网抓取。</li>
   <li><strong>新闻和深度搜索：</strong>Exa、Tavily、Brave Search。</li>
   <li><strong>网页抓取：</strong>Firecrawl、Fetch、Playwright MCP。</li>
 </ul>
+<h2>科技投资为什么需要“验算器”</h2>
+<p>生物医药投资可以用 BioMCP 做跨库检索；硬科技投资还需要验证“理论上能不能成立”。Wolfram Alpha MCP 适合验算 LCOE、Lawson 判据、退相干时间、材料性能极限、半导体物理边界等硬参数。它不替代专家判断，但能帮助投资经理把夸张技术叙事先过一遍数量级检查。</p>
+<h2>目前仍有 3 个空白</h2>
+<ul>
+  <li><strong>专利 MCP：</strong>智慧芽、USPTO、EPO 等 API 有门槛，成熟 MCP 仍少。</li>
+  <li><strong>标准 MCP：</strong>目前看到 IEEE 2030.5 这类垂直样例；JEDEC、3GPP、SAE 等仍待补。</li>
+  <li><strong>供应链数据 MCP：</strong>芯片出货量、库存、价格等实时数据还缺稳定 MCP 封装。</li>
+</ul>
 <h2>使用原则</h2>
 <ol>
-  <li>先明确问题：查公司、查行业、查政策、查论文、查临床、查上市文件，不同问题对应不同源。</li>
+  <li>先明确问题：查公司、查行业、查政策、查论文、查临床、查上市文件、查工程参数，不同问题对应不同源。</li>
   <li>优先使用官方 API 或维护良好的 MCP Server。</li>
   <li>关键结论至少交叉验证两个来源。</li>
   <li>API Key 不要写进公开仓库、截图、群聊或共享文档。</li>
@@ -106,7 +116,7 @@ const SKILLS: LaunchSkill[] = [
 </ol>
 <pre><code>请根据我的投研信息需求，帮我选择合适的 MCP / API：
 
-研究对象：[公司 / 行业 / 技术 / 政策 / 药物靶点]
+研究对象：[公司 / 行业 / 技术 / 政策 / 药物靶点 / 工程参数]
 我要查的问题：[具体问题]
 预算限制：[免费 / 可接受 API Key / 付费订阅]
 数据地区：[中国 / 美国 / 全球]
@@ -118,7 +128,8 @@ const SKILLS: LaunchSkill[] = [
 3. 为什么选它；
 4. 配置前需要准备什么；
 5. 需要注意的安全和合规边界；
-6. 建议交叉验证的来源。</code></pre>
+6. 建议交叉验证的来源；
+7. 如果是硬科技项目，请列出需要用 Wolfram Alpha / 标准 / Datasheet 做数量级验算的参数。</code></pre>
 <!-- slug:nei-skill/mcp-api-toolbox -->`,
   },
 ];
@@ -171,6 +182,12 @@ async function main() {
           },
         },
       });
+      await upsertMarkdownAttachment({
+        postId: existing.id,
+        uploaderId: user.id,
+        slug: meta.slug,
+        file: meta.file,
+      });
       console.log(`⏭️  updated #${existing.id} ${meta.title}`);
       skipped++;
       continue;
@@ -222,6 +239,52 @@ async function main() {
   }
 
   console.log(`done: created=${created}, updated=${skipped}`);
+}
+
+async function upsertMarkdownAttachment({
+  postId,
+  uploaderId,
+  slug,
+  file,
+}: {
+  postId: number;
+  uploaderId: number;
+  slug: string;
+  file: string;
+}) {
+  const md = fs.readFileSync(path.join(DIR, file), 'utf-8');
+  const fileName = `${slug.replace('/', '-')}.md`;
+  const buf = Buffer.from(md, 'utf-8');
+  const storageKey = await saveBuffer(buf, fileName);
+  const existingAttachment = await prisma.attachment.findFirst({
+    where: { postId, fileName },
+    select: { id: true, storageKey: true },
+    orderBy: { id: 'asc' },
+  });
+
+  if (existingAttachment) {
+    await prisma.attachment.update({
+      where: { id: existingAttachment.id },
+      data: {
+        storageKey,
+        fileSize: buf.length,
+        mimeType: 'text/markdown',
+      },
+    });
+    await removeKey(existingAttachment.storageKey);
+    return;
+  }
+
+  await prisma.attachment.create({
+    data: {
+      postId,
+      uploaderId,
+      fileName,
+      storageKey,
+      fileSize: buf.length,
+      mimeType: 'text/markdown',
+    },
+  });
 }
 
 async function updateLegacyMcpCopy() {
