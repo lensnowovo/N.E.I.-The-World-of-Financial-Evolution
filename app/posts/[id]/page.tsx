@@ -62,7 +62,7 @@ export async function generateMetadata({
     '面向一级市场投资人的 Skill、Prompt、模板和工作流。';
   const assetType = post.skillAsset?.assetType ? skillLabel(post.skillAsset.assetType) : 'Skill';
   const title = `${post.title} · ${assetType}`;
-  const imageUrl = `${baseUrl}/api/og/post/${post.id}`;
+  const imageUrl = `${baseUrl}/api/og/post/${post.id}/image.png`;
 
   return {
     title,

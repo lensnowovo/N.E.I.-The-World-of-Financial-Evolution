@@ -18,7 +18,7 @@ export function ShareLinkButton({
   scene,
   assetLabel,
 }: ShareLinkButtonProps) {
-  const [state, setState] = useState<'idle' | 'shared' | 'copied'>('idle');
+  const [state, setState] = useState<'idle' | 'shared' | 'copied' | 'wechat'>('idle');
 
   const copyText = async (text: string) => {
     try {
@@ -50,6 +50,15 @@ export function ShareLinkButton({
     ]
       .filter(Boolean)
       .join('\n');
+    const isWeChat =
+      typeof navigator !== 'undefined' && /MicroMessenger/i.test(navigator.userAgent);
+
+    if (isWeChat) {
+      await copyText(wechatText);
+      setState('wechat');
+      setTimeout(() => setState('idle'), 3200);
+      return;
+    }
 
     if (navigator.share) {
       try {
@@ -88,7 +97,13 @@ export function ShareLinkButton({
         <path d="M9.5 11 L6.5 13 A3 3 0 0 1 2.5 9 L4.5 7" strokeLinecap="round" />
         <path d="M6 9.5 L10 6.5" strokeLinecap="round" />
       </svg>
-      {state === 'shared' ? '已打开分享' : state === 'copied' ? '已复制微信文案' : '微信分享'}
+      {state === 'shared'
+        ? '已打开分享'
+        : state === 'wechat'
+          ? '已复制，点右上角分享'
+          : state === 'copied'
+            ? '已复制微信文案'
+            : '微信分享'}
     </button>
   );
 }
