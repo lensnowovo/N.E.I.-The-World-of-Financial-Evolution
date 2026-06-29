@@ -27,7 +27,7 @@ export function HomeTaskGrid() {
                 href={isMcpSetup ? '/mcp-library' : `/bundles/${bundle.slug}`}
                 className={
                   isMcpSetup
-                    ? 'group flex h-full min-h-40 flex-col rounded-md border border-gilded/35 bg-ink-brown p-4 text-vellum shadow-card transition-all hover:-translate-y-0.5 hover:border-gilded'
+                    ? 'group flex h-full min-h-40 flex-col rounded-md border border-gilded/45 bg-leather p-4 text-vellum shadow-card transition-all hover:-translate-y-0.5 hover:border-gilded hover:bg-ink-brown'
                     : 'group flex h-full min-h-40 flex-col rounded-md border border-paper-edge bg-vellum p-4 transition-all hover:border-sepia hover:shadow-card'
                 }
               >
@@ -40,7 +40,7 @@ export function HomeTaskGrid() {
                   </span>
                 </div>
                 <h3 className={isMcpSetup ? 'mt-2 font-serif text-xl text-vellum transition-colors group-hover:text-gilded' : 'mt-2 font-serif text-xl text-ink-brown group-hover:text-wax-red transition-colors'}>
-                  {bundle.shortTitle}
+                  {isMcpSetup ? 'MCP 库' : bundle.shortTitle}
                 </h3>
                 <p className={isMcpSetup ? 'mt-1.5 font-sans text-xs leading-5 text-vellum/72' : 'mt-1.5 font-sans text-xs leading-5 text-leather'}>
                   {isMcpSetup
