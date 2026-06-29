@@ -12,12 +12,13 @@ const WINDOW_MS = 10 * 60 * 1000;
 
 export async function POST(req: Request) {
   const { email } = await req.json();
-  if (!email || !isEmail(email)) {
+  const trimmedEmail = typeof email === 'string' ? email.trim() : '';
+  if (!trimmedEmail || !isEmail(trimmedEmail)) {
     return NextResponse.json({ error: '请输入有效的邮箱地址' }, { status: 400 });
   }
 
   // Rate limit：两个维度都检查，命中任一则 429；key 用小写邮箱避免大小写绕过
-  const normalizedEmail = email.toLowerCase();
+  const normalizedEmail = trimmedEmail.toLowerCase();
   const ip = getClientIp(req);
   const emailRl = checkRateLimit(
     `verify-email:email:${normalizedEmail}`,
@@ -43,17 +44,23 @@ export async function POST(req: Request) {
 
   await prisma.verificationCode.create({
     data: {
-      email,
+      email: trimmedEmail,
       code,
       expiresAt: new Date(Date.now() + 5 * 60 * 1000),
     },
   });
 
-  // Send email (silently skips in dev without API key)
+  // Send email. In production, a delivery provider failure must be visible to the user.
   try {
-    await sendVerificationEmail(email, code, 'register');
+    await sendVerificationEmail(trimmedEmail, code, 'register');
   } catch (err) {
     console.error('Failed to send verification email:', err);
+    if (process.env.NODE_ENV === 'production') {
+      return NextResponse.json(
+        { error: '验证码邮件发送失败，请稍后再试或联系管理员' },
+        { status: 502 }
+      );
+    }
   }
 
   // 仅在开发环境返回验证码，方便本地测试；生产环境绝不暴露，否则邮箱验证形同虚设

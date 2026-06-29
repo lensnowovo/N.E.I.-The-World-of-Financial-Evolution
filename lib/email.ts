@@ -35,10 +35,16 @@ export async function sendVerificationEmail(email: string, code: string, purpose
     return { id: 'dev-skipped' };
   }
 
-  return getResend().emails.send({
+  const result = await getResend().emails.send({
     from: FROM,
     to: email,
     subject,
     html,
   });
+
+  if (result.error) {
+    throw new Error(`Resend error: ${result.error.name} ${result.error.message}`);
+  }
+
+  return result.data;
 }
