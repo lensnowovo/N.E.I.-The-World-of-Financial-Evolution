@@ -13,7 +13,11 @@ import { normalizePublicText } from '@/lib/public-url';
 import {
   buildConnectorSetupPrompt,
   getConnectorById,
+  getConnectorDetail,
+  listConnectors,
   recommendConnectorsForTask,
+  searchConnectors,
+  type McpLibraryCategoryKey,
 } from '@/lib/mcp-library';
 
 export const dynamic = 'force-dynamic';
@@ -718,6 +722,101 @@ function makeHandler(uid: number, clientName: string | null, requestId: string) 
             });
           } finally {
             logCall('unfavorite_skill', start, args.id);
+          }
+        },
+      );
+
+      server.tool(
+        'list_connectors',
+        'List external MCP / API connectors in the N.E.I. directory. Browse by category / kind / status. Use this when the Agent wants to proactively survey available data sources instead of waiting for a task-based recommendation.',
+        {
+          category: z.enum(['search', 'research', 'biomed', 'ai', 'hard-tech', 'company', 'market']).optional().describe('Filter by category'),
+          kind: z.enum(['MCP', 'API', 'MCP / API']).optional().describe('Filter by kind'),
+          status: z.enum(['推荐试用', '适合自建', '需订阅验证', '观察']).optional().describe('Filter by status'),
+          internalOnly: z.boolean().optional().describe('true = only N.E.I. own MCP; false = only external; omit = all'),
+          limit: z.number().optional().default(50).describe('Max 100'),
+        },
+        async (args) => {
+          const start = Date.now();
+          try {
+            const items = listConnectors({
+              category: args.category as McpLibraryCategoryKey | undefined,
+              kind: args.kind,
+              status: args.status,
+              internalOnly: args.internalOnly,
+              limit: args.limit,
+            });
+            return jsonContent({
+              summary: items.length
+                ? `Found ${items.length} connector(s) in the N.E.I. directory.`
+                : 'No connector matched the filters.',
+              count: items.length,
+              filters: {
+                category: args.category ?? null,
+                kind: args.kind ?? null,
+                status: args.status ?? null,
+                internalOnly: args.internalOnly ?? null,
+              },
+              items,
+              safety: MCP_SAFETY,
+            });
+          } finally {
+            logCall('list_connectors', start);
+          }
+        },
+      );
+
+      server.tool(
+        'get_connector',
+        'Get full metadata for a single connector (coverage, safety note, PEVC use cases). Does NOT return the setup prompt — for that, call get_connector_setup_prompt after user confirmation.',
+        {
+          connector_id: z.string().describe('Connector ID, e.g. biomcp / arxiv-mcp / nei-pevc'),
+        },
+        async (args) => {
+          const start = Date.now();
+          try {
+            const detail = getConnectorDetail(args.connector_id);
+            if (!detail) {
+              return toolResultMessage(false, 'Connector not found in N.E.I. directory.', {
+                connector_id: args.connector_id,
+              });
+            }
+            return jsonContent({
+              summary: `Connector: ${detail.name}`,
+              connector: detail,
+              nextStep: detail.internal
+                ? 'This is the N.E.I. own MCP. Direct the user to /connect to generate a token and copy the setup prompt.'
+                : `If the user wants to add this data source, call get_connector_setup_prompt(connector_id="${detail.id}", confirmed=true) after confirmation.`,
+              safety: MCP_SAFETY,
+            });
+          } finally {
+            logCall('get_connector', start);
+          }
+        },
+      );
+
+      server.tool(
+        'search_connectors',
+        'Search the N.E.I. connector directory by keyword (matches name / coverage / use cases). Use this when the Agent needs to find data sources by topic rather than by task.',
+        {
+          query: z.string().describe('Search keyword, e.g. "clinical trials" / "SEC filings" / "open source"'),
+          limit: z.number().optional().default(10).describe('Max 30'),
+        },
+        async (args) => {
+          const start = Date.now();
+          try {
+            const items = searchConnectors(args.query, args.limit);
+            return jsonContent({
+              summary: items.length
+                ? `Found ${items.length} connector(s) matching "${args.query}".`
+                : `No connector matched "${args.query}".`,
+              count: items.length,
+              query: args.query,
+              items,
+              safety: MCP_SAFETY,
+            });
+          } finally {
+            logCall('search_connectors', start);
           }
         },
       );

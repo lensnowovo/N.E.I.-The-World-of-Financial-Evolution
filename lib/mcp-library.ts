@@ -463,6 +463,130 @@ export function getConnectorById(id: string): McpLibraryItem | undefined {
 }
 
 // ───────────────────────────────────────────────────────────────────────────
+// 连接器目录查询（"目录索引"能力）
+// ───────────────────────────────────────────────────────────────────────────
+//
+// N.E.I. MCP 的定位是"Skill 分发 + 连接器目录索引 + Prompt 仓库"。
+// Agent 是引擎——它决定补不补、补哪个、怎么配合 Skill 用。
+// N.E.I. 只提供：浏览(list)、查详情(get)、搜(search)、按任务推荐(recommend)、
+// 拿加载 prompt(get_connector_setup_prompt)。
+//
+// 这些函数是纯函数，MCP route.ts 会把它们包成工具。
+
+export type ConnectorListItem = {
+  id: string;
+  name: string;
+  kind: McpLibraryItem['kind'];
+  category: McpLibraryCategoryKey;
+  categoryLabel: string;
+  status: McpLibraryItem['status'];
+  maturity: McpLibraryItem['maturity'];
+  pricing: McpLibraryItem['pricing'];
+  auth: McpLibraryItem['auth'];
+  highlight: string;
+  bestFor: string[];
+  pevcUseCases: string[];
+  internal: boolean;
+  url: string | null;
+};
+
+export type ConnectorDetail = ConnectorListItem & {
+  coverage: string;
+  safetyNote: string;
+  sourcePostId: number | null;
+  featured: boolean;
+};
+
+export type ConnectorListFilters = {
+  category?: McpLibraryCategoryKey;
+  kind?: McpLibraryItem['kind'];
+  status?: McpLibraryItem['status'];
+  /** 只返回 internal / 只返回外部；不传则全部 */
+  internalOnly?: boolean;
+  /** 最多返回多少条，默认 50 */
+  limit?: number;
+};
+
+function categoryLabel(key: McpLibraryCategoryKey): string {
+  return mcpLibraryCategories.find((c) => c.key === key)?.label ?? key;
+}
+
+function toListItem(item: McpLibraryItem): ConnectorListItem {
+  return {
+    id: item.id,
+    name: item.name,
+    kind: item.kind,
+    category: item.category,
+    categoryLabel: categoryLabel(item.category),
+    status: item.status,
+    maturity: item.maturity,
+    pricing: item.pricing,
+    auth: item.auth,
+    highlight: item.highlight,
+    bestFor: item.bestFor,
+    pevcUseCases: item.pevcUseCases,
+    internal: Boolean(item.internal),
+    url: item.url ?? null,
+  };
+}
+
+/**
+ * 按过滤器列出连接器（目录浏览）。
+ */
+export function listConnectors(filters: ConnectorListFilters = {}): ConnectorListItem[] {
+  const limit = Math.min(Math.max(filters.limit ?? 50, 1), 100);
+  return mcpLibraryItems
+    .filter((item) => {
+      if (filters.category && item.category !== filters.category) return false;
+      if (filters.kind && item.kind !== filters.kind) return false;
+      if (filters.status && item.status !== filters.status) return false;
+      if (filters.internalOnly === true && !item.internal) return false;
+      if (filters.internalOnly === false && item.internal) return false;
+      return true;
+    })
+    .slice(0, limit)
+    .map(toListItem);
+}
+
+/**
+ * 查单个连接器的完整元数据（不含 setup prompt）。
+ */
+export function getConnectorDetail(id: string): ConnectorDetail | null {
+  const item = getConnectorById(id);
+  if (!item) return null;
+  return {
+    ...toListItem(item),
+    coverage: item.coverage,
+    safetyNote: item.safetyNote,
+    sourcePostId: item.sourcePostId ?? null,
+    featured: Boolean(item.featured),
+  };
+}
+
+/**
+ * 按关键词搜连接器（名字 / 覆盖 / 用途 / bestFor）。
+ */
+export function searchConnectors(query: string, limit = 10): ConnectorListItem[] {
+  const normalized = normalizeForMatch(query);
+  if (!normalized) return [];
+  const cap = Math.min(Math.max(limit, 1), 30);
+
+  return mcpLibraryItems
+    .map((item) => {
+      const haystack = normalizeForMatch(
+        [item.id, item.name, item.coverage, item.highlight, ...item.bestFor, ...item.pevcUseCases].join(' '),
+      );
+      const tokens = normalized.split(/\s+/).filter(Boolean);
+      const hits = tokens.filter((t) => haystack.includes(t)).length;
+      return { item, hits };
+    })
+    .filter((entry) => entry.hits > 0)
+    .sort((a, b) => b.hits - a.hits)
+    .slice(0, cap)
+    .map((entry) => toListItem(entry.item));
+}
+
+// ───────────────────────────────────────────────────────────────────────────
 // 任务 → 外部连接器推荐
 // ───────────────────────────────────────────────────────────────────────────
 //

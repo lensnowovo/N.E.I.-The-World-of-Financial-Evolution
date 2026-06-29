@@ -88,8 +88,13 @@ export default async function McpGuidePage() {
         <div className="prose-manuscript max-w-none">
           <h2>这是什么？</h2>
           <p>
-            N.E.I. MCP Server 让你的 AI 客户端通过 MCP 协议搜索、读取和调用 N.E.I. 上的 PEVC Skill。
-            你可以先在网站收藏 Skill，再在客户端里调用 <code>list_my_skills</code> 读取自己的收藏库。
+            N.E.I. MCP Server 是一个 <strong>Skill 分发 + 连接器目录索引 + Prompt 仓库</strong>。
+            它让你的 AI 客户端通过 MCP 协议搜索、读取和调用 N.E.I. 上的 PEVC Skill，
+            同时提供外部数据源连接器目录，让 Agent 知道"缺什么来源、能补什么 MCP"。
+          </p>
+          <p className="font-serif italic text-sm text-sepia mt-2">
+            N.E.I. 是图书馆管理员——它给你一本按主题分类的卡片目录和加载指令。
+            真正"智能"的是你自己的 Agent：它决定补不补、补哪个、怎么配合 Skill 用。
           </p>
 
           <div className="not-prose my-5 rounded-md border border-wax-red/30 bg-wax-red/5 p-4">
@@ -167,11 +172,11 @@ export default async function McpGuidePage() {
           </ul>
 
           <h2>可用 MCP 工具</h2>
+
+          <h3 className="font-serif text-lg text-ink-brown mt-4">Skill 分发</h3>
           <ul>
             <li><strong>search_skills</strong>：按关键词、任务阶段、场景、类型、行业搜索公开 Skill，返回结构化结果</li>
-            <li><strong>recommend_skills_for_task</strong>：按 BP 初筛、行研、IC Memo、LP 汇报等任务推荐 Skill 组合；同时返回 <code>suggestedConnectors</code> 字段，按任务推荐可补充的外部 MCP / API 数据源</li>
-            <li><strong>recommend_connectors_for_task</strong>：独立查询某个任务适合补充哪些外部 MCP / API（如 BioMCP / ArXiv / SEC EDGAR），返回推荐理由与确认提示</li>
-            <li><strong>get_connector_setup_prompt</strong>：在用户确认后，按 connector_id 拿到加载该外部 MCP 的完整 Prompt（需 <code>confirmed=true</code>）</li>
+            <li><strong>recommend_skills_for_task</strong>：按 BP 初筛、行研、IC Memo、LP 汇报等任务推荐 Skill 组合；同时返回 <code>suggestedConnectors</code> 字段，按任务提示可补充的外部 MCP / API 数据源</li>
             <li><strong>list_disciplines</strong>：列出 N.E.I. 可通过 MCP 加载的 Agent 工作纪律</li>
             <li><strong>get_default_discipline</strong>：获取默认工作纪律原文，建议在执行 PEVC Skill 前加载</li>
             <li><strong>get_skill</strong>：获取某个 Skill 的完整 Prompt / Workflow 原文</li>
@@ -181,18 +186,27 @@ export default async function McpGuidePage() {
             <li><strong>unfavorite_skill</strong>：从收藏库移除 Skill，需要 <code>confirm=true</code> 二次确认</li>
           </ul>
 
-          <h2>外部数据源推荐流程</h2>
+          <h3 className="font-serif text-lg text-ink-brown mt-4">连接器目录索引</h3>
+          <ul>
+            <li><strong>list_connectors</strong>：按 category / kind / status 浏览所有外部 MCP / API 连接器（Agent 主动发现数据源）</li>
+            <li><strong>get_connector</strong>：查单个连接器完整元数据（覆盖范围、PEVC 用途、安全提示），不含 setup prompt</li>
+            <li><strong>search_connectors</strong>：按关键词搜连接器（名字 / 覆盖 / 用途），适合按主题找数据源</li>
+            <li><strong>recommend_connectors_for_task</strong>：按任务推荐可补充的外部数据源（关键词命中规则表，最多 3 条）</li>
+            <li><strong>get_connector_setup_prompt</strong>：用户确认后（<code>confirmed=true</code>），按 connector_id 拿到加载该外部 MCP 的完整 Prompt</li>
+          </ul>
+
+          <h2>外部数据源：目录索引 + Prompt 仓库</h2>
           <p>
-            N.E.I. MCP 不只分发 Skill，还会按任务主动推荐外部数据源。流程是：
+            N.E.I. 不替 Agent 决定补什么，只提供四条路让 Agent 自己发现和获取外部数据源：
           </p>
           <ol>
-            <li>Agent 调 <code>recommend_skills_for_task</code> 或 <code>recommend_connectors_for_task</code>，N.E.I. 返回建议补充的外部 MCP（如 BioMCP / ArXiv / SEC EDGAR）。</li>
-            <li>Agent 把推荐结果给用户看，问"是否添加 XX 作为补充来源？"</li>
-            <li>用户确认后，Agent 调 <code>get_connector_setup_prompt(connector_id, confirmed=true)</code> 拿加载指令。</li>
-            <li>Agent 在本地客户端按指令安装并连接该外部 MCP。N.E.I. 只下发加载 Prompt，不代理外部调用。</li>
+            <li><strong>主动浏览</strong>：调 <code>list_connectors</code> 按分类 / 类型 / 状态浏览所有连接器。</li>
+            <li><strong>按主题搜</strong>：调 <code>search_connectors("clinical trials")</code> 按关键词找。</li>
+            <li><strong>按任务推荐</strong>：调 <code>recommend_skills_for_task</code> 或 <code>recommend_connectors_for_task</code>，N.E.I. 按关键词命中规则表提示"这类任务通常补 XX 更有用"。</li>
+            <li><strong>拿加载指令</strong>：用户确认后，调 <code>get_connector_setup_prompt(connector_id, confirmed=true)</code> 拿加载 Prompt。Agent 在本地装外部 MCP，N.E.I. 不代理调用。</li>
           </ol>
           <p className="font-serif italic text-sm text-sepia mt-2">
-            当前已收录的外部连接器目录见 <Link href="/mcp-library" className="text-wax-red underline">/mcp-library</Link>。
+            当前已收录的连接器目录见 <Link href="/mcp-library" className="text-wax-red underline">/mcp-library</Link>。扩展只需改 <code>lib/mcp-library.ts</code> 规则表，不需要改后端逻辑。
           </p>
 
           <h2>推荐任务示例</h2>
