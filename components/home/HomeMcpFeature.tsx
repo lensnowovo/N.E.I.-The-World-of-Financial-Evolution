@@ -77,6 +77,12 @@ export function HomeMcpFeature({ status }: { status: HomeMcpConnectionStatus }) 
         >
           {copy.cta} →
         </Link>
+        <Link
+          href="/mcp-library"
+          className="inline-flex h-9 items-center rounded-sm border border-vellum/20 px-4 font-serif text-sm text-vellum/80 transition-colors hover:border-gilded hover:text-gilded"
+        >
+          浏览 MCP 库
+        </Link>
       </div>
     </section>
   );

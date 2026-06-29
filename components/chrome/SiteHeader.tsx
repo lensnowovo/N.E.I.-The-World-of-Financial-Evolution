@@ -89,6 +89,7 @@ export function SiteHeader({ user }: { user: User }) {
           {/* 桌面：主导航 */}
           <nav className="hidden md:flex items-center gap-5 font-serif text-sm">
             <NavLink href="/" active={isActive('/')}>目录</NavLink>
+            <NavLink href="/mcp-library" active={isActive('/mcp-library')}>MCP 库</NavLink>
             {user && (
               <NavLink href="/dashboard" active={isActive('/dashboard')}>控制台</NavLink>
             )}
@@ -220,6 +221,9 @@ export function SiteHeader({ user }: { user: User }) {
             {/* 主导航 */}
             <nav className="space-y-3">
               <DrawerLink href="/" active={isActive('/')}>目录</DrawerLink>
+              <DrawerLink href="/mcp-library" active={isActive('/mcp-library')}>
+                MCP 库
+              </DrawerLink>
               {user && (
                 <>
                   <DrawerLink href="/publish" active={isActive('/publish')}>
