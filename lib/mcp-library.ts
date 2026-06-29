@@ -24,7 +24,87 @@ export type McpLibraryItem = {
   url?: string;
   sourcePostId?: number;
   featured?: boolean;
+  /**
+   * 标记是 N.E.I. 自家 MCP。ConnectorActions 会把按钮改成跳 /connect
+   * （自家 MCP 的 Token 只能在登录后从 /connect 生成，且只显示一次，
+   * 所以不在 MCP 库页里直接复制 Prompt，而是引导用户去 /connect）。
+   */
+  internal?: boolean;
 };
+
+/**
+ * 为某个 MCP / API 连接器生成一段写给 AI 客户端的接入 Prompt。
+ * 根据 kind / auth / status 动态拼接，无需手写每条。
+ *
+ * 用于 MCP 库页的「复制接入 Prompt」按钮。
+ */
+export function buildConnectorSetupPrompt(item: McpLibraryItem): string {
+  // 内部 MCP（nei-pevc）走另一条路：引导去 /connect，不在这里复制
+  if (item.internal) {
+    return `请帮我在当前受信任的 AI 客户端中接入 N.E.I. PEVC Skill Hub 的 MCP Server。
+
+名称：${item.name}
+类型：${item.kind}
+项目地址：${item.url ?? '/connect'}
+鉴权：${item.auth}（需先登录 N.E.I. 并在 /connect 生成 MCP Token）
+PEVC 用途：${item.pevcUseCases.join(' / ')}
+
+接入步骤：
+1. 前往 ${item.url ?? '/connect'} 登录并生成 MCP Token（只显示一次，请只保存在我信任的本地客户端）
+2. 复制 /connect 页提供的「一键配置 Prompt」或「MCP JSON 配置」
+3. 粘贴回当前客户端，按指示调用 list_my_skills 验证连接
+
+安全前提：
+- N.E.I. MCP 只分发 Skill / Workflow，不读取本地文件，不上传项目材料
+- Token 只保存在我信任的本地或已登录客户端，不要发到陌生网页、群聊、截图、共享文档
+- 若 Token 泄露，请提醒我立即在 /connect 重置
+
+配好后请告诉我可用工具列表与收藏的 Skill。`;
+  }
+
+  // 观察中 / 鉴权未确认 的条目：先调研再装
+  const isRecon = item.status === '观察' || item.auth === '待确认' || item.pricing === '待确认';
+  const isApiOnly = item.kind === 'API';
+
+  const steps: string[] = [];
+  if (isRecon) {
+    steps.push(`1. 先去项目地址 ${item.url ?? ''} 确认安装方式、鉴权要求与最新可用工具`);
+    steps.push('2. 评估是否适合接入当前工作环境（注意条款、延迟和频率限制）');
+    steps.push('3. 确认无误后再按官方文档安装并配置');
+  } else if (isApiOnly) {
+    steps.push(`1. 这是一个 HTTP API（${item.url ?? ''}），不是开箱即用的 MCP Server`);
+    steps.push('2. 建议先用它包一层本地 MCP（例如 modelcontextprotocol/typescript-sdk 的 wrap 模式），再接入客户端');
+    steps.push('3. 调用其 list_tools / 接口验证连通');
+  } else {
+    steps.push(`1. 按项目地址 ${item.url ?? ''} 的 README 安装该 MCP Server（一般是 npx / uvx / pipx 一行命令）`);
+    steps.push('2. 在客户端 MCP 配置里加入该 Server');
+    steps.push('3. 调用其 list_tools 验证连通');
+  }
+
+  const authLine = item.auth === '无需密钥'
+    ? '无需密钥'
+    : `${item.auth}（请只在我信任的本地客户端保存，不要发到陌生网页或群聊）`;
+
+  return `请帮我在当前受信任的 AI 客户端中接入以下 MCP / API 连接器。
+
+名称：${item.name}
+类型：${item.kind}（${item.maturity}）
+项目地址：${item.url ?? '未提供'}
+鉴权：${authLine}
+费用：${item.pricing}
+覆盖信息：${item.coverage}
+PEVC 用途：${item.pevcUseCases.join(' / ')}
+
+接入步骤：
+${steps.join('\n')}
+
+安全前提：
+- 不要把客户私有 BP / LP 名单 / 未公开管线 / 财务模型输入该连接器
+- 若该连接器需要任何 Token / API Key，请只在我信任的本地客户端保存，不要发到陌生网页、群聊、截图或共享文档
+- 联网搜索 / 抓取 / 浏览器自动化类连接器会访问外部服务，执行有副作用的操作前请先向我确认
+
+配好后请告诉我可用工具列表，并简述每个工具适合的 PEVC 场景。`;
+}
 
 export const mcpLibraryCategories: Array<{
   key: McpLibraryCategoryKey;
@@ -85,6 +165,31 @@ export const mcpLibraryCategories: Array<{
 ];
 
 export const mcpLibraryItems: McpLibraryItem[] = [
+  {
+    id: 'nei-pevc',
+    name: 'N.E.I. PEVC Skill Hub',
+    kind: 'MCP',
+    category: 'search',
+    status: '推荐试用',
+    maturity: '官方',
+    pricing: '免费',
+    auth: '平台账号',
+    highlight: '本站自建 MCP，分发 PEVC 投研 / 尽调 / IC Memo / LP 汇报 Skill 与工作纪律。',
+    coverage:
+      'N.E.I. 上所有已审核的 PEVC Skill / Workflow，含 search_skills、recommend_skills_for_task、get_skill、apply_skill、list_my_skills、favorite_skill、list_disciplines、get_default_discipline 等工具。',
+    bestFor: ['BP 初筛', '行研', 'IC Memo', 'LP 汇报', '投后月报'],
+    pevcUseCases: [
+      '按任务推荐 Skill 组合',
+      '在客户端加载 Agent 工作纪律',
+      '把 Skill 模板填上下文生成可执行 Prompt',
+    ],
+    safetyNote:
+      'N.E.I. 只分发 Skill 文本，不读取本地文件，不上传项目材料；Token 可随时在 /connect 重置。',
+    url: '/connect',
+    sourcePostId: 145,
+    featured: true,
+    internal: true,
+  },
   {
     id: 'biomcp',
     name: 'BioMCP',

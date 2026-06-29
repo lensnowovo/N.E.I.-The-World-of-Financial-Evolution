@@ -6,6 +6,7 @@ import {
   mcpLibraryItems,
   type McpLibraryItem,
 } from '@/lib/mcp-library';
+import { McpLibraryActions } from '@/components/mcp/McpLibraryActions';
 
 export const metadata: Metadata = {
   title: 'MCP / API 库 | N.E.I.',
@@ -253,28 +254,7 @@ function Spec({ label, value }: { label: string; value: string }) {
 }
 
 function ConnectorActions({ item, compact = false }: { item: McpLibraryItem; compact?: boolean }) {
-  return (
-    <div className={`${compact ? 'mt-3' : ''} flex flex-wrap items-center gap-2`}>
-      {item.url && (
-        <a
-          href={item.url}
-          target="_blank"
-          rel="noreferrer"
-          className="inline-flex h-8 items-center rounded-sm bg-ink-brown px-3 font-serif text-xs text-vellum transition-colors hover:bg-wax-red"
-        >
-          项目链接 ↗
-        </a>
-      )}
-      {item.sourcePostId && (
-        <Link
-          href={`/posts/${item.sourcePostId}`}
-          className="inline-flex h-8 items-center rounded-sm border border-paper-edge bg-vellum px-3 font-serif text-xs text-leather transition-colors hover:border-sepia hover:text-ink-brown"
-        >
-          N.E.I. 说明
-        </Link>
-      )}
-    </div>
-  );
+  return <McpLibraryActions item={item} compact={compact} />;
 }
 
 function StatusBadge({ status }: { status: McpLibraryItem['status'] }) {
