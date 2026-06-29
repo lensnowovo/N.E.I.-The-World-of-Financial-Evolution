@@ -231,8 +231,10 @@ export default async function DashboardPage() {
           favoriteCount: items.length,
           hasMcpToken,
           tokenLastUsedAt: mcpTokenLastUsedAt,
+          lastMcpCallAt: mcpCallLogs[0]?.createdAt ?? null,
           hasAnyMcpCall: totalCalls > 0,
           hasListMySkillsCall: listMySkillsCalls > 0,
+          isConnected: totalCalls > 0,
         }}
         userId={uid}
       />

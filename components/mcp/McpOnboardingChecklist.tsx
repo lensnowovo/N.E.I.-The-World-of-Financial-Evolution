@@ -6,8 +6,10 @@ export type McpOnboardingStatus = {
   favoriteCount: number;
   hasMcpToken: boolean;
   tokenLastUsedAt: string | null;
+  lastMcpCallAt?: string | null;
   hasAnyMcpCall: boolean;
   hasListMySkillsCall: boolean;
+  isConnected?: boolean;
 };
 
 type Props = {
@@ -16,7 +18,7 @@ type Props = {
 };
 
 export function McpOnboardingChecklist({ status, compact = false }: Props) {
-  const configured = status.hasMcpToken && (status.hasAnyMcpCall || status.tokenLastUsedAt);
+  const configured = status.hasMcpToken && status.hasAnyMcpCall;
   const steps = [
     {
       key: 'favorite',
@@ -45,8 +47,8 @@ export function McpOnboardingChecklist({ status, compact = false }: Props) {
     {
       key: 'ping',
       title: '调通 MCP Server',
-      done: status.hasAnyMcpCall || Boolean(status.tokenLastUsedAt),
-      detail: status.tokenLastUsedAt ? <>最近使用：<TimeText value={status.tokenLastUsedAt} /></> : '配置后在客户端发起一次 MCP 工具调用',
+      done: status.hasAnyMcpCall,
+      detail: status.lastMcpCallAt ? <>最近工具调用：<TimeText value={status.lastMcpCallAt} /></> : '配置后在客户端发起一次 MCP 工具调用',
       href: '/mcp',
       cta: '排查连接',
     },
