@@ -5,6 +5,7 @@ import { getCurrentUser } from '@/lib/session';
 import { SiteHeader } from '@/components/chrome/SiteHeader';
 import { SiteFooter } from '@/components/chrome/SiteFooter';
 import { WechatShareInit } from '@/components/WechatShareInit';
+import { Analytics } from '@vercel/analytics/next';
 import { getPublicBaseUrl } from '@/lib/public-url';
 
 const cormorant = Cormorant_Garamond({
@@ -137,6 +138,7 @@ export default async function RootLayout({
         </main>
         <SiteFooter />
         <WechatShareInit />
+        <Analytics />
       </body>
     </html>
   );
