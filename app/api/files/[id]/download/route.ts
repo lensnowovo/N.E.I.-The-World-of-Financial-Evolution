@@ -1,21 +1,45 @@
 import { NextResponse } from 'next/server';
+import fs from 'fs/promises';
+import path from 'path';
 import { prisma } from '@/lib/db';
 import { readFileByKey } from '@/lib/storage';
+import { POST_STATUS } from '@/lib/status';
 
 export async function GET(_req: Request, { params }: { params: Promise<{ id: string }> }) {
-  // 开放下载：不要求登录。看全文 + 下载 + 复制都免费，
-  // 登录只留给「想说话/想贡献」的人（发帖/评论/点赞）。
   const id = parseInt((await params).id, 10);
-  const att = await prisma.attachment.findUnique({ where: { id } });
-  if (!att || !att.postId) {
+  const att = await prisma.attachment.findUnique({
+    where: { id },
+    include: {
+      post: {
+        select: {
+          title: true,
+          body: true,
+          status: true,
+          deletedAt: true,
+        },
+      },
+    },
+  });
+  if (!att || !att.postId || !att.post || att.post.status !== POST_STATUS.PUBLISHED || att.post.deletedAt) {
     return NextResponse.json({ error: '文件不存在' }, { status: 404 });
   }
 
   let buf: Buffer;
+  let fallback = false;
   try {
     buf = await readFileByKey(att.storageKey);
   } catch {
-    return NextResponse.json({ error: '文件已丢失' }, { status: 410 });
+    try {
+      buf = await readFileFromCache(att.storageKey);
+      fallback = true;
+    } catch {
+      const generated = buildMarkdownFallback(att.fileName, att.post.title, att.post.body);
+      if (!generated) {
+        return NextResponse.json({ error: '文件已丢失' }, { status: 410 });
+      }
+      buf = generated;
+      fallback = true;
+    }
   }
 
   await prisma.attachment.update({
@@ -32,6 +56,37 @@ export async function GET(_req: Request, { params }: { params: Promise<{ id: str
       'Content-Type': att.mimeType || 'application/octet-stream',
       'Content-Length': String(buf.length),
       'Content-Disposition': `attachment; filename="${ascii}"; filename*=UTF-8''${utf8}`,
+      ...(fallback ? { 'X-NEI-File-Fallback': '1' } : {}),
     },
   });
+}
+
+async function readFileFromCache(key: string): Promise<Buffer> {
+  const safe = path.basename(key);
+  return fs.readFile(path.join(process.cwd(), 'public', 'file-cache', safe));
+}
+
+function buildMarkdownFallback(fileName: string, title: string, bodyHtml: string): Buffer | null {
+  if (!/\.(md|markdown|txt)$/i.test(fileName)) return null;
+
+  const text = htmlToText(bodyHtml);
+  if (!text) return null;
+
+  return Buffer.from(`# ${title}\n\n${text}\n`, 'utf8');
+}
+
+function htmlToText(html: string): string {
+  return html
+    .replace(/<br\s*\/?>/gi, '\n')
+    .replace(/<\/(p|div|li|h1|h2|h3|blockquote|pre)>/gi, '\n')
+    .replace(/<li[^>]*>/gi, '- ')
+    .replace(/<[^>]*>/g, '')
+    .replace(/&lt;/g, '<')
+    .replace(/&gt;/g, '>')
+    .replace(/&amp;/g, '&')
+    .replace(/&quot;/g, '"')
+    .replace(/&#39;/g, "'")
+    .replace(/&nbsp;/g, ' ')
+    .replace(/\n{3,}/g, '\n\n')
+    .trim();
 }
