@@ -64,6 +64,7 @@ export function PublishForm({ currentUser }: { currentUser: CurrentUser }) {
   const [uploadErr, setUploadErr] = useState('');
   const [dragOver, setDragOver] = useState(false);
   const dragDepth = useRef(0);
+  const maxAttachmentCount = 5;
 
   const toggleContent = (v: string) => {
     if (contents.includes(v)) setContents(contents.filter((x) => x !== v));
@@ -195,6 +196,11 @@ export function PublishForm({ currentUser }: { currentUser: CurrentUser }) {
     e.target.value = ''; // 清空 input 让用户能重选同一文件
   };
 
+  const onUnifiedFileInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (e.target.files) handleUnifiedFiles(e.target.files);
+    e.target.value = '';
+  };
+
   const onMdDrop = (e: React.DragEvent) => {
     e.preventDefault();
     dragDepth.current = 0;
@@ -202,6 +208,52 @@ export function PublishForm({ currentUser }: { currentUser: CurrentUser }) {
     if (uploading) return;
     const file = e.dataTransfer.files?.[0];
     if (file) handleSkillSourceFile(file);
+  };
+
+  const onUnifiedDrop = (e: React.DragEvent) => {
+    e.preventDefault();
+    dragDepth.current = 0;
+    setDragOver(false);
+    if (uploading) return;
+    if (e.dataTransfer.files.length) handleUnifiedFiles(e.dataTransfer.files);
+  };
+
+  const handleUnifiedFiles = async (fileList: FileList | File[]) => {
+    const selected = Array.from(fileList);
+    if (selected.length === 0) return;
+
+    setUploadErr('');
+    const sourceFile = selected.find(isSkillSourceFile) ?? null;
+    const attachmentFiles = selected.filter((file) => file !== sourceFile);
+
+    if (files.length + selected.length > maxAttachmentCount) {
+      setUploadErr(`单篇最多保留 ${maxAttachmentCount} 个附件，请先删掉一些再上传`);
+      return;
+    }
+
+    if (sourceFile) {
+      await handleSkillSourceFile(sourceFile);
+    }
+
+    if (attachmentFiles.length === 0) return;
+
+    setUploading(true);
+    try {
+      const uploaded: UploadedFile[] = [];
+      for (const file of attachmentFiles) {
+        uploaded.push(await uploadAttachmentFile(file));
+      }
+      setFiles((prev) => mergeUploadedFiles(prev, uploaded));
+    } catch (error) {
+      setUploadErr(error instanceof Error ? error.message : '附件上传失败，请稍后重试');
+    } finally {
+      setUploading(false);
+    }
+  };
+
+  const removeUploadedFile = async (id: number) => {
+    await fetch(`/api/upload/${id}`, { method: 'DELETE' });
+    setFiles((prev) => prev.filter((file) => file.id !== id));
   };
 
   /** 根据分支推导出 assetType */
@@ -337,10 +389,13 @@ export function PublishForm({ currentUser }: { currentUser: CurrentUser }) {
         <span>分享一个{branchLabel(branch)}</span>
       </div>
 
-      {/* ===== 从 SKILL.md / Skill 仓库包自动填（拖拽 + AI 解析）===== */}
-      <Section title="从 SKILL.md / Skill 包自动填（选填）" hint="拖入 .md 或包含 SKILL.md 的 .zip，AI 读内容帮你预填">
+      {/* ===== Skill 文件 / 完整包 / 附件统一入口（拖拽 + AI 解析）===== */}
+      <Section
+        title={branch === 'file' ? '上传 Skill 包或附件（一个入口）' : '从 SKILL.md / Skill 包自动填（选填）'}
+        hint={branch === 'file' ? '拖入 SKILL.md、完整 Skill zip，或 PDF / Excel / Word 等配套文件' : '拖入 .md 或包含 SKILL.md 的 .zip，AI 读内容帮你预填'}
+      >
         <div
-          onDrop={onMdDrop}
+          onDrop={branch === 'file' ? onUnifiedDrop : onMdDrop}
           onDragOver={(e) => e.preventDefault()}
           onDragEnter={() => {
             dragDepth.current++;
@@ -368,10 +423,16 @@ export function PublishForm({ currentUser }: { currentUser: CurrentUser }) {
             </svg>
           </div>
           <p className="font-serif text-base text-ink-brown mb-1">
-            {uploading ? 'AI 读取中…' : '把 SKILL.md 或完整 Skill 包拖到这里'}
+            {uploading
+              ? '正在处理文件…'
+              : branch === 'file'
+                ? '把 SKILL.md、完整 Skill 包或附件拖到这里'
+                : '把 SKILL.md 或完整 Skill 包拖到这里'}
           </p>
           <p className="font-serif italic text-xs text-sepia mb-3">
-            zip 里只要有 SKILL.md，就会自动识别；完整包会作为附件保留
+            {branch === 'file'
+              ? 'md / txt / zip 会自动识别并预填；其他文件会作为附件保留'
+              : 'zip 里只要有 SKILL.md，就会自动识别；完整包会作为附件保留'}
           </p>
           <label
             className={cn(
@@ -382,13 +443,38 @@ export function PublishForm({ currentUser }: { currentUser: CurrentUser }) {
             <span className="font-serif text-sm">或点击选择文件</span>
             <input
               type="file"
-              accept=".md,.markdown,.txt,.zip"
+              accept={branch === 'file' ? '.md,.markdown,.txt,.zip,.pdf,.docx,.doc,.xlsx,.xls,.pptx,.ppt,.png,.jpg,.jpeg,.gif,.mp4' : '.md,.markdown,.txt,.zip'}
+              multiple={branch === 'file'}
               className="hidden"
-              onChange={onFileInputChange}
+              onChange={branch === 'file' ? onUnifiedFileInputChange : onFileInputChange}
             />
           </label>
           {uploadErr && (
             <p className="mt-3 font-sans text-xs text-wax-red">{uploadErr}</p>
+          )}
+          {branch === 'file' && files.length > 0 && (
+            <ul className="mt-5 border-t border-paper-edge text-left">
+              {files.map((file) => (
+                <li key={file.id} className="flex items-center gap-3 py-3 border-b border-paper-edge">
+                  <span className="font-mono text-[10px] uppercase text-sepia shrink-0">
+                    {(file.fileName.split('.').pop() || 'file').slice(0, 6)}
+                  </span>
+                  <span className="min-w-0 flex-1 truncate font-serif text-sm text-ink-brown" title={file.fileName}>
+                    {file.fileName}
+                  </span>
+                  <span className="font-sans text-[11px] text-sepia shrink-0">
+                    {formatFileSize(file.fileSize)}
+                  </span>
+                  <button
+                    type="button"
+                    onClick={() => removeUploadedFile(file.id)}
+                    className="font-sans text-[11px] text-sepia hover:text-wax-red transition-colors"
+                  >
+                    移除
+                  </button>
+                </li>
+              ))}
+            </ul>
           )}
         </div>
       </Section>
@@ -440,10 +526,6 @@ export function PublishForm({ currentUser }: { currentUser: CurrentUser }) {
 
       {branch === 'file' && (
         <>
-          <Section title="附加其他文件（选填）" hint="PDF / Excel / Word 等额外附件；完整 Skill 包建议直接用上面的「自动填」">
-            <AttachmentUploader files={files} onChange={setFiles} />
-          </Section>
-
           <Section title="这是什么类型的文件？" hint="帮别人一眼看懂怎么打开">
             <ChipSet>
               {FILE_TYPE_OPTIONS.map((t, i) => (
@@ -738,6 +820,22 @@ async function uploadAttachmentFile(file: File): Promise<UploadedFile> {
   }
 
   return data as UploadedFile;
+}
+
+function isSkillSourceFile(file: File): boolean {
+  const lowerName = file.name.toLowerCase();
+  return (
+    lowerName.endsWith('.md') ||
+    lowerName.endsWith('.markdown') ||
+    lowerName.endsWith('.txt') ||
+    lowerName.endsWith('.zip')
+  );
+}
+
+function formatFileSize(bytes: number): string {
+  if (bytes < 1024) return `${bytes} B`;
+  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
+  return `${(bytes / 1024 / 1024).toFixed(1)} MB`;
 }
 
 function mergeUploadedFiles(prev: UploadedFile[], next: UploadedFile[]): UploadedFile[] {
