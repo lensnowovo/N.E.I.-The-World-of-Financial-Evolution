@@ -7,6 +7,7 @@ import {
   type McpLibraryItem,
 } from '@/lib/mcp-library';
 import { McpLibraryActions } from '@/components/mcp/McpLibraryActions';
+import { McpFeaturedCard } from '@/components/mcp/McpFeaturedCard';
 
 export const metadata: Metadata = {
   title: 'MCP / API 库 | N.E.I.',
@@ -100,7 +101,7 @@ export default function McpLibraryPage() {
 
         <div className="mt-4 grid gap-3 lg:grid-cols-3">
           {featuredItems.map((item) => (
-            <FeaturedRow key={item.id} item={item} />
+            <McpFeaturedCard key={item.id} item={item} />
           ))}
         </div>
       </section>
@@ -152,26 +153,6 @@ function MiniStat({ label, value }: { label: string; value: string }) {
       <p className="font-sans text-[10px] text-sepia">{label}</p>
       <p className="mt-0.5 font-mono text-xl text-ink-brown">{value}</p>
     </div>
-  );
-}
-
-function FeaturedRow({ item }: { item: McpLibraryItem }) {
-  return (
-    <article className="rounded-lg border border-paper-edge bg-vellum p-4 transition-colors hover:border-sepia">
-      <div className="flex items-start justify-between gap-3">
-        <div>
-          <p className="font-mono text-[10px] uppercase tracking-[0.16em] text-gilded">
-            {item.kind}
-          </p>
-          <h3 className="mt-1 font-serif text-lg text-ink-brown">{item.name}</h3>
-        </div>
-        <StatusBadge status={item.status} />
-      </div>
-      <p className="mt-2 font-sans text-xs leading-5 text-leather">
-        {item.highlight}
-      </p>
-      <ConnectorActions item={item} compact />
-    </article>
   );
 }
 
