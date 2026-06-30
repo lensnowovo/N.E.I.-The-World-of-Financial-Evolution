@@ -23,30 +23,20 @@ export function HomeHero({
         Skill 与 Workflow 可检索、可收藏，并可通过 MCP 调用。
       </p>
 
-      <form
-        action="/#skill-library"
-        method="get"
-        className="mt-7 flex w-full max-w-4xl rounded-md border-2 border-ink-brown bg-vellum shadow-card focus-within:ring-2 focus-within:ring-gilded/35"
-      >
+      <form action="/#skill-library" method="get" className="mt-6 flex w-full max-w-2xl">
         <label htmlFor="home-skill-search" className="sr-only">
           搜索 Skill
         </label>
-        <span
-          className="hidden w-14 shrink-0 items-center justify-center border-r border-paper-edge text-sepia sm:flex"
-          aria-hidden="true"
-        >
-          <SearchIcon />
-        </span>
         <input
           id="home-skill-search"
           name="q"
           type="search"
           placeholder="搜索 BP 初筛、半导体行研、IC Memo、专家访谈、LP 季报..."
-          className="min-w-0 flex-1 h-16 bg-transparent px-4 font-serif italic text-lg text-ink-brown placeholder:text-sepia/65 focus:outline-none sm:h-[72px] sm:px-5 sm:text-xl"
+          className="min-w-0 flex-1 h-11 bg-vellum border border-paper-edge border-r-0 px-4 font-serif italic text-sm text-ink-brown placeholder:text-sepia/70 focus:border-ink-brown"
         />
         <button
           type="submit"
-          className="shrink-0 border-l border-ink-brown bg-ink-brown px-5 font-serif text-base text-vellum transition-colors hover:bg-wax-red sm:px-8"
+          className="shrink-0 h-11 px-5 bg-ink-brown text-vellum hover:bg-wax-red font-serif text-sm transition-colors"
         >
           搜索 Skill
         </button>
@@ -104,14 +94,5 @@ function Stat({ value, label }: { value: string; label: string }) {
       <dt className="font-sans text-xs text-sepia order-2">{label}</dt>
       <dd className="font-serif text-xl text-ink-brown num-osf order-1">{value}</dd>
     </div>
-  );
-}
-
-function SearchIcon() {
-  return (
-    <svg width="20" height="20" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.25" aria-hidden="true">
-      <circle cx="7" cy="7" r="4.5" />
-      <path d="M10.5 10.5 L13.5 13.5" strokeLinecap="round" />
-    </svg>
   );
 }
