@@ -14,7 +14,7 @@ export type UploadedFile = {
 
 const ACCEPT = '.pdf,.docx,.doc,.xlsx,.xls,.pptx,.ppt,.png,.jpg,.jpeg,.mp4,.zip,.md';
 const MAX_FILES = 5;
-const MAX_SIZE = 20 * 1024 * 1024;
+const MAX_SIZE = 4 * 1024 * 1024;
 
 /**
  * AttachmentUploader · 卷宗附件投递区
@@ -43,7 +43,7 @@ export function AttachmentUploader({
     let curr = [...files];
     for (const f of arr) {
       if (f.size > MAX_SIZE) {
-        setErr(`${f.name} 超过 20 MB`);
+        setErr(`${f.name} 超过 4 MB`);
         continue;
       }
       setProgress({ name: f.name, pct: 15 });
@@ -106,7 +106,7 @@ export function AttachmentUploader({
           可接受 PDF · DOCX · XLSX · PPTX · 图片 · MP4 · ZIP · MD
         </p>
         <p className="mt-1 font-sans text-[11px] text-sepia">
-          单卷最多 {MAX_FILES} 件 · 单件 ≤ 20 MB
+          单卷最多 {MAX_FILES} 件 · 单件 ≤ 4 MB
         </p>
         <input
           ref={inputRef}

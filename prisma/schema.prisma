@@ -145,6 +145,16 @@ model Attachment {
   @@index([postId])
 }
 
+// ---------- 文件对象 fallback ----------
+// Public curated .md 已静态化；用户上传附件优先走 S3/R2。
+// 如果生产环境暂未配置对象存储，则临时落到 Postgres，避免 Vercel 本地文件丢失。
+model StoredFile {
+  key       String   @id
+  data      Bytes
+  mimeType  String
+  createdAt DateTime @default(now())
+}
+
 // ---------- 评论 ----------
 model Comment {
   id        Int      @id @default(autoincrement())
