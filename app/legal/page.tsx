@@ -24,8 +24,8 @@ const SECTIONS = [
   {
     title: 'MCP 安全边界',
     body: [
-      'N.E.I. MCP Server 只返回 Skill / Workflow 文本和你收藏库里的公开内容，不读取你的本地文件，不上传你的项目材料，也不默认保存你的项目敏感信息。',
-      'MCP Token 是访问你个人收藏库的凭证。如果你怀疑 Token 泄露，可以在连接配置页重新生成。',
+      'N.E.I. MCP Server 只返回公开且已准入的 Skill / Workflow 文本，以及你收藏库中的公开内容，不读取你的本地文件，不上传你的项目材料，也不默认保存你的项目敏感信息。',
+      'MCP Token 是访问 N.E.I. MCP 服务和你个人收藏库的凭证。如果你怀疑 Token 泄露，可以在连接配置页重新生成。',
     ],
   },
   {

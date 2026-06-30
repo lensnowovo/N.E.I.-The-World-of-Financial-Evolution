@@ -64,7 +64,7 @@ export default async function McpGuidePage() {
     step: [
       { '@type': 'HowToStep', position: 1, name: '登录并生成 Token', text: '前往连接配置页生成 N.E.I. MCP Token。' },
       { '@type': 'HowToStep', position: 2, name: '配置 MCP Server', text: `在客户端配置 Streamable HTTP Server：${mcpUrl}` },
-      { '@type': 'HowToStep', position: 3, name: '调用 list_my_skills', text: '收藏至少一个 Skill 后，在客户端调用 list_my_skills 验证连接。' },
+      { '@type': 'HowToStep', position: 3, name: '调用 search_skills', text: '在客户端调用 search_skills 搜索公开 MCP-ready Skill 全库；收藏库只是常用 Skill 的沉淀。' },
     ],
   };
 
@@ -136,10 +136,10 @@ export default async function McpGuidePage() {
 
           <h2>最快连接路径</h2>
           <ol>
-            <li>在网站收藏至少一个 Skill。</li>
             <li>前往 <Link href="/connect" className="text-wax-red underline">连接配置页</Link> 登录并生成 MCP Token。</li>
             <li>复制一键配置 Prompt 或 JSON，粘贴到 Claude Code、Codex、Workbuddy 或其它 Agent 客户端。</li>
-            <li>在客户端调用 <code>list_my_skills</code>。能看到收藏列表，就说明连接成功。</li>
+            <li>在客户端调用 <code>search_skills</code> 或 <code>recommend_skills_for_task</code> 搜索公开 Skill 全库。</li>
+            <li>遇到好用的 Skill，再调用 <code>favorite_skill</code> 沉淀到你的收藏库；之后可用 <code>list_my_skills</code> 快速读取。</li>
           </ol>
 
           <div className="not-prose my-5 rounded-md border border-gilded/40 bg-gilded/5 p-4">
@@ -175,12 +175,12 @@ export default async function McpGuidePage() {
 
           <h3 className="font-serif text-lg text-ink-brown mt-4">Skill 分发</h3>
           <ul>
-            <li><strong>search_skills</strong>：按关键词、任务阶段、场景、类型、行业搜索公开 Skill，返回结构化结果</li>
-            <li><strong>recommend_skills_for_task</strong>：按 BP 初筛、行研、IC Memo、LP 汇报等任务推荐 Skill 组合；同时返回 <code>suggestedConnectors</code> 字段，按任务提示可补充的外部 MCP / API 数据源</li>
+            <li><strong>search_skills</strong>：按关键词、任务阶段、场景、类型、行业搜索公开 MCP-ready Skill 全库，返回结构化结果，不要求先收藏</li>
+            <li><strong>recommend_skills_for_task</strong>：按 BP 初筛、行研、IC Memo、LP 汇报等任务从全库推荐 Skill 组合；同时返回 <code>suggestedConnectors</code> 字段，按任务提示可补充的外部 MCP / API 数据源</li>
             <li><strong>list_disciplines</strong>：列出 N.E.I. 可通过 MCP 加载的 Agent 工作纪律</li>
             <li><strong>get_default_discipline</strong>：获取默认工作纪律原文，建议在执行 PEVC Skill 前加载</li>
             <li><strong>get_skill</strong>：获取某个 Skill 的完整 Prompt / Workflow 原文</li>
-            <li><strong>list_my_skills</strong>：列出你收藏且已准入 MCP 的 Skill，并说明被隐藏的未准入收藏数量</li>
+            <li><strong>list_my_skills</strong>：列出你收藏且已准入 MCP 的 Skill；收藏库是常用 Skill 的个人 shortlist，不是使用 MCP 的前置条件</li>
             <li><strong>apply_skill</strong>：把上下文填入 Prompt 模板，返回可执行 Prompt</li>
             <li><strong>favorite_skill</strong>：从客户端把公开 Skill 加入收藏库</li>
             <li><strong>unfavorite_skill</strong>：从收藏库移除 Skill，需要 <code>confirm=true</code> 二次确认</li>
@@ -223,7 +223,7 @@ export default async function McpGuidePage() {
             <li>确认 Server URL 是 <code>{mcpUrl}</code>，不是旧的 Vercel 域名。</li>
             <li>确认请求头是 <code>Authorization: Bearer 你的Token</code>，中间有空格。</li>
             <li>确认 Token 没有泄露或重新生成；重新生成后旧 Token 会失效。</li>
-            <li>确认账号至少收藏了一个已经准入 MCP 的 Skill，否则 <code>list_my_skills</code> 可能返回空列表。</li>
+            <li>如果 <code>list_my_skills</code> 返回空列表，说明你还没有收藏；可以先用 <code>search_skills</code> 搜全库，不影响 MCP 使用。</li>
             <li>如果客户端不支持 Streamable HTTP 或不能加 Authorization Header，就暂时无法连接。</li>
           </ul>
         </div>

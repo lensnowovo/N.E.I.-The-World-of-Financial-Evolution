@@ -52,14 +52,14 @@ PEVC 用途：${item.pevcUseCases.join(' / ')}
 接入步骤：
 1. 前往 ${item.url ?? '/connect'} 登录并生成 MCP Token（只显示一次，请只保存在我信任的本地客户端）
 2. 复制 /connect 页提供的「一键配置 Prompt」或「MCP JSON 配置」
-3. 粘贴回当前客户端，按指示调用 list_my_skills 验证连接
+3. 粘贴回当前客户端，先调用 search_skills 搜索公开 Skill 全库；有收藏时再调用 list_my_skills
 
 安全前提：
 - N.E.I. MCP 只分发 Skill / Workflow，不读取本地文件，不上传项目材料
 - Token 只保存在我信任的本地或已登录客户端，不要发到陌生网页、群聊、截图、共享文档
 - 若 Token 泄露，请提醒我立即在 /connect 重置
 
-配好后请告诉我可用工具列表与收藏的 Skill。`;
+配好后请告诉我可用工具列表，并先用 search_skills 搜索“BP 初筛”验证全库搜索。`;
   }
 
   // 观察中 / 鉴权未确认 的条目：先调研再装

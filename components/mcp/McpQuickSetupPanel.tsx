@@ -54,8 +54,9 @@ export function McpQuickSetupPanel({
           <h2 className="font-serif text-2xl text-ink-brown">三步连接 MCP</h2>
           <p className="mt-2 font-sans text-sm leading-7 text-leather">
             生成 Token 后，复制下方配置到 Claude Code、Codex、Workbuddy 或其它 Agent 客户端。配好后调用
-            <code className="mx-1 rounded-sm bg-vellum px-1 py-0.5 font-mono text-[12px]">list_my_skills</code>
-            验证连接。
+            <code className="mx-1 rounded-sm bg-vellum px-1 py-0.5 font-mono text-[12px]">search_skills</code>
+            搜索全库，或调用 <code className="mx-1 rounded-sm bg-vellum px-1 py-0.5 font-mono text-[12px]">list_my_skills</code>
+            读取你的收藏库。
           </p>
         </div>
 
@@ -97,7 +98,7 @@ export function McpQuickSetupPanel({
 
           <SetupCopyCard
             title="推荐：复制一键配置 Prompt"
-            description="粘贴到 Claude Code、Codex、Workbuddy 或其它 Agent 客户端。它会按安全前提保存 MCP Server，并调用 list_my_skills 验证连接。"
+            description="粘贴到 Claude Code、Codex、Workbuddy 或其它 Agent 客户端。它会按安全前提保存 MCP Server，并先用 search_skills 验证全库搜索。"
             body={setupPrompt}
             active={copied === 'prompt'}
             onCopy={() => copy('prompt', setupPrompt)}
@@ -116,7 +117,7 @@ export function McpQuickSetupPanel({
         </div>
       ) : (
         <div className="mt-5 grid gap-3 sm:grid-cols-3">
-          <EmptyStep number="01" title="收藏 Skill" text="先收藏至少一个你想在客户端调用的 Skill。" />
+          <EmptyStep number="01" title="连接后可搜索全库" text="不需要先收藏。Agent 可先用 search_skills / recommend_skills_for_task 找合适 Skill。" />
           <EmptyStep number="02" title="生成配置包" text={hasExistingToken ? '已有 Token；如需明文配置包，请重新生成。' : '点击上方按钮生成 Token。'} />
           <EmptyStep number="03" title="粘贴到客户端" text="复制 Prompt 或 JSON，粘贴到 Claude Code / Codex / Workbuddy 或其它 Agent 客户端。" />
         </div>
@@ -266,15 +267,15 @@ function buildSetupPrompt({
 - 鉴权：请求头 ${authLine}
 - 可用工具：
   - search_skills：按关键词 / 场景 / 类型搜索公开 Skill
-  - recommend_skills_for_task：按 BP 初筛、行研、IC Memo、LP 汇报等任务推荐 Skill 组合
+  - recommend_skills_for_task：按 BP 初筛、行研、IC Memo、LP 汇报等任务从全库推荐 Skill 组合
   - get_skill：获取某个 Skill 的完整 Prompt / Workflow 原文
-  - list_my_skills：列出我在 N.E.I. 收藏且已准入 MCP 的 Skill
+  - list_my_skills：列出我在 N.E.I. 收藏且已准入 MCP 的 Skill（收藏是常用库，不是使用前置条件）
   - apply_skill：把上下文填入 Prompt 模板，返回可执行 Prompt
-  - favorite_skill / unfavorite_skill：收藏或取消收藏 Skill
+  - favorite_skill / unfavorite_skill：把搜索到的好用 Skill 收藏或取消收藏
 
 ${tokenNote}
 
-配好后请调用一次 list_my_skills 验证连接，并告诉我是否能看到我的收藏 Skill。`;
+配好后请先调用 search_skills，搜索“BP 初筛”或“IC Memo”验证全库搜索；如果我已经有收藏，再调用 list_my_skills 读取我的常用库。`;
 }
 
 async function copyText(text: string) {

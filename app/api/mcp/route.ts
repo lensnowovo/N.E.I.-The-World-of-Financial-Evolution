@@ -273,7 +273,7 @@ function makeHandler(uid: number, clientName: string | null, requestId: string) 
 
       server.tool(
         'search_skills',
-        'Search public MCP-ready N.E.I. Skills by keyword, PEVC task, stage, type, industry, tags, author, and sort order.',
+        'Search the whole public MCP-ready N.E.I. Skill library by keyword, PEVC task, stage, type, industry, tags, author, and sort order. This does not require the user to favorite Skills first.',
         {
           query: z.string().optional().describe('Keyword, for example BP, IC Memo, semiconductor research, LP report'),
           task: z.string().optional().describe('Business task alias, for example BP screening, industry research, IC Memo, LP report'),
@@ -338,7 +338,7 @@ function makeHandler(uid: number, clientName: string | null, requestId: string) 
 
       server.tool(
         'recommend_skills_for_task',
-        'Recommend a short sequence of N.E.I. Skills for a PEVC work task, such as BP screening, IC Memo, industry research, post-investment update, or LP reporting.',
+        'Recommend a short sequence from the whole public MCP-ready N.E.I. Skill library for a PEVC work task, such as BP screening, IC Memo, industry research, post-investment update, or LP reporting. Favorites are optional and only used to save useful Skills for later.',
         {
           task: z.string().describe('The investment work task to complete'),
           industry: z.string().optional().describe('Optional industry focus'),
@@ -607,7 +607,7 @@ function makeHandler(uid: number, clientName: string | null, requestId: string) 
 
       server.tool(
         'list_my_skills',
-        'List your favorited MCP-ready Skills with structured metadata.',
+        'List your favorited MCP-ready Skills with structured metadata. Use search_skills or recommend_skills_for_task to search the whole public Skill library; favorites are only the user’s saved shortlist.',
         {},
         async () => {
           const start = Date.now();
@@ -642,7 +642,7 @@ function makeHandler(uid: number, clientName: string | null, requestId: string) 
             return jsonContent({
               summary: items.length
                 ? `You have ${items.length} MCP-ready favorited Skills.`
-                : 'You do not have any MCP-ready favorited Skills yet.',
+                : 'Your favorite library is empty, but you can still use search_skills and recommend_skills_for_task to search the whole public MCP-ready N.E.I. Skill library.',
               visibleCount: items.length,
               hiddenBecauseNotMcpApprovedCount,
               warnings:

@@ -103,8 +103,8 @@ function SignedInDock({ data }: { data: HomeSideDockData }) {
           {mcpConnected
             ? `最近工具调用 ${formatDate(user.lastMcpCallAt!)}`
             : mcpPending
-              ? 'Token 已生成；请在客户端调用 list_my_skills 验证。'
-              : '生成 Token 后，在客户端调用收藏库。'}
+              ? 'Token 已生成；请在客户端调用 search_skills 验证。'
+              : '生成 Token 后，在客户端搜索 Skill 全库。'}
         </p>
       </div>
 

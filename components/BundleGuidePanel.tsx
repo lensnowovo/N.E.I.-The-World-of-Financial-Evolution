@@ -69,7 +69,7 @@ export function BundleGuidePanel({
         <li className="flex gap-3">
           <span className="font-mono text-xs text-wax-red shrink-0 mt-0.5">03</span>
           <p className="font-sans text-sm leading-6 text-leather">
-            把你的材料发给 AI，它会<strong className="text-ink-brown">自动调用</strong>收藏的 Skill 完成分析
+            把你的材料发给 AI，它可以先<strong className="text-ink-brown">搜索全库</strong>选择合适 Skill，再把常用 Skill 收藏沉淀
           </p>
         </li>
       </ol>

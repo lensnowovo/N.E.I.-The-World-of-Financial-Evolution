@@ -21,12 +21,14 @@ export function McpOnboardingChecklist({ status, compact = false }: Props) {
   const configured = status.hasMcpToken && status.hasAnyMcpCall;
   const steps = [
     {
-      key: 'favorite',
-      title: '收藏至少 1 个 Skill',
-      done: status.favoriteCount > 0,
-      detail: status.favoriteCount > 0 ? `已收藏 ${status.favoriteCount} 个` : '先把想在 AI 客户端调用的 Skill 加入收藏',
+      key: 'library',
+      title: '可搜索全库 Skill',
+      done: true,
+      detail: status.favoriteCount > 0
+        ? `也可读取你的 ${status.favoriteCount} 个收藏 Skill`
+        : '不需要先收藏；Agent 可先搜索全库，再把好用的 Skill 收藏沉淀',
       href: '/',
-      cta: '去发现 Skill',
+      cta: '浏览全库',
     },
     {
       key: 'token',
@@ -54,9 +56,13 @@ export function McpOnboardingChecklist({ status, compact = false }: Props) {
     },
     {
       key: 'list',
-      title: '调用 list_my_skills',
-      done: status.hasListMySkillsCall,
-      detail: status.hasListMySkillsCall ? '已验证可以读取你的收藏 Skill' : '这是闭环关键：确认客户端只能读取你的收藏列表',
+      title: '调用 search_skills / list_my_skills',
+      done: status.hasAnyMcpCall,
+      detail: status.hasListMySkillsCall
+        ? '已验证可以读取你的收藏库'
+        : status.hasAnyMcpCall
+          ? '已验证 MCP 可调用；有收藏时可再用 list_my_skills 读常用库'
+          : '先用 search_skills 搜全库；有收藏时再用 list_my_skills 读常用库',
       href: '/dashboard',
       cta: '看调用日志',
     },
@@ -70,9 +76,9 @@ export function McpOnboardingChecklist({ status, compact = false }: Props) {
           <p className="font-display tracking-display text-[10px] text-sepia uppercase mb-1">
             MCP Onboarding
           </p>
-          <h2 className="font-serif text-lg text-ink-brown">收藏 → Token → 配置 → 调通 → list_my_skills</h2>
+          <h2 className="font-serif text-lg text-ink-brown">全库搜索 → Token → 配置 → 调通 → 收藏沉淀</h2>
           <p className="font-sans text-xs text-leather mt-1 leading-relaxed">
-            当前完成 {doneCount}/5。这个闭环跑通后，你的 AI 客户端就能按权限读取收藏的 Skill。
+            当前完成 {doneCount}/5。MCP 可搜索公开 Skill 全库；收藏库用于沉淀你常用的 Skill。
           </p>
         </div>
         <div className="shrink-0 rounded border border-paper-edge bg-vellum px-3 py-2 text-center">

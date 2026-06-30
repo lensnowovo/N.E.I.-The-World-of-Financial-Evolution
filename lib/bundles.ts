@@ -148,7 +148,7 @@ export const taskBundles: TaskBundle[] = [
     slug: 'mcp-setup',
     title: 'MCP 配置工作流',
     shortTitle: '配置 MCP',
-    description: '把收藏的 Skill 接入 Claude Code、Codex、Workbuddy 等 Agent 客户端调用。',
+    description: '把 N.E.I. Skill 全库接入 Claude Code、Codex、Workbuddy 等 Agent 客户端，常用 Skill 再收藏沉淀。',
     output: 'MCP 配置完成 / 客户端连接说明',
     scenes: ['crm'],
     skillCountLabel: '3 个 Skills',
@@ -156,7 +156,7 @@ export const taskBundles: TaskBundle[] = [
     steps: [
       { title: '了解 MCP', description: '了解 N.E.I. MCP 做什么、不做什么、安全边界。', postIds: [44] },
       { title: '配置客户端', description: '生成 Token 并配置 Claude Code / Codex / Workbuddy。', postIds: [94] },
-      { title: '验证调通', description: '调用 list_my_skills 确认收藏库已同步。', postIds: [98] },
+      { title: '验证调通', description: '调用 search_skills 搜全库；有收藏时再用 list_my_skills 读常用库。', postIds: [98] },
     ],
   },
 ];

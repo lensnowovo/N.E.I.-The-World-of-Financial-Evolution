@@ -82,7 +82,7 @@ export default function ConnectPage() {
         </p>
         <h1 className="font-serif text-3xl text-ink-brown">连接你的 AI 客户端</h1>
         <p className="font-serif italic text-sm text-leather mt-2 leading-7">
-          最短路径：收藏 Skill → 生成 Token → 复制配置包 → 粘贴到 Claude Code、Codex、Workbuddy 或其它 Agent 客户端 → 调用 list_my_skills 验证。
+          最短路径：生成 Token → 复制配置包 → 粘贴到 Claude Code、Codex、Workbuddy 或其它 Agent 客户端 → 调用 search_skills 搜全库。收藏只是常用库，不是使用前置条件。
         </p>
       </header>
 
@@ -157,9 +157,9 @@ export default function ConnectPage() {
               调通后怎么用
             </p>
             <ul className="space-y-2 font-sans text-xs leading-6 text-leather">
-              <li>1. 收藏至少一个 Skill。</li>
-              <li>2. 在客户端调用 <code className="font-mono">list_my_skills</code>。</li>
-              <li>3. 能看到收藏列表，就说明 MCP 已连通。</li>
+              <li>1. 在客户端调用 <code className="font-mono">search_skills</code> 搜全库。</li>
+              <li>2. 调用 <code className="font-mono">recommend_skills_for_task</code> 让 Agent 按任务推荐。</li>
+              <li>3. 遇到好用的 Skill，再用 <code className="font-mono">favorite_skill</code> 收藏沉淀。</li>
             </ul>
           </div>
         </aside>

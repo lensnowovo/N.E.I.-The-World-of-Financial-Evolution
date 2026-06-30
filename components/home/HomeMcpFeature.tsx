@@ -23,15 +23,15 @@ export function HomeMcpFeature({ status }: { status: HomeMcpConnectionStatus }) 
             eyebrow: 'MCP 等待调通',
             title: 'Token 已生成，还差最后一次客户端验证',
             detail:
-              '把配置粘贴到 Claude Code、Codex、Workbuddy 或其它 Agent 客户端后，调用 list_my_skills。成功调用后这里才会变成绿灯。',
+              '把配置粘贴到 Claude Code、Codex、Workbuddy 或其它 Agent 客户端后，调用 search_skills 搜全库。成功调用后这里才会变成绿灯。',
             href: '/connect',
             cta: '继续连接 MCP',
           }
         : {
             eyebrow: status.signedIn ? 'MCP 未连接' : '登录后连接 MCP',
-            title: '把你的收藏库接进 Agent 客户端',
+            title: '把 N.E.I. Skill 全库接进 Agent 客户端',
             detail:
-              '收藏 Skill → 生成 Token → 配置客户端 → 调用 list_my_skills。N.E.I. 只分发 Skill / Workflow，不读取本地文件。',
+              '生成 Token → 配置客户端 → 搜索公开 Skill 全库；遇到好用的再收藏沉淀。N.E.I. 只分发 Skill / Workflow，不读取本地文件。',
             href: '/connect',
             cta: status.signedIn ? '3 分钟连接 MCP' : '登录并连接 MCP',
           };
