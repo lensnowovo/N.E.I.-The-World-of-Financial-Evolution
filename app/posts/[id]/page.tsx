@@ -21,7 +21,7 @@ import { AttachmentList } from '@/components/AttachmentList';
 import { CommentSection } from '@/components/CommentSection';
 import { PostActions, PostStarButton } from './PostActions';
 import { DetailActions } from './DetailActions';
-import { SkillPreview } from './SkillPreview';
+import { LazySkillPreview } from './LazySkillPreview';
 import { PreCopyButton } from './PreCopyButton';
 import { BackLink } from './BackLink';
 import { ReportButton } from './ReportButton';
@@ -408,8 +408,8 @@ export default async function PostDetailPage({
 
           {/* SKILL.md / md 附件原文预览（默认折叠，平衡小白与技术人） */}
           {post.attachments[0] && (
-            <SkillPreview
-              storageKey={post.attachments[0].storageKey}
+            <LazySkillPreview
+              attachmentId={post.attachments[0].id}
               fileName={post.attachments[0].fileName}
             />
           )}
