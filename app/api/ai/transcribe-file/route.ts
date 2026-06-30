@@ -32,7 +32,11 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: '请求体格式错误' }, { status: 400 });
   }
 
-  const { content, fileName } = body as { content?: unknown; fileName?: unknown };
+  const { content, fileName, skipAttachment } = body as {
+    content?: unknown;
+    fileName?: unknown;
+    skipAttachment?: unknown;
+  };
   if (typeof content !== 'string' || !content.trim()) {
     return NextResponse.json({ error: '文件内容为空' }, { status: 400 });
   }
@@ -55,7 +59,7 @@ export async function POST(req: Request) {
   // 若是文件型资产，把原文存为附件（postId=null，发布时回填），复刻 /api/ai/transcribe 的逻辑
   let attachmentId: number | null = null;
   let attachmentFileName: string | null = null;
-  if (skill.shouldAttach && sourceContent) {
+  if (!skipAttachment && skill.shouldAttach && sourceContent) {
     const buf = Buffer.from(sourceContent.text, 'utf-8');
     const storageKey = await saveBuffer(buf, sourceContent.fileName);
     const att = await prisma.attachment.create({

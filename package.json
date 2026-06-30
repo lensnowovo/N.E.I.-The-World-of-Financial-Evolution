@@ -36,6 +36,7 @@
     "@vercel/analytics": "^2.0.1",
     "bcryptjs": "^2.4.3",
     "clsx": "^2.1.1",
+    "jszip": "^3.10.1",
     "marked": "^18.0.5",
     "mcp-handler": "^1.1.0",
     "next": "^15.5.19",
