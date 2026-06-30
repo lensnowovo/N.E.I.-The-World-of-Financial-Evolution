@@ -90,11 +90,11 @@ export default async function McpGuidePage() {
           <p>
             N.E.I. MCP Server 是一个 <strong>Skill 分发 + 连接器目录索引 + Prompt 仓库</strong>。
             它让你的 AI 客户端通过 MCP 协议搜索、读取和调用 N.E.I. 上的 PEVC Skill，
-            同时提供外部数据源连接器目录，让 Agent 知道"缺什么来源、能补什么 MCP"。
+            同时提供外部数据源连接器目录，让 Agent 知道“缺什么来源、能补什么 MCP”。
           </p>
           <p className="font-serif italic text-sm text-sepia mt-2">
             N.E.I. 是图书馆管理员——它给你一本按主题分类的卡片目录和加载指令。
-            真正"智能"的是你自己的 Agent：它决定补不补、补哪个、怎么配合 Skill 用。
+            真正“智能”的是你自己的 Agent：它决定补不补、补哪个、怎么配合 Skill 用。
           </p>
 
           <div className="not-prose my-5 rounded-md border border-wax-red/30 bg-wax-red/5 p-4">
@@ -201,8 +201,8 @@ export default async function McpGuidePage() {
           </p>
           <ol>
             <li><strong>主动浏览</strong>：调 <code>list_connectors</code> 按分类 / 类型 / 状态浏览所有连接器。</li>
-            <li><strong>按主题搜</strong>：调 <code>search_connectors("clinical trials")</code> 按关键词找。</li>
-            <li><strong>按任务推荐</strong>：调 <code>recommend_skills_for_task</code> 或 <code>recommend_connectors_for_task</code>，N.E.I. 按关键词命中规则表提示"这类任务通常补 XX 更有用"。</li>
+            <li><strong>按主题搜</strong>：调 <code>search_connectors(&quot;clinical trials&quot;)</code> 按关键词找。</li>
+            <li><strong>按任务推荐</strong>：调 <code>recommend_skills_for_task</code> 或 <code>recommend_connectors_for_task</code>，N.E.I. 按关键词命中规则表提示“这类任务通常补 XX 更有用”。</li>
             <li><strong>拿加载指令</strong>：用户确认后，调 <code>get_connector_setup_prompt(connector_id, confirmed=true)</code> 拿加载 Prompt。Agent 在本地装外部 MCP，N.E.I. 不代理调用。</li>
           </ol>
           <p className="font-serif italic text-sm text-sepia mt-2">
