@@ -117,19 +117,19 @@ export default function McpLibraryPage() {
               id={category.key}
               className="scroll-mt-24 rounded-xl border border-paper-edge bg-vellum"
             >
-              <header className="flex flex-col gap-2 border-b border-paper-edge px-5 py-4 sm:flex-row sm:items-end sm:justify-between">
+              <header className="flex flex-col gap-2 border-b border-paper-edge bg-leather/10 px-5 py-4 shadow-[inset_4px_0_0_rgba(168,131,57,0.55)] sm:flex-row sm:items-end sm:justify-between">
                 <div>
-                  <p className="font-display text-[10px] uppercase tracking-display text-sepia">
+                  <p className="font-display text-[10px] uppercase tracking-display text-gilded">
                     {category.short}
                   </p>
                   <h2 className="mt-1 font-serif text-xl text-ink-brown">
                     {category.label}
                   </h2>
-                  <p className="mt-1 max-w-2xl font-sans text-xs leading-5 text-sepia">
+                  <p className="mt-1 max-w-2xl font-sans text-xs leading-5 text-leather">
                     {category.description}
                   </p>
                 </div>
-                <span className="w-fit rounded-full border border-paper-edge bg-parchment px-3 py-1 font-mono text-[11px] text-sepia">
+                <span className="w-fit rounded-full border border-gilded/30 bg-vellum px-3 py-1 font-mono text-[11px] text-leather">
                   {items.length} connectors
                 </span>
               </header>
