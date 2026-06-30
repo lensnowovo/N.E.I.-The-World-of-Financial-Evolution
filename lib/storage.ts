@@ -31,6 +31,10 @@ const useS3 = !!(S3_ENDPOINT && S3_ACCESS_KEY_ID && S3_SECRET_ACCESS_KEY && S3_B
 // 本地 fallback
 const UPLOAD_DIR = process.env.UPLOAD_DIR || './uploads';
 
+export function isObjectStorageConfigured(): boolean {
+  return useS3;
+}
+
 // S3 client（懒加载）
 let _s3: S3Client | null = null;
 function s3(): S3Client {
