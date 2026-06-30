@@ -49,7 +49,7 @@ export function McpQuickSetupPanel({
   return (
     <div className="rounded-lg border-2 border-gilded/40 bg-gilded/5 p-5 sm:p-6">
       <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
-        <div>
+        <div className="min-w-0 flex-1">
           <p className="font-display tracking-display text-[10px] uppercase text-sepia mb-2">MCP Quick Setup</p>
           <h2 className="font-serif text-2xl text-ink-brown">三步连接 MCP</h2>
           <p className="mt-2 font-sans text-sm leading-7 text-leather">
@@ -60,7 +60,12 @@ export function McpQuickSetupPanel({
           </p>
         </div>
 
-        <Button type="button" onClick={onGenerate} disabled={generating}>
+        <Button
+          type="button"
+          onClick={onGenerate}
+          disabled={generating}
+          className="h-auto min-h-10 w-full max-w-full whitespace-normal px-4 py-2 text-center leading-snug sm:w-auto sm:max-w-44"
+        >
           {generating
             ? '生成中…'
             : hasExistingToken
