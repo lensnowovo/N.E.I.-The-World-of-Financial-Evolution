@@ -3,6 +3,7 @@
 import { useState } from 'react';
 import { cn } from '@/lib/cn';
 import { sceneLabel, industryLabel, contentLabel } from '@/lib/tags';
+import { sanitizeHtml } from '@/lib/validate';
 import type { PublishSuggestion } from '@/lib/ai';
 
 type Branch = 'prompt' | 'file' | 'method';
@@ -50,6 +51,7 @@ export function AiAssistPanel({
 
   const contentLen = bodyText.replace(/\s/g, '').length;
   const canCall = !!branch && contentLen >= 20;
+  const safeSummary = sug?.summary ? sanitizeHtml(sug.summary) : '';
 
   const run = async () => {
     setErr('');
@@ -148,24 +150,24 @@ export function AiAssistPanel({
           )}
 
           {/* 摘要 */}
-          {canApplySummary && sug.summary && (
+          {canApplySummary && safeSummary && (
             <SuggestRow label="摘要（可写入正文开头）">
               <div
                 className="font-serif text-sm text-leather italic line-clamp-3 max-h-24 overflow-hidden"
-                dangerouslySetInnerHTML={{ __html: sug.summary }}
+                dangerouslySetInnerHTML={{ __html: safeSummary }}
               />
-              <ApplyBtn onClick={() => onApplySummary(sug.summary)}>写入正文</ApplyBtn>
+              <ApplyBtn onClick={() => onApplySummary(safeSummary)}>写入正文</ApplyBtn>
             </SuggestRow>
           )}
-          {!canApplySummary && sug.summary && (
+          {!canApplySummary && safeSummary && (
             <SuggestRow label="摘要">
               <div
                 className="font-serif text-sm text-leather italic line-clamp-3 max-h-24 overflow-hidden"
-                dangerouslySetInnerHTML={{ __html: sug.summary }}
+                dangerouslySetInnerHTML={{ __html: safeSummary }}
               />
               <button
                 type="button"
-                onClick={() => navigator.clipboard?.writeText(sug.summary.replace(/<[^>]*>/g, ''))}
+                onClick={() => navigator.clipboard?.writeText(safeSummary.replace(/<[^>]*>/g, ''))}
                 className="font-sans text-[11px] text-sepia hover:text-ink-brown"
               >
                 复制

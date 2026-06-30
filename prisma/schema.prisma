@@ -19,7 +19,7 @@ model User {
   avatarUrl    String?
   institution  String?  // 机构（选填）
   bio          String?  // 个人简介（选填）
-  apiKeyEnc    String?  // 加密后的 AI API key（AES-256-GCM）
+  apiKeyEnc    String?  // Legacy: 站内执行下线前的个人 AI API key 密文字段，保留仅为兼容旧数据
   mcpTokenHash    String?   // MCP server 访问 token 的 hash
   tokenCreatedAt  DateTime? // SEC-008: MCP token 创建时间，便于排查泄露
   tokenLastUsedAt DateTime? // SEC-008: MCP token 最后一次成功鉴权时间

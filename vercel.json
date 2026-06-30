@@ -1,9 +1,4 @@
 {
   "buildCommand": "npm run vercel-build",
-  "regions": ["sin1"],
-  "functions": {
-    "app/api/skills/[id]/execute/route.ts": {
-      "maxDuration": 300
-    }
-  }
+  "regions": ["sin1"]
 }
