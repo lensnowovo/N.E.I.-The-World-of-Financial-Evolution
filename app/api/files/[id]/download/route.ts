@@ -25,20 +25,24 @@ export async function GET(_req: Request, { params }: { params: Promise<{ id: str
   }
 
   let buf: Buffer;
-  let fallback = false;
+  let source: 'static-cache' | 'object-storage' | 'generated-fallback' = 'object-storage';
+
   try {
-    buf = await readFileByKey(att.storageKey);
+    // Public curated markdown files are small and stable. Prefer the deployed
+    // static cache so launch content does not depend on object storage.
+    buf = await readFileFromCache(att.storageKey);
+    source = 'static-cache';
   } catch {
     try {
-      buf = await readFileFromCache(att.storageKey);
-      fallback = true;
+      buf = await readFileByKey(att.storageKey);
+      source = 'object-storage';
     } catch {
       const generated = buildMarkdownFallback(att.fileName, att.post.title, att.post.body);
       if (!generated) {
         return NextResponse.json({ error: '文件已丢失' }, { status: 410 });
       }
       buf = generated;
-      fallback = true;
+      source = 'generated-fallback';
     }
   }
 
@@ -56,7 +60,7 @@ export async function GET(_req: Request, { params }: { params: Promise<{ id: str
       'Content-Type': att.mimeType || 'application/octet-stream',
       'Content-Length': String(buf.length),
       'Content-Disposition': `attachment; filename="${ascii}"; filename*=UTF-8''${utf8}`,
-      ...(fallback ? { 'X-NEI-File-Fallback': '1' } : {}),
+      'X-NEI-File-Source': source,
     },
   });
 }
