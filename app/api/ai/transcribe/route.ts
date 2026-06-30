@@ -2,7 +2,7 @@ import { NextResponse } from 'next/server';
 import { getSessionUid } from '@/lib/session';
 import { prisma } from '@/lib/db';
 import { saveBuffer } from '@/lib/storage';
-import { transcribeWithSource, isAiEnabled, isGitHubFileUrl } from '@/lib/ai';
+import { transcribeWithSource, isAiEnabled, isGitHubImportUrl } from '@/lib/ai';
 
 /**
  * POST /api/ai/transcribe
@@ -25,8 +25,8 @@ export async function POST(req: Request) {
   if (typeof url !== 'string' || !url.trim()) {
     return NextResponse.json({ error: '请提供 URL' }, { status: 400 });
   }
-  if (!isGitHubFileUrl(url.trim())) {
-    return NextResponse.json({ error: '目前只支持 GitHub 文件链接（github.com/.../blob/... 或 raw URL）' }, { status: 400 });
+  if (!isGitHubImportUrl(url.trim())) {
+    return NextResponse.json({ error: '目前支持 GitHub 公开仓库、仓库目录、文件链接或 raw URL' }, { status: 400 });
   }
 
   let result;
@@ -43,16 +43,18 @@ export async function POST(req: Request) {
   let attachmentId: number | null = null;
   let attachmentFileName: string | null = null;
   if (skill.shouldAttach && sourceContent) {
-    const buf = Buffer.from(sourceContent.text, 'utf-8');
-    const storageKey = await saveBuffer(buf, sourceContent.fileName);
+    const buf = sourceContent.attachmentBuffer || Buffer.from(sourceContent.text, 'utf-8');
+    const fileName = sourceContent.attachmentFileName || sourceContent.fileName;
+    const mimeType = sourceContent.attachmentMimeType || 'text/markdown';
+    const storageKey = await saveBuffer(buf, fileName);
     const att = await prisma.attachment.create({
       data: {
         postId: null,
         uploaderId: uid,
-        fileName: sourceContent.fileName,
+        fileName,
         storageKey,
         fileSize: buf.length,
-        mimeType: 'text/markdown',
+        mimeType,
       },
     });
     attachmentId = att.id;
