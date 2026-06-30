@@ -4,7 +4,6 @@ import { useState, useEffect, useCallback } from 'react';
 import Link from 'next/link';
 import { cn } from '@/lib/cn';
 import { Button } from '@/components/ui/Button';
-import { Input } from '@/components/ui/Input';
 import { TimeText } from '@/components/TimeText';
 import {
   McpOnboardingChecklist,
@@ -77,7 +76,6 @@ export function DashboardClient({
   overviewStats,
   myPosts,
   hasMcpToken,
-  hasApiKey,
   mcpTokenCreatedAt,
   mcpTokenLastUsedAt,
   mcpCallLogs,
@@ -91,7 +89,6 @@ export function DashboardClient({
   overviewStats: OverviewStats;
   myPosts: MyPost[];
   hasMcpToken: boolean;
-  hasApiKey: boolean;
   mcpTokenCreatedAt: string | null;
   mcpTokenLastUsedAt: string | null;
   mcpCallLogs: McpCallLog[];
@@ -108,9 +105,6 @@ export function DashboardClient({
   // DASH-003: token 状态跟随服务端传入；生成/撤销后本地翻转
   const [mcpActive, setMcpActive] = useState(hasMcpToken);
   const [mcpRevoking, setMcpRevoking] = useState(false);
-  const [apiKey, setApiKey] = useState('');
-  const [keySaving, setKeySaving] = useState(false);
-  const [msg, setMsg] = useState<{ ok: boolean; text: string } | null>(null);
   const currentMcpOnboardingStatus: McpOnboardingStatus = {
     ...mcpOnboardingStatus,
     favoriteCount: items.length,
@@ -437,30 +431,6 @@ export function DashboardClient({
                 {mcpCallLogs.map((log) => (
                   <McpCallLogRow key={log.id} log={log} />
                 ))}
-              </div>
-            )}
-          </div>
-
-          {/* API Key */}
-          <div className="rounded-lg border-2 border-paper-edge bg-vellum/40 p-5">
-            <h3 className="font-serif text-base text-ink-brown mb-2">网站执行 API Key（选填）</h3>
-            {hasApiKey ? (
-              <span className="inline-flex items-center gap-1.5 h-9 px-4 border border-moss/40 bg-moss/5 text-moss text-sm font-sans rounded-sm">✓ 已配置</span>
-            ) : (
-              <div>
-                <p className="font-sans text-xs text-leather mb-2">配置后可在网站直接执行 Prompt</p>
-                <form onSubmit={async (e) => {
-                  e.preventDefault(); setMsg(null); if (!apiKey.trim()) return;
-                  setKeySaving(true);
-                  const r = await fetch('/api/users/me', { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ apiKey: apiKey.trim() }) });
-                  setKeySaving(false);
-                  setApiKey('');
-                  setMsg(r.ok ? { ok: true, text: '已保存' } : { ok: false, text: '保存失败' });
-                }}>
-                  <Input type="password" value={apiKey} onChange={(e) => setApiKey(e.target.value)} placeholder="sk-ant-..." />
-                  {msg && <p className={cn('mt-2 text-sm', msg.ok ? 'text-moss' : 'text-wax-red')}>{msg.text}</p>}
-                  <Button type="submit" disabled={keySaving || !apiKey.trim()} className="mt-2">{keySaving ? '保存中…' : '保存'}</Button>
-                </form>
               </div>
             )}
           </div>

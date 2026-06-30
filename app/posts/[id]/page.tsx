@@ -1,7 +1,6 @@
 import { notFound } from 'next/navigation';
 import Link from 'next/link';
 import type { Metadata } from 'next';
-import { Prisma } from '@prisma/client';
 import { prisma } from '@/lib/db';
 import { cn } from '@/lib/cn';
 import { getCurrentUser } from '@/lib/session';
@@ -25,7 +24,6 @@ import { DetailActions } from './DetailActions';
 import { SkillPreview } from './SkillPreview';
 import { PreCopyButton } from './PreCopyButton';
 import { BackLink } from './BackLink';
-import { ExecuteButton } from './ExecuteButton';
 import { ReportButton } from './ReportButton';
 import { DeleteButton } from './DeleteButton';
 import { ShareLinkButton } from './ShareLinkButton';
@@ -130,14 +128,9 @@ export default async function PostDetailPage({
   void incrementViewCount(id).catch(() => {});
 
   let starred = false;
-  let hasApiKey = false;
   if (uid) {
-    const [starRow, apiKeyConfigured] = await Promise.all([
-      prisma.postFavorite.findUnique({ where: { userId_postId: { userId: uid, postId: id } } }),
-      getHasApiKey(uid),
-    ]);
+    const starRow = await prisma.postFavorite.findUnique({ where: { userId_postId: { userId: uid, postId: id } } });
     starred = !!starRow;
-    hasApiKey = apiKeyConfigured;
   }
 
   const tagContent: string[] = (() => {
@@ -326,12 +319,6 @@ export default async function PostDetailPage({
           shareScene={sceneLabel(post.tagScene)}
           shareAssetLabel={assetLabel || 'Skill'}
         />
-        {/* 执行按钮（仅 prompt 类型） */}
-        {isPrompt && (
-          <div className="mt-3">
-            <ExecuteButton postId={post.id} isAuthed={!!uid} hasApiKey={hasApiKey} />
-          </div>
-        )}
       </div>
 
       {/* —— 怎么用说明（紧凑内联）—— */}
@@ -720,23 +707,6 @@ async function incrementViewCount(postId: number): Promise<void> {
   }
 }
 
-async function getHasApiKey(userId: number): Promise<boolean> {
-  try {
-    const user = await prisma.user.findUnique({
-      where: { id: userId },
-      select: { apiKeyEnc: true },
-    });
-    return !!user?.apiKeyEnc;
-  } catch (error) {
-    // This field was introduced after the initial production schema. Keep the
-    // detail page usable while a deployment is applying the additive change.
-    if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2022') {
-      console.error('User.apiKeyEnc is missing from the database; run prisma db push.');
-      return false;
-    }
-    throw error;
-  }
-}
 
 /** 右栏小标签 chip */
 function TagChip({

@@ -16,7 +16,6 @@ type Profile = {
   institution: string | null;
   bio: string | null;
   avatarUrl: string | null;
-  hasApiKey: boolean;
   hasMcpToken: boolean;
 };
 
@@ -39,11 +38,6 @@ export default function SettingsPage() {
   const [newPw, setNewPw] = useState('');
   const [pwSaving, setPwSaving] = useState(false);
   const [pwMsg, setPwMsg] = useState<{ ok: boolean; text: string } | null>(null);
-
-  // API key
-  const [apiKey, setApiKey] = useState('');
-  const [keySaving, setKeySaving] = useState(false);
-  const [keyMsg, setKeyMsg] = useState<{ ok: boolean; text: string } | null>(null);
 
   // MCP Token
   const [mcpToken, setMcpToken] = useState('');
@@ -305,7 +299,7 @@ export default function SettingsPage() {
       <section className="mt-10 pt-8 border-t border-paper-edge">
         <h2 className="font-serif text-xl text-ink-brown mb-1">连接配置</h2>
         <p className="font-sans text-xs text-sepia mb-3">
-          MCP Token 和 API Key 已移到独立页面
+          MCP Token 已移到独立页面。N.E.I. 不在网站内执行 Prompt，建议在你的 Agent 客户端中使用 MCP。
         </p>
         <Link
           href="/connect"
