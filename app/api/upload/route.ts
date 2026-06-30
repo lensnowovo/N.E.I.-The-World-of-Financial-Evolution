@@ -1,9 +1,9 @@
 import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/db';
 import { getSessionUid } from '@/lib/session';
-import { isObjectStorageConfigured, saveBuffer } from '@/lib/storage';
+import { saveBuffer } from '@/lib/storage';
 
-const MAX_SIZE = 20 * 1024 * 1024;
+const MAX_SIZE = 4 * 1024 * 1024;
 
 const ALLOWED_EXT = new Set([
   'pdf', 'docx', 'doc', 'xlsx', 'xls', 'pptx', 'ppt',
@@ -14,19 +14,12 @@ export async function POST(req: Request) {
   const uid = await getSessionUid();
   if (!uid) return NextResponse.json({ error: '请先登录' }, { status: 401 });
 
-  if (process.env.VERCEL && !isObjectStorageConfigured()) {
-    return NextResponse.json(
-      { error: '附件上传暂未开放：生产环境还没有配置对象存储。请先不上传附件，正文和 SKILL.md 内容可以正常发布。' },
-      { status: 503 },
-    );
-  }
-
   let form: FormData;
   try {
     form = await req.formData();
   } catch {
     return NextResponse.json(
-      { error: '附件读取失败。文件可能过大，请换成 20 MB 以内的文件，或先不上传附件。' },
+      { error: '附件读取失败。文件可能过大，请换成 4 MB 以内的文件，或先不上传附件。' },
       { status: 400 },
     );
   }
@@ -35,7 +28,7 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: '未提交文件' }, { status: 400 });
   }
   if (file.size > MAX_SIZE) {
-    return NextResponse.json({ error: '单文件不能超过 20 MB' }, { status: 400 });
+    return NextResponse.json({ error: '单文件不能超过 4 MB' }, { status: 400 });
   }
   const ext = file.name.split('.').pop()?.toLowerCase() ?? '';
   if (!ALLOWED_EXT.has(ext)) {

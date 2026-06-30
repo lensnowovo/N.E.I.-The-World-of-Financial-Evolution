@@ -7,6 +7,7 @@ import {
   GetObjectCommand,
   DeleteObjectCommand,
 } from '@aws-sdk/client-s3';
+import { prisma } from '@/lib/db';
 
 /**
  * 文件存储抽象层。
@@ -27,12 +28,19 @@ const S3_REGION = process.env.S3_REGION || 'auto'; // OSS 填如 oss-cn-hangzhou
 
 // 是否启用对象存储（4 个核心配置都有才启用）
 const useS3 = !!(S3_ENDPOINT && S3_ACCESS_KEY_ID && S3_SECRET_ACCESS_KEY && S3_BUCKET_NAME);
+const useDatabaseStorage = !useS3 && !!process.env.VERCEL;
 
 // 本地 fallback
 const UPLOAD_DIR = process.env.UPLOAD_DIR || './uploads';
 
 export function isObjectStorageConfigured(): boolean {
   return useS3;
+}
+
+export function getStorageBackend(): 's3' | 'database' | 'local' {
+  if (useS3) return 's3';
+  if (useDatabaseStorage) return 'database';
+  return 'local';
 }
 
 // S3 client（懒加载）
@@ -107,6 +115,17 @@ export async function saveBuffer(buf: Buffer, originalName: string): Promise<str
     return key;
   }
 
+  if (useDatabaseStorage) {
+    await prisma.storedFile.create({
+      data: {
+        key,
+        data: buf,
+        mimeType: mimeFromName(originalName),
+      },
+    });
+    return key;
+  }
+
   // 本地 fallback
   await ensureUploadDir();
   await fs.writeFile(path.join(UPLOAD_DIR, key), buf);
@@ -131,6 +150,15 @@ export async function readFileByKey(key: string): Promise<Buffer> {
     return Buffer.concat(chunks);
   }
 
+  if (useDatabaseStorage) {
+    const row = await prisma.storedFile.findUnique({
+      where: { key: safe },
+      select: { data: true },
+    });
+    if (!row) throw new Error('Stored file not found');
+    return Buffer.from(row.data);
+  }
+
   // 本地 fallback
   return fs.readFile(path.join(UPLOAD_DIR, safe));
 }
@@ -146,6 +174,15 @@ export async function removeKey(key: string): Promise<void> {
           Key: safe,
         }),
       );
+    } catch {
+      /* ignore */
+    }
+    return;
+  }
+
+  if (useDatabaseStorage) {
+    try {
+      await prisma.storedFile.delete({ where: { key: safe } });
     } catch {
       /* ignore */
     }
