@@ -874,7 +874,7 @@ function BranchPicker({
       <div className="mt-8">
         <div className="flex items-center gap-3 mb-4">
           <span className="flex-1 h-px bg-paper-edge" />
-          <span className="font-serif italic text-xs text-sepia">或者，AI 帮你从 GitHub 导入</span>
+          <span className="font-serif italic text-xs text-sepia">或者，AI 帮你从 GitHub 仓库导入</span>
           <span className="flex-1 h-px bg-paper-edge" />
         </div>
         <div className="flex gap-2 flex-wrap sm:flex-nowrap">
@@ -882,7 +882,7 @@ function BranchPicker({
             type="url"
             value={ghUrl}
             onChange={(e) => setGhUrl(e.target.value)}
-            placeholder="粘贴 GitHub 文件链接（SKILL.md / Prompt…）"
+            placeholder="粘贴 GitHub 仓库或 SKILL.md 链接"
             className={cn(
               'flex-1 min-w-0 bg-vellum border border-paper-edge rounded px-3 h-10',
               'font-sans text-sm text-ink-brown placeholder:text-sepia/60',
@@ -902,7 +902,7 @@ function BranchPicker({
           <p className="mt-2 font-sans text-xs text-wax-red">{importErr}</p>
         )}
         <p className="mt-2 font-serif italic text-[11px] text-sepia">
-          贴一个公开的 GitHub 文件链接，AI 会抓取内容并自动填好标题、分类和介绍，你 review 后再发布
+          贴一个公开 GitHub 仓库、目录或 SKILL.md 文件链接；仓库里有 SKILL.md 时会自动识别，并保留完整仓库包
         </p>
       </div>
     </div>
