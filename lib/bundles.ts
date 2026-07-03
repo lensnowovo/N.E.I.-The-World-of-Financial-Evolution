@@ -61,10 +61,10 @@ export const taskBundles: TaskBundle[] = [
     description: '从陌生赛道到研究框架，梳理产业链、市场空间、竞争格局和投资逻辑。',
     output: '行业研究底稿 / 赛道判断框架',
     scenes: ['industry-research'],
-    skillCountLabel: '10 个 Skills',
+    skillCountLabel: '11 个 Skills',
     mcpLabel: 'MCP Ready',
     steps: [
-      { title: '界定赛道', description: '明确研究对象、边界、上下游和关键子行业。', postIds: [67, 62] },
+      { title: '界定赛道', description: '明确研究对象、边界、上下游和关键子行业。', postIds: [42, 67, 62] },
       { title: '市场空间', description: '估算 TAM/SAM/SOM、增长驱动和渗透率变化。', postIds: [70, 68] },
       { title: '竞争格局', description: '拆分主要玩家、份额、壁垒和商业模式差异。', postIds: [54, 89] },
       { title: '投资逻辑', description: '沉淀关键假设、催化剂、风险和可投细分方向。', postIds: [98, 90] },
