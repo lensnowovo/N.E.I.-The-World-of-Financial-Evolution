@@ -107,7 +107,7 @@ export function normalizeSort(v: unknown, hasQuery = false): 'latest' | 'popular
  *
  * 入参 posts 是 Prisma findMany 的原始结果（含 viewCount 和 _count）。
  * - latest：按 createdAt desc
- * - popular：加权分数 score = viewCount*1 + likes*5 + comments*3，tiebreaker = createdAt desc
+ * - popular：按收藏量优先排序；收藏量相同时，再用浏览/评论和时间兜底。
  *   （冷启动期全 0 时自然退化成最新排序，是设计内兜底）
  *
  * TODO: 数据量 > 100 后考虑改 SQL 层排序（Prisma _count 只能单维，届时需冗余字段或 raw SQL）。
@@ -134,8 +134,12 @@ export function sortPosts(posts: any[], sort: 'latest' | 'popular' | 'relevance'
     if (sort === 'latest') {
       return b.createdAt.getTime() - a.createdAt.getTime();
     }
-    const diff = score(b) - score(a);
-    if (diff !== 0) return diff;
+    const starDiff = (b._count?.stars || 0) - (a._count?.stars || 0);
+    if (starDiff !== 0) return starDiff;
+    const engagementDiff =
+      ((b.viewCount || 0) + (b._count?.comments || 0) * 3) -
+      ((a.viewCount || 0) + (a._count?.comments || 0) * 3);
+    if (engagementDiff !== 0) return engagementDiff;
     return b.createdAt.getTime() - a.createdAt.getTime();
   }).map((item) => item.post);
 }

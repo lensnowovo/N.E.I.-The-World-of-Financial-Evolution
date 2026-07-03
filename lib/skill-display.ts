@@ -104,7 +104,7 @@ export function buildSkillDisplay(input: SkillDisplayInput): SkillDisplayMeta {
   ].filter(Boolean).slice(0, 5);
 
   return {
-    displayTitle: buildSkillCardTitle(input.title),
+    displayTitle: buildSkillCardTitle(input.title, displaySummary),
     displaySummary,
     displayUseCase,
     displayOutput,
@@ -113,21 +113,31 @@ export function buildSkillDisplay(input: SkillDisplayInput): SkillDisplayMeta {
   };
 }
 
-export function buildSkillCardTitle(title: string) {
+export function buildSkillCardTitle(title: string, summary = '') {
   const clean = title.replace(/\s+/g, ' ').trim();
   if (!clean) return '未命名 Skill';
 
+  const sourcePrefix = /^Anthropic\s*官方/.test(summary) ? 'Anthropic' : '';
+
   const colonIndex = clean.search(/[：:]/);
+  let displayTitle = '';
   if (colonIndex > 0) {
     const prefix = clean.slice(0, colonIndex).trim();
-    if (prefix.length >= 3 && prefix.length <= 24) return prefix;
+    if (prefix.length >= 3 && prefix.length <= 24) displayTitle = prefix;
   }
 
-  const withoutParen = clean
-    .replace(/[（(][^（）()]{2,32}[）)]/g, '')
-    .replace(/\s+/g, ' ')
-    .trim();
-  return clampText(withoutParen || clean, 26);
+  if (!displayTitle) {
+    displayTitle = clean
+      .replace(/[（(][^（）()]{2,32}[）)]/g, '')
+      .replace(/\s+/g, ' ')
+      .trim();
+  }
+
+  const shortTitle = clampText(displayTitle || clean, 26);
+  if (!sourcePrefix || shortTitle.toLowerCase().startsWith(sourcePrefix.toLowerCase())) return shortTitle;
+
+  const joiner = /^[A-Za-z]/.test(shortTitle) ? ' ' : '';
+  return clampText(`${sourcePrefix}${joiner}${shortTitle}`, 30);
 }
 
 function cleanText(html: string) {
