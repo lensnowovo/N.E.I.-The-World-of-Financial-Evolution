@@ -118,42 +118,42 @@ export const ASSET_TYPE_HELPERS: Record<string, { body: string; installHint: str
   prompt: {
     body: '小建议：把提示词写清楚，用 [方括号] 标出需要替换的部分，比如「[公司名]」。',
     installHint: '这个提示词在哪个工具里用效果最好？（ChatGPT、Claude、Kimi 等）',
-    usageNotes: '适合谁用、在什么场景下用效果最好？',
+    usageNotes: '适合哪些人、在哪个具体工作场景下用？',
   },
   'agent-skill': {
     body: '小建议：说清楚这个 SKILL.md 是干嘛的、能帮你做什么。',
     installHint: '如果安装方式特别，可以写一句（不懂的读者会跳过）。',
-    usageNotes: '适合谁用、有什么要注意的？',
+    usageNotes: '适合哪些人、在哪个具体工作场景下用？',
   },
   'agent-discipline': {
     body: '小建议：这不是具体 Prompt，而是约束 Agent 如何工作的规则。写清楚哪些事必须做、哪些事不能做。',
     installHint: '建议说明这张纪律卡应在什么任务前加载。',
-    usageNotes: '适合哪些工作场景、能约束哪些风险？',
+    usageNotes: '适合哪些人、哪些工作场景，以及能约束哪些风险？',
   },
   workflow: {
     body: '小建议：按步骤写，每一步写清楚输入是什么、产出是什么。',
     installHint: '需要用到哪些工具或账号？',
-    usageNotes: '适合什么场景，做完能得到什么？',
+    usageNotes: '适合哪些人、在哪个具体工作场景下用？',
   },
   'tool-stack': {
     body: '小建议：列出每个工具是干嘛的、它们怎么配合。',
     installHint: '每个工具去哪注册或下载？',
-    usageNotes: '适合谁用，这套组合的好处是什么？',
+    usageNotes: '适合哪些人、在哪个具体工作场景下用？',
   },
   template: {
     body: '小建议：正文里简单说几句这个模板怎么用，文件传到下面「上传文件」。',
     installHint: '什么格式（Excel / Word / PPT）、怎么打开？',
-    usageNotes: '适合什么场景，怎么改成自己的？',
+    usageNotes: '适合哪些人、在哪个具体工作场景下用？',
   },
   'api-script': {
     body: '小建议：说清楚脚本干啥用，运行步骤写明白。',
     installHint: '运行前要装什么、配什么环境变量？（不懂的读者会问）',
-    usageNotes: '适合谁用，有什么前提条件？',
+    usageNotes: '适合哪些人、在哪个具体工作场景下用？',
   },
   'case-study': {
     body: '小建议：把背景、做法、结果、复盘都写上，别人才能照着学。',
     installHint: '复现这个案例需要哪些工具和数据？',
-    usageNotes: '适合什么范围，能借鉴什么？',
+    usageNotes: '适合哪些人、在哪个具体工作场景下借鉴？',
   },
 };
 

@@ -28,6 +28,7 @@ export type TranscribedSkill = {
   tagIndustry?: string | null;
   tagContent: string[];
   installHint?: string | null;
+  usageNotes?: string | null;
   shouldAttach: boolean; // 是否把抓来的原文作为附件
   originalAuthor?: string | null; // 原作者（从 GitHub URL owner 提取）
 };
@@ -210,6 +211,7 @@ const SYSTEM_PROMPT = `你是一个 PEVC（私募股权/风险投资）Skill 资
 - tagIndustry: 行业（选填），可从这些里选或 null：${INDUSTRY_TAGS.map((t) => t.value).join(' / ')}
 - tagContent: 工作内容标签数组，0-3 个，从这些里选：${CONTENT_TAGS.map((t) => t.value).join(' / ')}
 - installHint: 安装/使用说明（选填），一句话告诉读者怎么用
+- usageNotes: 适合人群/使用场景（选填），一句话写清楚谁在什么场景下最该用它。不要写输入材料或输出材料。
 - shouldAttach: 布尔值。如果原内容是 SKILL.md/脚本/模板这种"文件型"资产，建议 true（保留原文作为附件）；如果是 prompt 文本，false
 
 标签说明（value → 含义）：
@@ -283,6 +285,7 @@ async function runTranscription(
     tagIndustry,
     tagContent,
     installHint: parsed.installHint ? String(parsed.installHint).slice(0, 2000) : null,
+    usageNotes: parsed.usageNotes ? String(parsed.usageNotes).slice(0, 2000) : null,
     shouldAttach: !!parsed.shouldAttach,
   };
 }

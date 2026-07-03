@@ -82,6 +82,7 @@ export function PublishForm({ currentUser }: { currentUser: CurrentUser }) {
       tagIndustry?: string | null;
       tagContent: string[];
       installHint?: string | null;
+      usageNotes?: string | null;
       originalAuthor?: string | null;
     };
     attachment: { id: number; fileName: string; fileSize?: number; mimeType?: string } | null;
@@ -94,6 +95,7 @@ export function PublishForm({ currentUser }: { currentUser: CurrentUser }) {
     setIndustry(skill.tagIndustry || '');
     setContents(skill.tagContent);
     setInstallHint(skill.installHint || '');
+    setUsageNotes(skill.usageNotes || '');
 
     // 分支专属字段
     if (skill.branch === 'prompt') {
@@ -668,7 +670,7 @@ export function PublishForm({ currentUser }: { currentUser: CurrentUser }) {
       </CollapsibleSection>
 
       {/* ===== 补充说明（选填，默认折叠）===== */}
-      <CollapsibleSection title="补充说明（选填）" hint="来源链接、使用说明、适合谁用">
+      <CollapsibleSection title="补充说明（选填）" hint="来源链接、使用说明、适用人群">
         {assetHelper && (
           <p className="mb-3 text-[11px] text-sepia font-sans">
             {assetHelper.installHint}
@@ -703,7 +705,7 @@ export function PublishForm({ currentUser }: { currentUser: CurrentUser }) {
           />
         </Dimension>
 
-        <Dimension label="适合谁用 / 使用心得" hint="选填 · 最多 2000 字">
+        <Dimension label="适用人群 / 使用场景" hint="选填 · 最多 2000 字 · 会展示在 Usage Brief">
           <textarea
             className={cn(
               'w-full bg-transparent border border-paper-edge rounded px-3 py-2',
@@ -711,7 +713,7 @@ export function PublishForm({ currentUser }: { currentUser: CurrentUser }) {
               'focus:border-ink-brown focus:outline-none transition-colors',
               'resize-y min-h-[80px]',
             )}
-            placeholder="适合什么人、什么场景用…"
+            placeholder="例如：适合投资经理写行研报告、做赛道扫描、立项前行业判断。"
             maxLength={2000}
             value={usageNotes}
             onChange={(e) => setUsageNotes(e.target.value)}

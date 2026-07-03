@@ -98,7 +98,7 @@ function DefaultPostCard({
           </div>
 
           <h2 className="font-serif text-[22px] leading-snug text-ink-brown mb-2.5 group-hover:text-wax-red transition-colors">
-            {post.title}
+            <span title={post.title}>{post.displayTitle || post.title}</span>
           </h2>
 
           <p className="font-sans text-sm text-leather leading-relaxed mb-5 line-clamp-2">
@@ -195,7 +195,7 @@ function SkillFeedPostCard({
             {post.featured && <SignalBadge tone="featured">精选</SignalBadge>}
           </div>
           <h2 className="font-serif text-[16px] leading-snug text-ink-brown transition-colors group-hover:text-wax-red line-clamp-2">
-            {post.title}
+            <span title={post.title}>{post.displayTitle || post.title}</span>
           </h2>
         </div>
 
@@ -203,11 +203,8 @@ function SkillFeedPostCard({
           <p className="font-sans text-[13px] leading-5 text-leather line-clamp-2">
             {post.displaySummary || post.excerpt}
           </p>
-          <p className="mt-2 font-sans text-[11px] leading-5 text-sepia truncate">
+          <p className="mt-2 font-sans text-[11px] leading-5 text-sepia line-clamp-2">
             适合：{post.displayUseCase}
-          </p>
-          <p className="font-sans text-[11px] leading-5 text-sepia truncate">
-            输出：{post.displayOutput}
           </p>
           <div className="mt-2 flex items-center gap-1.5 font-sans text-[11px] text-sepia">
             <RoleBadge role={post.author.role} size={14} />
