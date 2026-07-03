@@ -176,6 +176,7 @@ export default async function PostDetailPage({
     tagContent,
     tagSkill: post.tagSkill,
     assetType,
+    usageNotes: post.skillAsset?.usageNotes ?? null,
     outputExample: quality.outputExample,
   });
 
@@ -363,10 +364,7 @@ export default async function PostDetailPage({
         securityLevel={post.securityLevel}
         version={post.version}
         displayUseCase={display.displayUseCase}
-        displayOutput={display.displayOutput}
         bestFor={quality.bestFor}
-        inputExample={quality.inputExample}
-        outputExample={quality.outputExample}
         boundary={getUsageBoundary({
           assetType,
           securityLevel: post.securityLevel,
@@ -568,7 +566,7 @@ export default async function PostDetailPage({
                 <dd className="mt-1 leading-5">{display.displaySummary}</dd>
               </div>
               <div>
-                <dt className="text-sepia">适用场景</dt>
+                <dt className="text-sepia">适合人群 / 场景</dt>
                 <dd className="mt-1 leading-5">{display.displayUseCase}</dd>
               </div>
               <div>
@@ -612,10 +610,7 @@ function SkillUseSummary({
   securityLevel,
   version,
   displayUseCase,
-  displayOutput,
   bestFor,
-  inputExample,
-  outputExample,
   boundary,
 }: {
   scene: string;
@@ -624,10 +619,7 @@ function SkillUseSummary({
   securityLevel: string;
   version: number;
   displayUseCase: string;
-  displayOutput: string;
   bestFor: string[];
-  inputExample: string;
-  outputExample: string;
   boundary: string;
 }) {
   const statusLabel = mcpApproved ? 'MCP Ready' : '网站可用';
@@ -636,7 +628,12 @@ function SkillUseSummary({
     : 'border-paper-edge bg-vellum text-sepia';
   const securityLabel = securityLevel === 'safe' ? '安全通过' : securityLevel === 'suspicious' ? '待复核' : '不建议调用';
   const useCaseBody = displayUseCase || [scene, assetLabel, ...bestFor.slice(1, 3)].filter(Boolean).join(' / ');
-  const outputBody = displayOutput || outputExample;
+  const scenarioBody = [scene, assetLabel, ...bestFor.slice(1, 3)]
+    .filter(Boolean)
+    .join(' / ');
+  const mcpBody = mcpApproved
+    ? '已通过 MCP 准入，可在完成连接后由 Agent 搜索和调用。'
+    : '当前可在网页阅读、复制或下载；进入 MCP 前仍需审核确认。';
 
   return (
     <section className="mb-8 rounded-md border border-paper-edge bg-vellum/55 px-4 py-4">
@@ -661,9 +658,9 @@ function SkillUseSummary({
       </div>
 
       <div className="mt-4 grid gap-3 md:grid-cols-2">
-        <SummaryBlock title="适用场景" body={useCaseBody} />
-        <SummaryBlock title="输入材料" body={inputExample} />
-        <SummaryBlock title="输出结果" body={outputBody} />
+        <SummaryBlock title="适合人群" body={useCaseBody} />
+        <SummaryBlock title="使用场景" body={scenarioBody} />
+        <SummaryBlock title="MCP 状态" body={mcpBody} />
         <SummaryBlock title="使用边界" body={boundary} />
       </div>
     </section>

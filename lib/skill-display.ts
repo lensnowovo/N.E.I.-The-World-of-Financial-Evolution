@@ -10,10 +10,12 @@ export type SkillDisplayInput = {
   tagContent?: string[];
   tagSkill?: string | null;
   assetType?: string | null;
+  usageNotes?: string | null;
   outputExample?: string;
 };
 
 export type SkillDisplayMeta = {
+  displayTitle: string;
   displaySummary: string;
   displayUseCase: string;
   displayOutput: string;
@@ -49,6 +51,20 @@ const SCENE_STEPS: Record<string, string[]> = {
   crm: ['知识沉淀', '关系维护'],
 };
 
+const SCENE_USE_CASES: Record<string, string> = {
+  sourcing: '投资经理、FA、产业投资人在找项目、拉长名单、准备初次触达时使用',
+  screening: '投资经理、FA 在看 BP、做项目初筛、判断是否进入立项时使用',
+  'industry-research': '投资经理、FA、产业研究人员在陌生赛道扫描、立项前行业判断时使用',
+  'business-dd': '投资经理、尽调负责人、FA 在商业尽调、访谈准备和证据验证时使用',
+  financial: '投资经理、财务顾问、投后团队在财务质量分析和模型复核时使用',
+  legal: '投资经理、法务和合规人员在条款审阅、风险识别时使用',
+  ic: '投资经理、项目负责人在写 IC Memo、准备投委会问答时使用',
+  'post-investment': '投后负责人、投资经理在经营跟踪、月报整理和风险预警时使用',
+  fundraising: 'GP、IR、基金运营团队在 LP 汇报和募资材料准备时使用',
+  'fund-ops': 'GP、IR、基金运营人员在基金运营、流程管理和合规提醒时使用',
+  crm: '投资团队、知识管理负责人在会议纪要、关系维护和知识沉淀时使用',
+};
+
 export function buildSkillDisplay(input: SkillDisplayInput): SkillDisplayMeta {
   const bodyText = cleanText(input.body);
   const assetLabel = skillLabel(input.assetType || input.tagSkill) || 'Skill';
@@ -63,8 +79,10 @@ export function buildSkillDisplay(input: SkillDisplayInput): SkillDisplayMeta {
   );
 
   const displayUseCase = clampText(
-    [scene, industry, contentTags[0]].filter(Boolean).join(' / ') || `${assetLabel} 复用场景`,
-    42,
+    normalizeUseCaseText(input.usageNotes) ||
+      SCENE_USE_CASES[input.tagScene] ||
+      `${scene || '一级市场'}相关从业者复用这个${assetLabel}`,
+    88,
   );
 
   const displayOutput = clampText(
@@ -86,12 +104,30 @@ export function buildSkillDisplay(input: SkillDisplayInput): SkillDisplayMeta {
   ].filter(Boolean).slice(0, 5);
 
   return {
+    displayTitle: buildSkillCardTitle(input.title),
     displaySummary,
     displayUseCase,
     displayOutput,
     displaySteps,
     displayTags,
   };
+}
+
+export function buildSkillCardTitle(title: string) {
+  const clean = title.replace(/\s+/g, ' ').trim();
+  if (!clean) return '未命名 Skill';
+
+  const colonIndex = clean.search(/[：:]/);
+  if (colonIndex > 0) {
+    const prefix = clean.slice(0, colonIndex).trim();
+    if (prefix.length >= 3 && prefix.length <= 24) return prefix;
+  }
+
+  const withoutParen = clean
+    .replace(/[（(][^（）()]{2,32}[）)]/g, '')
+    .replace(/\s+/g, ' ')
+    .trim();
+  return clampText(withoutParen || clean, 26);
 }
 
 function cleanText(html: string) {
@@ -111,6 +147,14 @@ function firstUsefulSentence(text: string) {
   const match = cleaned.match(/^(.{24,150}?[。！？.!?])/);
   if (match?.[1]) return match[1];
   return cleaned.slice(0, 118);
+}
+
+function normalizeUseCaseText(text?: string | null) {
+  if (!text) return '';
+  return normalizePublicText(text)
+    .replace(/^适合[：:\s]*/g, '')
+    .replace(/\s+/g, ' ')
+    .trim();
 }
 
 function clampText(text: string, max: number) {

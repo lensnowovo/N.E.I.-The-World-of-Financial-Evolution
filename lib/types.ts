@@ -11,6 +11,7 @@
 export type PostCardData = {
   id: number;
   title: string;
+  displayTitle: string;
   excerpt: string;
   tagScene: string;
   tagIndustry: string | null;

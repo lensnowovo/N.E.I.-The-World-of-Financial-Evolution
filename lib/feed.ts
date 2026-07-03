@@ -238,12 +238,14 @@ export function mapPostToCardData(p: any, starred: boolean): PostCardData {
     tagContent,
     tagSkill: p.tagSkill,
     assetType,
+    usageNotes: p.skillAsset?.usageNotes ?? null,
     outputExample: quality.outputExample,
   });
 
   return {
     id: p.id,
     title: p.title,
+    displayTitle: display.displayTitle,
     excerpt: display.displaySummary,
     tagScene: p.tagScene,
     tagIndustry: p.tagIndustry,
