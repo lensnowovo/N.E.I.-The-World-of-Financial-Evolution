@@ -14,7 +14,7 @@ type McpQuickSetupPanelProps = {
   onGenerate: () => Promise<void> | void;
 };
 
-type CopyTarget = 'prompt' | 'json' | 'url' | 'token' | null;
+type CopyTarget = 'prompt' | 'json' | 'test' | 'url' | 'token' | null;
 
 export function McpQuickSetupPanel({
   token,
@@ -39,6 +39,7 @@ export function McpQuickSetupPanel({
     }),
     [mcpUrl, connectUrl, token, hasVisibleToken],
   );
+  const firstRunPrompt = useMemo(() => buildFirstRunPrompt(), []);
 
   const copy = async (target: Exclude<CopyTarget, null>, text: string) => {
     await copyText(text);
@@ -108,6 +109,15 @@ export function McpQuickSetupPanel({
             active={copied === 'prompt'}
             onCopy={() => copy('prompt', setupPrompt)}
             buttonText="复制一键配置 Prompt"
+          />
+
+          <SetupCopyCard
+            title="首次调通测试任务"
+            description="配置完成后，把这段发给客户端；能完成这组调用，就说明 MCP 已真正接通。"
+            body={firstRunPrompt}
+            active={copied === 'test'}
+            onCopy={() => copy('test', firstRunPrompt)}
+            buttonText="复制测试任务"
           />
 
           <SetupCopyCard
@@ -281,6 +291,16 @@ function buildSetupPrompt({
 ${tokenNote}
 
 配好后请先调用 search_skills，搜索“BP 初筛”或“IC Memo”验证全库搜索；如果我已经有收藏，再调用 list_my_skills 读取我的常用库。`;
+}
+
+function buildFirstRunPrompt() {
+  return `请使用 N.E.I. MCP 完成一次连接验证：
+
+1. 调用 search_skills，搜索“BP 初筛”。
+2. 从结果里选 1 个最适合新消费品牌项目初筛的 Skill。
+3. 调用 get_skill 获取这个 Skill 的完整原文。
+4. 用 5 句话说明：这个 Skill 适合什么输入、会产出什么、使用边界是什么。
+5. 如果连接失败，请直接告诉我失败在哪一步。`;
 }
 
 async function copyText(text: string) {
