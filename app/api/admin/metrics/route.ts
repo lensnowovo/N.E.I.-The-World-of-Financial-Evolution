@@ -1,88 +1,278 @@
 import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/db';
 import { requireAdmin } from '@/lib/auth-guard';
+import { ACTIVITY_EVENT } from '@/lib/activity';
+import { POST_STATUS } from '@/lib/status';
 
 export const dynamic = 'force-dynamic';
-// 聚合多个维度，给一点时间（Neon 冷启动 + 多查询）
 export const maxDuration = 30;
 
-/**
- * GET /api/admin/metrics —— 管理员 dashboard 数据聚合
- *
- * 两块：
- *  traffic —— 今日帖/用户/MCP调用/活跃用户 + 14 天趋势 + 热门 Skill（全部来自业务表，真实）
- *  pressure —— Neon 连接数(pg_stat_activity) + DB 探测延迟 + 采样到的 API 响应时间/错误率(MetricSample)
- *
- * pressure 的 DB 查询为 best-effort：pg_stat_activity 在某些 Neon 角色下可能受限，失败不致命。
- */
+const DAY_MS = 86_400_000;
+const CN_OFFSET_MS = 8 * 60 * 60 * 1000;
+
+function cnDayKey(date: Date): string {
+  return new Date(date.getTime() + CN_OFFSET_MS).toISOString().slice(0, 10);
+}
+
+function cnStartUtc(dayKey: string): Date {
+  const [year, month, day] = dayKey.split('-').map(Number);
+  return new Date(Date.UTC(year, month - 1, day) - CN_OFFSET_MS);
+}
+
+function pct(arr: number[], p: number): number {
+  if (arr.length === 0) return 0;
+  return arr[Math.min(arr.length - 1, Math.floor(arr.length * p))];
+}
+
+function avg(arr: number[]): number {
+  if (arr.length === 0) return 0;
+  return Math.round(arr.reduce((sum, item) => sum + item, 0) / arr.length);
+}
+
+function addDistinct(set: Set<string>, userId?: number | null, anonymousId?: string | null) {
+  if (userId) {
+    set.add(`u:${userId}`);
+  } else if (anonymousId) {
+    set.add(`a:${anonymousId}`);
+  }
+}
+
 export async function GET() {
   const guard = await requireAdmin();
   if (guard instanceof NextResponse) return guard;
 
-  // —— 时间窗口（统一 UTC 日期，与 Neon 存储一致）——
   const now = new Date();
-  const todayStart = new Date(now);
-  todayStart.setUTCHours(0, 0, 0, 0);
-  const start14 = new Date(todayStart.getTime() - 13 * 86_400_000); // 含今天共 14 天
+  const todayKey = cnDayKey(now);
+  const todayStart = cnStartUtc(todayKey);
+  const start14 = new Date(todayStart.getTime() - 13 * DAY_MS);
+  const start30 = new Date(todayStart.getTime() - 29 * DAY_MS);
+  const yesterdayStart = new Date(todayStart.getTime() - DAY_MS);
 
-  // 14 天日期键（YYYY-MM-DD），顺序从旧到新
-  const dayKeys: string[] = [];
-  for (let i = 13; i >= 0; i--) {
-    dayKeys.push(new Date(start14.getTime() + i * 86_400_000).toISOString().slice(0, 10));
-  }
-  const dayKey = (d: Date) => d.toISOString().slice(0, 10);
+  const dayKeys = Array.from({ length: 14 }, (_, index) => cnDayKey(new Date(start14.getTime() + index * DAY_MS)));
 
-  // ============ Traffic ============
   const [
-    postsRecent, usersRecent, mcpRecent, commentsRecent,
-    totalPosts, totalUsers, totalMcp,
-    topSkillsLogs,
+    activitiesRecent,
+    usersRecent,
+    postsRecent,
+    favoritesRecent,
+    commentsRecent,
+    mcpRecent,
+    totalPosts,
+    totalUsers,
+    totalMcp,
+    totalFavorites,
+    featuredCount,
+    publishedCount,
+    pendingCount,
+    mcpReadyCount,
+    tokenUsers,
+    tokenUsedUsers,
+    cohortUsers30,
+    cohortFavorites30,
+    cohortMcp30,
+    yesterdayUsers,
+    todayActivityEvents,
+    todayFavorites,
+    todayComments,
+    todayMcp,
+    topMcpLogs,
+    topFavoriteLogs,
+    contentRows,
   ] = await Promise.all([
-    // 最近 14 天帖（含作者，用于趋势 + 今日活跃）
+    prisma.activityEvent.findMany({
+      where: { createdAt: { gte: start14 } },
+      select: { type: true, source: true, userId: true, anonymousId: true, createdAt: true },
+    }),
+    prisma.user.findMany({ where: { createdAt: { gte: start14 } }, select: { id: true, createdAt: true } }),
     prisma.post.findMany({
       where: { createdAt: { gte: start14 }, deletedAt: null },
-      select: { createdAt: true, userId: true },
+      select: { id: true, userId: true, status: true, createdAt: true },
     }),
-    prisma.user.findMany({ where: { createdAt: { gte: start14 } }, select: { createdAt: true } }),
-    prisma.mcpCallLog.findMany({ where: { createdAt: { gte: start14 } }, select: { createdAt: true, userId: true } }),
-    prisma.comment.findMany({ where: { createdAt: { gte: start14 } }, select: { createdAt: true, userId: true } }),
+    prisma.postFavorite.findMany({
+      where: { createdAt: { gte: start14 } },
+      select: { userId: true, postId: true, createdAt: true },
+    }),
+    prisma.comment.findMany({
+      where: { createdAt: { gte: start14 } },
+      select: { userId: true, postId: true, createdAt: true },
+    }),
+    prisma.mcpCallLog.findMany({
+      where: { createdAt: { gte: start14 } },
+      select: { userId: true, postId: true, tool: true, createdAt: true },
+    }),
     prisma.post.count({ where: { deletedAt: null } }),
     prisma.user.count(),
     prisma.mcpCallLog.count(),
+    prisma.postFavorite.count(),
+    prisma.post.count({ where: { featured: true, deletedAt: null } }),
+    prisma.post.count({ where: { status: POST_STATUS.PUBLISHED, deletedAt: null } }),
+    prisma.post.count({ where: { status: POST_STATUS.PENDING, deletedAt: null } }),
+    prisma.post.count({ where: { mcpApproved: true, status: POST_STATUS.PUBLISHED, deletedAt: null } }),
+    prisma.user.count({ where: { mcpTokenHash: { not: null } } }),
+    prisma.user.count({ where: { tokenLastUsedAt: { not: null } } }),
+    prisma.user.findMany({
+      where: { createdAt: { gte: start30 } },
+      select: { id: true, createdAt: true, mcpTokenHash: true, tokenLastUsedAt: true },
+    }),
+    prisma.postFavorite.findMany({
+      where: { createdAt: { gte: start30 } },
+      select: { userId: true, createdAt: true },
+    }),
+    prisma.mcpCallLog.findMany({
+      where: { createdAt: { gte: start30 } },
+      select: { userId: true, createdAt: true },
+    }),
+    prisma.user.findMany({
+      where: { createdAt: { gte: yesterdayStart, lt: todayStart } },
+      select: { id: true },
+    }),
+    prisma.activityEvent.findMany({
+      where: { createdAt: { gte: todayStart } },
+      select: { userId: true, anonymousId: true },
+    }),
+    prisma.postFavorite.findMany({
+      where: { createdAt: { gte: todayStart } },
+      select: { userId: true },
+    }),
+    prisma.comment.findMany({
+      where: { createdAt: { gte: todayStart } },
+      select: { userId: true },
+    }),
+    prisma.mcpCallLog.findMany({
+      where: { createdAt: { gte: todayStart } },
+      select: { userId: true },
+    }),
     prisma.mcpCallLog.groupBy({
-      by: ['postId'], where: { postId: { not: null } }, _count: true,
-      orderBy: { _count: { postId: 'desc' } }, take: 5,
+      by: ['postId'],
+      where: { postId: { not: null } },
+      _count: true,
+      orderBy: { _count: { postId: 'desc' } },
+      take: 8,
+    }),
+    prisma.postFavorite.groupBy({
+      by: ['postId'],
+      _count: true,
+      orderBy: { _count: { postId: 'desc' } },
+      take: 8,
+    }),
+    prisma.post.findMany({
+      where: { status: POST_STATUS.PUBLISHED, deletedAt: null },
+      select: {
+        id: true,
+        title: true,
+        mcpApproved: true,
+        viewCount: true,
+        _count: { select: { stars: true, comments: true } },
+      },
+      take: 500,
+      orderBy: { createdAt: 'desc' },
     }),
   ]);
 
-  // 趋势桶
-  const trend = dayKeys.map((k) => ({ date: k, posts: 0, users: 0, mcpCalls: 0, activeUsers: new Set<number>() }));
-  const idx = (k: string) => dayKeys.indexOf(k);
-  for (const p of postsRecent) { const i = idx(dayKey(p.createdAt)); if (i >= 0) { trend[i].posts++; trend[i].activeUsers.add(p.userId); } }
-  for (const u of usersRecent) { const i = idx(dayKey(u.createdAt)); if (i >= 0) trend[i].users++; }
-  for (const m of mcpRecent) { const i = idx(dayKey(m.createdAt)); if (i >= 0) { trend[i].mcpCalls++; trend[i].activeUsers.add(m.userId); } }
-  for (const c of commentsRecent) { const i = idx(dayKey(c.createdAt)); if (i >= 0) trend[i].activeUsers.add(c.userId); }
+  const trend = dayKeys.map((date) => ({
+    date,
+    pageViews: 0,
+    webActive: new Set<string>(),
+    mcpActive: new Set<string>(),
+    engaged: new Set<string>(),
+    newUsers: 0,
+    newPosts: 0,
+    favorites: 0,
+    comments: 0,
+    searches: 0,
+    mcpCalls: 0,
+  }));
+  const trendByDate = new Map(trend.map((row) => [row.date, row]));
 
-  const todayKey = dayKey(now);
-  const todayIdx = idx(todayKey);
-  const todayTrend = todayIdx >= 0 ? trend[todayIdx] : null;
+  for (const event of activitiesRecent) {
+    const row = trendByDate.get(cnDayKey(event.createdAt));
+    if (!row) continue;
+    if (event.type === ACTIVITY_EVENT.PAGE_VIEW) row.pageViews++;
+    if (event.type === ACTIVITY_EVENT.SEARCH || event.type === ACTIVITY_EVENT.FILTER) row.searches++;
+    if (event.source === 'mcp') {
+      addDistinct(row.mcpActive, event.userId, event.anonymousId);
+    } else {
+      addDistinct(row.webActive, event.userId, event.anonymousId);
+    }
+    addDistinct(row.engaged, event.userId, event.anonymousId);
+  }
+  for (const user of usersRecent) {
+    const row = trendByDate.get(cnDayKey(user.createdAt));
+    if (row) row.newUsers++;
+  }
+  for (const post of postsRecent) {
+    const row = trendByDate.get(cnDayKey(post.createdAt));
+    if (!row) continue;
+    row.newPosts++;
+    addDistinct(row.engaged, post.userId);
+  }
+  for (const favorite of favoritesRecent) {
+    const row = trendByDate.get(cnDayKey(favorite.createdAt));
+    if (!row) continue;
+    row.favorites++;
+    addDistinct(row.webActive, favorite.userId);
+    addDistinct(row.engaged, favorite.userId);
+  }
+  for (const comment of commentsRecent) {
+    const row = trendByDate.get(cnDayKey(comment.createdAt));
+    if (!row) continue;
+    row.comments++;
+    addDistinct(row.webActive, comment.userId);
+    addDistinct(row.engaged, comment.userId);
+  }
+  for (const call of mcpRecent) {
+    const row = trendByDate.get(cnDayKey(call.createdAt));
+    if (!row) continue;
+    row.mcpCalls++;
+    addDistinct(row.mcpActive, call.userId);
+    addDistinct(row.engaged, call.userId);
+  }
 
-  // 热门 Skill 标题
-  const topPostIds = topSkillsLogs.map((s) => s.postId!).filter(Boolean);
+  const today = trendByDate.get(todayKey);
+
+  const activityByType = new Map<string, number>();
+  const activityBySource = new Map<string, number>();
+  for (const event of activitiesRecent) {
+    activityByType.set(event.type, (activityByType.get(event.type) ?? 0) + 1);
+    activityBySource.set(event.source ?? 'unknown', (activityBySource.get(event.source ?? 'unknown') ?? 0) + 1);
+  }
+
+  const cohortIds = new Set(cohortUsers30.map((user) => user.id));
+  const favoritedUsers30 = new Set(cohortFavorites30.filter((row) => cohortIds.has(row.userId)).map((row) => row.userId));
+  const mcpCountsByUser = new Map<number, number>();
+  for (const call of cohortMcp30) {
+    if (!cohortIds.has(call.userId)) continue;
+    mcpCountsByUser.set(call.userId, (mcpCountsByUser.get(call.userId) ?? 0) + 1);
+  }
+  const yesterdayUserIds = new Set(yesterdayUsers.map((user) => user.id));
+  const todayActiveIds = new Set<number>();
+  for (const event of todayActivityEvents) if (event.userId) todayActiveIds.add(event.userId);
+  for (const favorite of todayFavorites) todayActiveIds.add(favorite.userId);
+  for (const comment of todayComments) todayActiveIds.add(comment.userId);
+  for (const call of todayMcp) todayActiveIds.add(call.userId);
+  const yesterdayRetained = [...yesterdayUserIds].filter((id) => todayActiveIds.has(id)).length;
+
+  const topPostIds = [
+    ...new Set([
+      ...topMcpLogs.map((row) => row.postId).filter((id): id is number => Boolean(id)),
+      ...topFavoriteLogs.map((row) => row.postId),
+    ]),
+  ];
   const topPosts = topPostIds.length
-    ? await prisma.post.findMany({ where: { id: { in: topPostIds }, deletedAt: null }, select: { id: true, title: true } })
+    ? await prisma.post.findMany({
+        where: { id: { in: topPostIds }, deletedAt: null },
+        select: { id: true, title: true },
+      })
     : [];
-  const titleMap = new Map(topPosts.map((p) => [p.id, p.title]));
-  const topSkills = topSkillsLogs
-    .filter((s) => s.postId && titleMap.has(s.postId))
-    .map((s) => ({ postId: s.postId!, title: titleMap.get(s.postId!)!, calls: s._count }));
+  const titleMap = new Map(topPosts.map((post) => [post.id, post.title]));
+  const mcpPostIds = new Set(mcpRecent.map((call) => call.postId).filter((id): id is number => Boolean(id)));
+  const zeroFavorites = contentRows.filter((post) => post._count.stars === 0).length;
+  const zeroMcpCalls = contentRows.filter((post) => post.mcpApproved && !mcpPostIds.has(post.id)).length;
 
-  // ============ Pressure ============
-  // DB 探测延迟 + Neon 连接数（best-effort）
   let dbLatencyMs: number | null = null;
   let connections: { state: string; count: number }[] = [];
   try {
-    const t0 = now.getTime();
+    const t0 = Date.now();
     await prisma.$queryRaw`SELECT 1`;
     dbLatencyMs = Date.now() - t0;
     const rows = await prisma.$queryRaw<{ state: string; count: bigint }[]>`
@@ -90,18 +280,15 @@ export async function GET() {
       FROM pg_stat_activity
       WHERE datname = current_database()
       GROUP BY state`;
-    connections = rows.map((r) => ({ state: r.state || 'unknown', count: Number(r.count) }));
+    connections = rows.map((row) => ({ state: row.state || 'unknown', count: Number(row.count) }));
   } catch {
-    /* pg_stat_activity 受限时忽略，latency 可能也失败 */
+    /* best effort */
   }
 
-  // API 响应时间 / 错误率（最近 24h MetricSample，内存算分位数）
-  // best-effort：MetricSample 表在 schema 迁移前可能不存在，失败则按无样本处理
-  const since24h = new Date(now.getTime() - 24 * 86_400_000);
   let samples: { route: string; status: number; durationMs: number; error: boolean }[] = [];
   try {
     samples = await prisma.metricSample.findMany({
-      where: { createdAt: { gte: since24h } },
+      where: { createdAt: { gte: new Date(now.getTime() - DAY_MS) } },
       select: { route: true, status: true, durationMs: true, error: true },
       take: 8000,
       orderBy: { createdAt: 'desc' },
@@ -109,34 +296,81 @@ export async function GET() {
   } catch {
     samples = [];
   }
-
-  const durations = samples.map((s) => s.durationMs).sort((a, b) => a - b);
-  const pct = (arr: number[], p: number) => (arr.length === 0 ? 0 : arr[Math.min(arr.length - 1, Math.floor(arr.length * p))]);
-  const avg = (arr: number[]) => (arr.length === 0 ? 0 : Math.round(arr.reduce((a, b) => a + b, 0) / arr.length));
-  const errorCount = samples.filter((s) => s.error).length;
-
-  // 按路由聚合
+  const durations = samples.map((sample) => sample.durationMs).sort((a, b) => a - b);
+  const errorCount = samples.filter((sample) => sample.error).length;
   const byRouteMap = new Map<string, { count: number; totalMs: number; errors: number }>();
-  for (const s of samples) {
-    const e = byRouteMap.get(s.route) || { count: 0, totalMs: 0, errors: 0 };
-    e.count++; e.totalMs += s.durationMs; if (s.error) e.errors++;
-    byRouteMap.set(s.route, e);
+  for (const sample of samples) {
+    const item = byRouteMap.get(sample.route) || { count: 0, totalMs: 0, errors: 0 };
+    item.count++;
+    item.totalMs += sample.durationMs;
+    if (sample.error) item.errors++;
+    byRouteMap.set(sample.route, item);
   }
-  const byRoute = Array.from(byRouteMap.entries())
-    .map(([route, v]) => ({ route, count: v.count, avgMs: Math.round(v.totalMs / v.count), errors: v.errors }))
-    .sort((a, b) => b.count - a.count);
 
   return NextResponse.json({
     traffic: {
+      timezone: 'Asia/Shanghai',
       today: {
-        newPosts: todayTrend?.posts ?? 0,
-        newUsers: todayTrend?.users ?? 0,
-        mcpCalls: todayTrend?.mcpCalls ?? 0,
-        activeUsers: todayTrend?.activeUsers.size ?? 0,
+        pageViews: today?.pageViews ?? 0,
+        webActiveUsers: today?.webActive.size ?? 0,
+        mcpActiveUsers: today?.mcpActive.size ?? 0,
+        engagedUsers: today?.engaged.size ?? 0,
+        newUsers: today?.newUsers ?? 0,
+        newPosts: today?.newPosts ?? 0,
+        favorites: today?.favorites ?? 0,
+        searches: today?.searches ?? 0,
+        mcpCalls: today?.mcpCalls ?? 0,
       },
-      totals: { posts: totalPosts, users: totalUsers, mcpCalls: totalMcp },
-      trend: trend.map((t) => ({ date: t.date, posts: t.posts, users: t.users, mcpCalls: t.mcpCalls, activeUsers: t.activeUsers.size })),
-      topSkills,
+      totals: { posts: totalPosts, users: totalUsers, mcpCalls: totalMcp, favorites: totalFavorites },
+      trend: trend.map((row) => ({
+        date: row.date,
+        pageViews: row.pageViews,
+        webActiveUsers: row.webActive.size,
+        mcpActiveUsers: row.mcpActive.size,
+        engagedUsers: row.engaged.size,
+        newUsers: row.newUsers,
+        newPosts: row.newPosts,
+        favorites: row.favorites,
+        comments: row.comments,
+        searches: row.searches,
+        mcpCalls: row.mcpCalls,
+      })),
+    },
+    funnel: {
+      windowDays: 30,
+      registeredUsers: cohortUsers30.length,
+      favoritedUsers: favoritedUsers30.size,
+      tokenUsers: cohortUsers30.filter((user) => Boolean(user.mcpTokenHash)).length,
+      tokenUsedUsers: cohortUsers30.filter((user) => Boolean(user.tokenLastUsedAt)).length,
+      repeatMcpUsers: [...mcpCountsByUser.values()].filter((count) => count >= 2).length,
+      yesterdayCohortUsers: yesterdayUsers.length,
+      yesterdayRetainedToday: yesterdayRetained,
+      yesterdayD1Retention:
+        yesterdayUsers.length === 0 ? null : yesterdayRetained / yesterdayUsers.length,
+      totalTokenUsers: tokenUsers,
+      totalTokenUsedUsers: tokenUsedUsers,
+    },
+    content: {
+      publishedCount,
+      pendingCount,
+      featuredCount,
+      mcpReadyCount,
+      zeroFavorites,
+      zeroMcpCalls,
+      topFavorited: topFavoriteLogs
+        .filter((row) => titleMap.has(row.postId))
+        .map((row) => ({ postId: row.postId, title: titleMap.get(row.postId)!, count: row._count })),
+      topMcp: topMcpLogs
+        .filter((row) => row.postId && titleMap.has(row.postId))
+        .map((row) => ({ postId: row.postId!, title: titleMap.get(row.postId!)!, count: row._count })),
+    },
+    activity: {
+      byType: [...activityByType.entries()]
+        .map(([label, value]) => ({ label, value }))
+        .sort((a, b) => b.value - a.value),
+      bySource: [...activityBySource.entries()]
+        .map(([label, value]) => ({ label, value }))
+        .sort((a, b) => b.value - a.value),
     },
     pressure: {
       db: { latencyMs: dbLatencyMs, connections },
@@ -147,7 +381,14 @@ export async function GET() {
         p95Ms: pct(durations, 0.95),
         errorCount,
         errorRate: samples.length === 0 ? 0 : errorCount / samples.length,
-        byRoute,
+        byRoute: [...byRouteMap.entries()]
+          .map(([route, value]) => ({
+            route,
+            count: value.count,
+            avgMs: Math.round(value.totalMs / value.count),
+            errors: value.errors,
+          }))
+          .sort((a, b) => b.count - a.count),
       },
     },
     fetchedAt: now.toISOString(),

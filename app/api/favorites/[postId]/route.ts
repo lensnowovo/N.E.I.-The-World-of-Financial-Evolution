@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/db';
 import { getSessionUid } from '@/lib/session';
+import { ACTIVITY_EVENT, trackActivity } from '@/lib/activity';
 
 export const dynamic = 'force-dynamic';
 
@@ -56,6 +57,13 @@ export async function DELETE(_req: Request, { params }: { params: Promise<{ post
 
   await prisma.postFavorite.deleteMany({
     where: { userId: uid, postId },
+  });
+  trackActivity({
+    type: ACTIVITY_EVENT.FAVORITE_REMOVE,
+    userId: uid,
+    entityType: 'post',
+    entityId: postId,
+    source: 'web',
   });
 
   return NextResponse.json({ ok: true });

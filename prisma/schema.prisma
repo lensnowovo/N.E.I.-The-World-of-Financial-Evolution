@@ -36,6 +36,7 @@ model User {
   commentLikes CommentLike[]
   mcpCallLogs McpCallLog[]
   reports   Report[]   // SEC-011: 用户提交的举报（作为举报人）
+  activityEvents ActivityEvent[]
   consents  UserConsent[] // 协议确认记录
 
   // 关注关系
@@ -232,6 +233,27 @@ model MetricSample {
 
   @@index([createdAt])
   @@index([route, createdAt])
+}
+
+// ---------- 产品行为事件 ----------
+model ActivityEvent {
+  id          Int      @id @default(autoincrement())
+  userId      Int?
+  anonymousId String?
+  type        String
+  entityType  String?
+  entityId    Int?
+  source      String?
+  metadata    Json?
+  createdAt   DateTime @default(now())
+
+  user User? @relation(fields: [userId], references: [id], onDelete: SetNull)
+
+  @@index([createdAt])
+  @@index([userId, createdAt])
+  @@index([anonymousId, createdAt])
+  @@index([type, createdAt])
+  @@index([entityType, entityId])
 }
 
 // ---------- 邮箱验证码 ----------
