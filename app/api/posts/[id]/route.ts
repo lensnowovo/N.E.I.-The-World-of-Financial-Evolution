@@ -5,6 +5,7 @@ import { sanitizeHtml } from '@/lib/validate';
 import { SCENE_TAGS, INDUSTRY_TAGS, CONTENT_TAGS, SKILL_TAGS } from '@/lib/tags';
 import { canEditPost } from '@/lib/post-auth';
 import { withMetrics } from '@/lib/metrics';
+import { ACTIVITY_EVENT, trackActivity } from '@/lib/activity';
 
 const sceneVals: string[] = SCENE_TAGS.map((t) => t.value);
 const industryVals: string[] = INDUSTRY_TAGS.map((t) => t.value);
@@ -32,6 +33,13 @@ async function getPost(_req: Request, { params }: { params: Promise<{ id: string
   await prisma.post.update({ where: { id }, data: { viewCount: { increment: 1 } } });
 
   const uid = await getSessionUid();
+  trackActivity({
+    type: ACTIVITY_EVENT.POST_VIEW,
+    userId: uid,
+    entityType: 'post',
+    entityId: id,
+    source: 'web-api',
+  });
   let starred = false;
   if (uid) {
     const star = await prisma.postFavorite.findUnique({ where: { userId_postId: { userId: uid, postId: id } } });

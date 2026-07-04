@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/db';
 import { getSessionUid } from '@/lib/session';
+import { ACTIVITY_EVENT, trackActivity } from '@/lib/activity';
 
 export async function GET(_req: Request, { params }: { params: Promise<{ id: string }> }) {
   const postId = parseInt((await params).id, 10);
@@ -75,6 +76,16 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
   });
 
   await prisma.post.update({ where: { id: postId }, data: { commentCount: { increment: 1 } } });
+  trackActivity({
+    type: ACTIVITY_EVENT.COMMENT_CREATE,
+    userId: uid,
+    entityType: 'post',
+    entityId: postId,
+    source: 'web',
+    metadata: {
+      hasParent: Boolean(normalizedParent),
+    },
+  });
 
   return NextResponse.json({ ...created, replies: [] });
 }

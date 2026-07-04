@@ -32,6 +32,7 @@ import { analyzeSkillQuality } from '@/lib/skill-quality';
 import { buildSkillDisplay } from '@/lib/skill-display';
 import { SkillQualityPanel } from '@/components/SkillQualityPanel';
 import { getPublicBaseUrl, normalizePublicText, normalizePublicUrl } from '@/lib/public-url';
+import { ACTIVITY_EVENT, trackActivity } from '@/lib/activity';
 
 export async function generateMetadata({
   params,
@@ -127,6 +128,19 @@ export default async function PostDetailPage({
   // viewCount 自增是 non-critical 写：fire-and-forget，不阻塞渲染。
   // serverless 函数返回后该 promise 可能被回收，最多少计一次浏览，可接受。
   void incrementViewCount(id).catch(() => {});
+  if (uid) {
+    trackActivity({
+      type: ACTIVITY_EVENT.POST_VIEW,
+      userId: uid,
+      entityType: 'post',
+      entityId: id,
+      source: 'web',
+      metadata: {
+        scene: post.tagScene,
+        assetType: post.skillAsset?.assetType ?? post.tagSkill ?? null,
+      },
+    });
+  }
 
   let starred = false;
   let hasApiKey = false;

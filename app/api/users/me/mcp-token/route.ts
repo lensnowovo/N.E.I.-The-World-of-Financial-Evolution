@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import crypto from 'node:crypto';
 import { prisma } from '@/lib/db';
 import { getSessionUid } from '@/lib/session';
+import { ACTIVITY_EVENT, trackActivity } from '@/lib/activity';
 
 export const dynamic = 'force-dynamic';
 
@@ -26,6 +27,11 @@ export async function POST() {
       tokenCreatedAt: new Date(),
     },
   });
+  trackActivity({
+    type: ACTIVITY_EVENT.MCP_TOKEN_CREATE,
+    userId: uid,
+    source: 'web',
+  });
 
   return NextResponse.json({ token: plain });
 }
@@ -40,6 +46,11 @@ export async function DELETE() {
   await prisma.user.update({
     where: { id: uid },
     data: { mcpTokenHash: null },
+  });
+  trackActivity({
+    type: ACTIVITY_EVENT.MCP_TOKEN_DELETE,
+    userId: uid,
+    source: 'web',
   });
 
   return NextResponse.json({ ok: true });

@@ -1,9 +1,11 @@
 import type { Metadata } from 'next';
+import { Suspense } from 'react';
 import { Cormorant_Garamond, Inter, Cinzel, Noto_Serif_SC } from 'next/font/google';
 import './globals.css';
 import { getCurrentUser } from '@/lib/session';
 import { SiteHeader } from '@/components/chrome/SiteHeader';
 import { SiteFooter } from '@/components/chrome/SiteFooter';
+import { ActivityTracker } from '@/components/ActivityTracker';
 import { getPublicBaseUrl } from '@/lib/public-url';
 
 const cormorant = Cormorant_Garamond({
@@ -130,6 +132,9 @@ export default async function RootLayout({
           type="application/ld+json"
           dangerouslySetInnerHTML={{ __html: JSON.stringify(siteJsonLd) }}
         />
+        <Suspense fallback={null}>
+          <ActivityTracker />
+        </Suspense>
         <SiteHeader user={user} />
         <main className="relative z-[1] flex-1 w-full mx-auto max-w-page px-4 sm:px-6 py-8 sm:py-10 animate-fade-in">
           {children}

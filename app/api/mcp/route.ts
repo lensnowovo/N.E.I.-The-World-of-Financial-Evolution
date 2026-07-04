@@ -10,6 +10,7 @@ import { extractPlainText, extractReadableText } from '@/lib/skill-text';
 import { withMetrics } from '@/lib/metrics';
 import { wrapWithSafetyRules } from '@/lib/mcp-safety';
 import { normalizePublicText } from '@/lib/public-url';
+import { ACTIVITY_EVENT, trackActivity } from '@/lib/activity';
 
 export const dynamic = 'force-dynamic';
 export const maxDuration = 60;
@@ -248,6 +249,7 @@ function makeHandler(uid: number, clientName: string | null, requestId: string) 
   return createMcpHandler(
     async (server: McpServer) => {
       const logCall = (tool: string, start: number, postId?: number) => {
+        const latencyMs = Date.now() - start;
         void prisma.mcpCallLog
           .create({
             data: {
@@ -256,10 +258,22 @@ function makeHandler(uid: number, clientName: string | null, requestId: string) 
               postId,
               clientName,
               requestId,
-              latencyMs: Date.now() - start,
+              latencyMs,
             },
           })
           .catch(() => {});
+        trackActivity({
+          type: ACTIVITY_EVENT.MCP_CALL,
+          userId: uid,
+          entityType: postId ? 'post' : null,
+          entityId: postId ?? null,
+          source: 'mcp',
+          metadata: {
+            tool,
+            clientName: clientName ? clientName.slice(0, 80) : null,
+            latencyMs,
+          },
+        });
       };
 
       server.tool(
@@ -666,6 +680,15 @@ function makeHandler(uid: number, clientName: string | null, requestId: string) 
               create: { userId: uid, postId: args.id },
               update: {},
             });
+            if (!existing) {
+              trackActivity({
+                type: ACTIVITY_EVENT.FAVORITE_ADD,
+                userId: uid,
+                entityType: 'post',
+                entityId: args.id,
+                source: 'mcp',
+              });
+            }
 
             return toolResultMessage(true, existing ? 'Skill was already favorited.' : 'Skill favorited.', {
               id: post.id,
@@ -698,6 +721,15 @@ function makeHandler(uid: number, clientName: string | null, requestId: string) 
             const result = await prisma.postFavorite.deleteMany({
               where: { userId: uid, postId: args.id },
             });
+            if (result.count > 0) {
+              trackActivity({
+                type: ACTIVITY_EVENT.FAVORITE_REMOVE,
+                userId: uid,
+                entityType: 'post',
+                entityId: args.id,
+                source: 'mcp',
+              });
+            }
             return toolResultMessage(true, result.count > 0 ? 'Skill unfavorited.' : 'Skill was not in your favorites.', {
               id: args.id,
               removedCount: result.count,

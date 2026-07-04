@@ -7,6 +7,7 @@ import { SCENE_TAGS, INDUSTRY_TAGS, CONTENT_TAGS, SKILL_TAGS } from '@/lib/tags'
 import { fetchFeedPage, normalizeSort } from '@/lib/feed';
 import { withMetrics } from '@/lib/metrics';
 import { reviewPostSafety } from '@/lib/ai';
+import { ACTIVITY_EVENT, trackActivity } from '@/lib/activity';
 
 // Used by POST handler for validation
 const sceneVals: string[] = SCENE_TAGS.map((t) => t.value);
@@ -37,6 +38,25 @@ async function listPosts(req: Request) {
     { scene, industry, skill, role, time, q, mcp, attachment, featured, contentList, page, pageSize, sort },
     uid,
   );
+  if (page === 1 && (q || scene || industry || skill || contentList.length > 0 || mcp || attachment || featured)) {
+    trackActivity({
+      type: q ? ACTIVITY_EVENT.SEARCH : ACTIVITY_EVENT.FILTER,
+      userId: uid,
+      source: 'web',
+      metadata: {
+        hasQuery: Boolean(q),
+        queryLength: q.length,
+        scene: scene ?? null,
+        industry: industry ?? null,
+        skill: skill ?? null,
+        contentCount: contentList.length,
+        mcp: mcp ?? null,
+        attachment: attachment ?? null,
+        featured: featured ?? null,
+        resultCount: result.total,
+      },
+    });
+  }
 
   return NextResponse.json({
     items: result.items,
@@ -158,6 +178,19 @@ async function createPost(req: Request) {
     }
 
     return created;
+  });
+  trackActivity({
+    type: ACTIVITY_EVENT.POST_CREATE,
+    userId: uid,
+    entityType: 'post',
+    entityId: post.id,
+    source: 'web',
+    metadata: {
+      scene: tagScene,
+      industry: tagIndustry,
+      skill: tagSkill,
+      status: initialStatus,
+    },
   });
 
   return NextResponse.json({ id: post.id });
