@@ -2,10 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
-import { cn } from '@/lib/cn';
 import { PUBLIC_BASE_URL } from '@/lib/public-url';
-import { Input } from '@/components/ui/Input';
-import { Button } from '@/components/ui/Button';
 import { McpQuickSetupPanel } from '@/components/mcp/McpQuickSetupPanel';
 import {
   McpOnboardingChecklist,
@@ -14,7 +11,6 @@ import {
 
 type ConnectProfile = {
   id: number;
-  hasApiKey: boolean;
   hasMcpToken: boolean;
 };
 
@@ -22,10 +18,6 @@ export default function ConnectPage() {
   const [profile, setProfile] = useState<ConnectProfile | null>(null);
   const [mcpStatus, setMcpStatus] = useState<McpOnboardingStatus | null>(null);
   const [loading, setLoading] = useState(true);
-
-  const [apiKey, setApiKey] = useState('');
-  const [keySaving, setKeySaving] = useState(false);
-  const [keyMsg, setKeyMsg] = useState<{ ok: boolean; text: string } | null>(null);
 
   const [mcpToken, setMcpToken] = useState('');
   const [mcpGenerating, setMcpGenerating] = useState(false);
@@ -82,7 +74,7 @@ export default function ConnectPage() {
         </p>
         <h1 className="font-serif text-3xl text-ink-brown">连接你的 AI 客户端</h1>
         <p className="font-serif italic text-sm text-leather mt-2 leading-7">
-          收藏 Skill，生成 Token，一键复制配置包，在 Claude Code / Cursor / Windsurf 等客户端里调用 N.E.I.
+          最短路径：生成 Token → 复制配置包 → 粘贴到 Claude Code、Codex、Workbuddy 或其它 Agent 客户端 → 调用 search_skills 搜全库。收藏只是常用库，不是使用前置条件。
         </p>
       </header>
 
@@ -96,46 +88,12 @@ export default function ConnectPage() {
             connectUrl={connectUrl}
             onGenerate={generateMcpToken}
           />
-
-          <ApiKeySection
-            hasApiKey={profile.hasApiKey}
-            apiKey={apiKey}
-            keySaving={keySaving}
-            keyMsg={keyMsg}
-            onApiKeyChange={setApiKey}
-            onClear={async () => {
-              setKeySaving(true);
-              await fetch('/api/users/me', { method: 'DELETE' });
-              setKeySaving(false);
-              setProfile((p) => (p ? { ...p, hasApiKey: false } : p));
-              setKeyMsg({ ok: true, text: '已清除' });
-            }}
-            onSave={async () => {
-              setKeyMsg(null);
-              if (!apiKey.trim()) return;
-              setKeySaving(true);
-              const res = await fetch('/api/users/me', {
-                method: 'PATCH',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ apiKey: apiKey.trim() }),
-              });
-              const data = await res.json();
-              setKeySaving(false);
-
-              if (!res.ok) {
-                setKeyMsg({ ok: false, text: data.error || '保存失败' });
-                return;
-              }
-
-              setProfile((p) => (p ? { ...p, hasApiKey: true } : p));
-              setApiKey('');
-              setKeyMsg({ ok: true, text: 'API Key 已加密保存' });
-            }}
-          />
         </main>
 
         <aside className="space-y-5 lg:sticky lg:top-6 lg:self-start">
           {mcpStatus && <McpOnboardingChecklist status={mcpStatus} compact />}
+
+          <ClientSupportCard />
 
           <div className="rounded-md border border-paper-edge bg-vellum p-4">
             <p className="font-display tracking-display text-[10px] uppercase text-sepia mb-2">
@@ -155,87 +113,14 @@ export default function ConnectPage() {
               调通后怎么用
             </p>
             <ul className="space-y-2 font-sans text-xs leading-6 text-leather">
-              <li>1. 收藏几个常用 Skill。</li>
-              <li>2. 在客户端调用 <code className="font-mono">list_my_skills</code>。</li>
-              <li>3. 让 AI 根据当前任务选择 Skill。</li>
+              <li>1. 在客户端调用 <code className="font-mono">search_skills</code> 搜全库。</li>
+              <li>2. 调用 <code className="font-mono">recommend_skills_for_task</code> 让 Agent 按任务推荐。</li>
+              <li>3. 遇到好用的 Skill，再用 <code className="font-mono">favorite_skill</code> 收藏沉淀。</li>
             </ul>
           </div>
         </aside>
       </div>
     </div>
-  );
-}
-
-function ApiKeySection({
-  hasApiKey,
-  apiKey,
-  keySaving,
-  keyMsg,
-  onApiKeyChange,
-  onSave,
-  onClear,
-}: {
-  hasApiKey: boolean;
-  apiKey: string;
-  keySaving: boolean;
-  keyMsg: { ok: boolean; text: string } | null;
-  onApiKeyChange: (value: string) => void;
-  onSave: () => Promise<void>;
-  onClear: () => Promise<void>;
-}) {
-  return (
-    <section className="border-t border-paper-edge pt-8">
-      <h2 className="font-serif text-xl text-ink-brown mb-1">网站执行 API Key（选填）</h2>
-      <p className="font-sans text-xs text-sepia mb-4 leading-6">
-        MCP 连接不需要填写这里。只有当你想在网站内直接执行 Prompt 时，才需要配置 Anthropic API Key。
-        Key 会加密存储，不会明文展示。
-      </p>
-
-      {hasApiKey ? (
-        <div className="flex flex-wrap items-center gap-3">
-          <span className="inline-flex h-9 items-center gap-1.5 rounded-sm border border-moss/40 bg-moss/5 px-4 font-sans text-sm text-moss">
-            ✓ 已配置
-          </span>
-          <button
-            type="button"
-            onClick={onClear}
-            disabled={keySaving}
-            className="font-sans text-sm text-wax-red hover:underline disabled:opacity-60"
-          >
-            {keySaving ? '清除中…' : '清除'}
-          </button>
-          {keyMsg && <StatusMessage message={keyMsg} />}
-        </div>
-      ) : (
-        <form
-          onSubmit={async (e) => {
-            e.preventDefault();
-            await onSave();
-          }}
-        >
-          <Input
-            type="password"
-            value={apiKey}
-            onChange={(e) => onApiKeyChange(e.target.value)}
-            placeholder="sk-ant-..."
-          />
-          {keyMsg && <StatusMessage message={keyMsg} />}
-          <div className="mt-3">
-            <Button type="submit" disabled={keySaving || !apiKey.trim()}>
-              {keySaving ? '保存中…' : '保存 API Key'}
-            </Button>
-          </div>
-        </form>
-      )}
-    </section>
-  );
-}
-
-function StatusMessage({ message }: { message: { ok: boolean; text: string } }) {
-  return (
-    <p className={cn('mt-2 border-l pl-3 font-sans text-sm', message.ok ? 'border-moss text-moss' : 'border-wax-red text-wax-red')}>
-      {message.text}
-    </p>
   );
 }
 
@@ -248,7 +133,7 @@ function ConnectGuestState() {
         </p>
         <h1 className="font-serif text-3xl text-ink-brown">登录后连接你的 AI 客户端</h1>
         <p className="font-serif italic text-sm text-leather mt-2 leading-7">
-          登录后可以生成 MCP Token、查看你的收藏，并把 Skill Library 接入 Claude Code / Cursor / Windsurf。
+          登录后生成 MCP Token，一键复制配置包，把 Skill Library 接入 Claude Code、Codex、Workbuddy 或其它 Agent 客户端。
         </p>
       </header>
 
@@ -266,9 +151,27 @@ function ConnectGuestState() {
             注册账号
           </Link>
           <Link href="/mcp" className="inline-flex h-10 items-center px-2 font-serif text-sm italic text-leather transition-colors hover:text-wax-red">
-            查看配置说明 →
+            查看原理与排障 →
           </Link>
         </div>
+      </div>
+    </div>
+  );
+}
+
+function ClientSupportCard() {
+  return (
+    <div className="rounded-md border border-paper-edge bg-vellum/60 p-4">
+      <p className="font-display tracking-display text-[10px] uppercase text-sepia mb-2">
+        推荐客户端
+      </p>
+      <div className="space-y-2 font-sans text-xs leading-6 text-leather">
+        <p>
+          已按当前配置口径优先支持：<span className="text-ink-brown">Claude Code、Codex、Workbuddy 或其它 Agent 客户端</span>。
+        </p>
+        <p>
+          豆包目前不作为推荐连接客户端展示；实测连接不稳定，等有明确可用的 MCP Client 配置方式后再补教程。
+        </p>
       </div>
     </div>
   );

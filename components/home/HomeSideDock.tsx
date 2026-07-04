@@ -12,6 +12,7 @@ export type HomeSideDockData = {
     githubAvatarUrl: string | null;
     hasMcpToken: boolean;
     tokenLastUsedAt: Date | null;
+    lastMcpCallAt: Date | null;
   } | null;
   stats: {
     favoriteCount: number;
@@ -48,7 +49,8 @@ export function HomeSideDock({ data }: { data: HomeSideDockData }) {
 function SignedInDock({ data }: { data: HomeSideDockData }) {
   const user = data.user!;
   const avatar = user.avatarUrl || user.githubAvatarUrl;
-  const mcpReady = user.hasMcpToken;
+  const mcpConnected = Boolean(user.lastMcpCallAt);
+  const mcpPending = user.hasMcpToken && !mcpConnected;
 
   return (
     <div className="space-y-4">
@@ -84,29 +86,31 @@ function SignedInDock({ data }: { data: HomeSideDockData }) {
           <div>
             <p className="font-display text-[10px] tracking-display text-sepia">MCP STATUS</p>
             <p className="mt-0.5 font-serif text-sm text-ink-brown">
-              {mcpReady ? 'Token Ready' : '尚未配置'}
+              {mcpConnected ? '已调通' : mcpPending ? '等待验证' : '尚未连接'}
             </p>
           </div>
           <span
             className={
-              mcpReady
+              mcpConnected
                 ? 'h-2.5 w-2.5 rounded-full bg-moss'
+                : mcpPending
+                  ? 'h-2.5 w-2.5 rounded-full bg-gilded'
                 : 'h-2.5 w-2.5 rounded-full border border-sepia'
             }
           />
         </div>
         <p className="mt-2 font-sans text-[11px] leading-relaxed text-sepia">
-          {mcpReady
-            ? user.tokenLastUsedAt
-              ? `最近调用 ${formatDate(user.tokenLastUsedAt)}`
-              : '可接入 Claude / Cursor / Windsurf'
-            : '生成 Token 后，可在客户端调用收藏库。'}
+          {mcpConnected
+            ? `最近工具调用 ${formatDate(user.lastMcpCallAt!)}`
+            : mcpPending
+              ? 'Token 已生成；请在客户端调用 search_skills 验证。'
+              : '生成 Token 后，在客户端搜索 Skill 全库。'}
         </p>
       </div>
 
       <nav className="space-y-1.5" aria-label="Dossier shortcuts">
         <DockLink href="/dashboard" label="我的收藏库" meta="Library" />
-        <DockLink href="/connect" label="配置 MCP" meta={mcpReady ? 'Ready' : 'Setup'} />
+        <DockLink href="/connect" label="配置 MCP" meta={mcpConnected ? 'Live' : mcpPending ? 'Verify' : 'Setup'} />
         <DockLink href="/publish" label="发布 Skill" meta="Contribute" />
         <DockLink href={`/profile/${user.id}`} label="个人主页" meta="Profile" />
       </nav>

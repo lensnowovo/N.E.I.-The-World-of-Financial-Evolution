@@ -167,7 +167,7 @@ curl -L https://你的域名/api/v1/skills/14/raw`}
             <SectionTitle id="mcp">接下来：MCP</SectionTitle>
             <p className="font-sans text-sm text-leather leading-relaxed">
               这套 REST API 是地基。下一步会包成 MCP server，
-              让 Claude / Cursor 等 AI 工具能直接调用「搜索 PEVC skill」「下载原文」——
+              让 Claude Code / Codex / Workbuddy 等 Agent 工具能直接调用「搜索 PEVC skill」「下载原文」——
               AI 接入网站，不用人手动复制。
             </p>
           </section>

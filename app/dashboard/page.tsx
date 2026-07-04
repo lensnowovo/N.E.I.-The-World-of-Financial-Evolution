@@ -17,13 +17,11 @@ export default async function DashboardPage() {
   const userWithKey = await prisma.user.findUnique({
     where: { id: uid },
     select: {
-      apiKeyEnc: true,
       mcpTokenHash: true,
       tokenCreatedAt: true,
       tokenLastUsedAt: true,
     },
   });
-  const hasApiKey = !!userWithKey?.apiKeyEnc;
   const hasMcpToken = !!userWithKey?.mcpTokenHash;
   const mcpTokenCreatedAt = userWithKey?.tokenCreatedAt?.toISOString() ?? null;
   const mcpTokenLastUsedAt = userWithKey?.tokenLastUsedAt?.toISOString() ?? null;
@@ -221,7 +219,6 @@ export default async function DashboardPage() {
         overviewStats={overviewStats}
         myPosts={myPosts}
         hasMcpToken={hasMcpToken}
-        hasApiKey={hasApiKey}
         mcpTokenCreatedAt={mcpTokenCreatedAt}
         mcpTokenLastUsedAt={mcpTokenLastUsedAt}
         mcpCallLogs={mcpCallLogs}
@@ -231,8 +228,10 @@ export default async function DashboardPage() {
           favoriteCount: items.length,
           hasMcpToken,
           tokenLastUsedAt: mcpTokenLastUsedAt,
+          lastMcpCallAt: mcpCallLogs[0]?.createdAt ?? null,
           hasAnyMcpCall: totalCalls > 0,
           hasListMySkillsCall: listMySkillsCalls > 0,
+          isConnected: totalCalls > 0,
         }}
         userId={uid}
       />

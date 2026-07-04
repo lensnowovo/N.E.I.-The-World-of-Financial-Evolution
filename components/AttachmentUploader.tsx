@@ -14,7 +14,7 @@ export type UploadedFile = {
 
 const ACCEPT = '.pdf,.docx,.doc,.xlsx,.xls,.pptx,.ppt,.png,.jpg,.jpeg,.mp4,.zip,.md';
 const MAX_FILES = 5;
-const MAX_SIZE = 100 * 1024 * 1024;
+const MAX_SIZE = 4 * 1024 * 1024;
 
 /**
  * AttachmentUploader · 卷宗附件投递区
@@ -43,7 +43,7 @@ export function AttachmentUploader({
     let curr = [...files];
     for (const f of arr) {
       if (f.size > MAX_SIZE) {
-        setErr(`${f.name} 超过 100 MB`);
+        setErr(`${f.name} 超过 4 MB`);
         continue;
       }
       setProgress({ name: f.name, pct: 15 });
@@ -52,16 +52,16 @@ export function AttachmentUploader({
       try {
         const res = await fetch('/api/upload', { method: 'POST', body: fd });
         setProgress({ name: f.name, pct: 75 });
-        const data = await res.json();
+        const data = await readJsonSafe(res);
         if (!res.ok) {
-          setErr(data.error || '投递失败');
+          setErr(data?.error || `上传失败（HTTP ${res.status}）`);
           continue;
         }
-        curr = [...curr, data];
+        curr = [...curr, data as UploadedFile];
         onChange(curr);
         setProgress({ name: f.name, pct: 100 });
       } catch {
-        setErr('网络错误');
+        setErr('网络连接失败，请检查网络后重试');
       }
     }
     setProgress(null);
@@ -106,7 +106,7 @@ export function AttachmentUploader({
           可接受 PDF · DOCX · XLSX · PPTX · 图片 · MP4 · ZIP · MD
         </p>
         <p className="mt-1 font-sans text-[11px] text-sepia">
-          单卷最多 {MAX_FILES} 件 · 单件 ≤ 100 MB
+          单卷最多 {MAX_FILES} 件 · 单件 ≤ 4 MB
         </p>
         <input
           ref={inputRef}
@@ -193,4 +193,12 @@ function EnvelopeIcon() {
       <path d="M38 28 L26 16" opacity="0.5" />
     </svg>
   );
+}
+
+async function readJsonSafe(res: Response): Promise<(UploadedFile & { error?: string }) | { error?: string }> {
+  try {
+    return await res.json();
+  } catch {
+    return {};
+  }
 }

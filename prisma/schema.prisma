@@ -19,7 +19,7 @@ model User {
   avatarUrl    String?
   institution  String?  // 机构（选填）
   bio          String?  // 个人简介（选填）
-  apiKeyEnc    String?  // 加密后的 AI API key（AES-256-GCM）
+  apiKeyEnc    String?  // Legacy: 站内执行下线前的个人 AI API key 密文字段，保留仅为兼容旧数据
   mcpTokenHash    String?   // MCP server 访问 token 的 hash
   tokenCreatedAt  DateTime? // SEC-008: MCP token 创建时间，便于排查泄露
   tokenLastUsedAt DateTime? // SEC-008: MCP token 最后一次成功鉴权时间
@@ -37,6 +37,7 @@ model User {
   mcpCallLogs McpCallLog[]
   reports   Report[]   // SEC-011: 用户提交的举报（作为举报人）
   activityEvents ActivityEvent[]
+  consents  UserConsent[] // 协议确认记录
 
   // 关注关系
   following UserFollow[] @relation("Follower")  // 我关注的人
@@ -143,6 +144,16 @@ model Attachment {
   post Post? @relation(fields: [postId], references: [id], onDelete: Cascade)
 
   @@index([postId])
+}
+
+// ---------- 文件对象 fallback ----------
+// Public curated .md 已静态化；用户上传附件优先走 S3/R2。
+// 如果生产环境暂未配置对象存储，则临时落到 Postgres，避免 Vercel 本地文件丢失。
+model StoredFile {
+  key       String   @id
+  data      Bytes
+  mimeType  String
+  createdAt DateTime @default(now())
 }
 
 // ---------- 评论 ----------
@@ -255,4 +266,21 @@ model VerificationCode {
   createdAt DateTime @default(now())
 
   @@index([email])
+}
+
+// ---------- 用户协议确认记录 ----------
+// 记录用户在注册 / 生成 MCP Token / 投稿等关键动作时对协议的确认。
+model UserConsent {
+  id          Int      @id @default(autoincrement())
+  userId      Int
+  consentType String   // terms | privacy | mcp_security | contribution
+  version     String   // 协议版本，如 "2026-06"
+  acceptedAt  DateTime @default(now())
+  ipAddress   String?  // 可选，如能获取则记录
+  userAgent   String?  // 可选
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([userId, consentType])
 }

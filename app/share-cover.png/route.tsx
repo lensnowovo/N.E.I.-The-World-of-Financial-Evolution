@@ -1,13 +1,8 @@
 import { ImageResponse } from 'next/og';
 
-export const alt = 'N.E.I. · New Era Investors';
-export const size = {
-  width: 1200,
-  height: 630,
-};
-export const contentType = 'image/png';
+export const runtime = 'edge';
 
-export default function Image() {
+export function GET() {
   return new ImageResponse(
     (
       <div
@@ -58,6 +53,9 @@ export default function Image() {
         </div>
       </div>
     ),
-    size,
+    {
+      width: 1200,
+      height: 630,
+    },
   );
 }

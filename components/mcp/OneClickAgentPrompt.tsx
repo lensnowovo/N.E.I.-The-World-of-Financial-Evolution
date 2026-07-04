@@ -37,15 +37,15 @@ export function OneClickAgentPrompt({
 - 鉴权：请求头 ${authLine}
 - 可用工具：
   - search_skills：按关键词 / 任务阶段 / 场景 / 类型 / 行业搜索公开 Skill
-  - recommend_skills_for_task：按 BP 初筛、行研、IC Memo、LP 汇报等任务推荐 Skill 组合
+  - recommend_skills_for_task：按 BP 初筛、行研、IC Memo、LP 汇报等任务从全库推荐 Skill 组合
   - get_skill：获取某个 Skill 的完整 Prompt 原文
-  - list_my_skills：列出我在 N.E.I. 收藏的 Skill
+  - list_my_skills：列出我在 N.E.I. 收藏的 Skill（收藏是常用库，不是使用前置条件）
   - apply_skill：把上下文填入 Prompt 模板，返回可执行 Prompt
-  - favorite_skill / unfavorite_skill：收藏或取消收藏 Skill（取消收藏需要 confirm=true）
+  - favorite_skill / unfavorite_skill：把搜索到的好用 Skill 收藏或取消收藏（取消收藏需要 confirm=true）
 
 ${tokenNote}
 
-配好后请调用一次 list_my_skills 验证连接，并告诉我是否能看到我的收藏 Skill。`;
+配好后请先调用 search_skills，搜索“BP 初筛”或“IC Memo”验证全库搜索；如果我已经有收藏，再调用 list_my_skills 读取我的常用库。`;
 
   const onCopy = async () => {
     try {

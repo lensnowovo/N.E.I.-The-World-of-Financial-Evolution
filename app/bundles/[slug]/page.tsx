@@ -5,6 +5,7 @@ import { getSessionUid } from '@/lib/session';
 import { taskBundles } from '@/lib/bundles';
 import { fetchBundleStepCards } from '@/lib/bundle-posts';
 import { HomeBundleTimeline } from '@/components/home/HomeBundleTimeline';
+import { BundleGuidePanel } from '@/components/BundleGuidePanel';
 import { getPublicBaseUrl } from '@/lib/public-url';
 
 export const dynamic = 'force-dynamic';
@@ -40,7 +41,7 @@ export async function generateMetadata({
       siteName: 'N.E.I.',
       images: [
         {
-          url: '/opengraph-image',
+          url: '/share-cover.png',
           width: 1200,
           height: 630,
           alt: title,
@@ -51,7 +52,7 @@ export async function generateMetadata({
       card: 'summary_large_image',
       title,
       description,
-      images: ['/twitter-image'],
+      images: ['/share-cover.png'],
     },
   };
 }
@@ -127,6 +128,8 @@ export default async function BundlePage({
           </Link>
         </div>
       </div>
+
+      <BundleGuidePanel slug={bundle.slug} output={bundle.output} isAuthed={!!uid} />
 
       <HomeBundleTimeline
         bundle={bundle}

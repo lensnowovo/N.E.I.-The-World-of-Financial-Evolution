@@ -5,6 +5,7 @@ import { POST_STATUS } from '@/lib/status';
 import { FilterStrip } from '@/components/FilterStrip';
 import { HomeHero } from '@/components/home/HomeHero';
 import { HomeTaskGrid } from '@/components/home/HomeTaskGrid';
+import { HomeMcpFeature } from '@/components/home/HomeMcpFeature';
 import { HomeSideDock, type HomeSideDockData } from '@/components/home/HomeSideDock';
 import { SkillFeed } from '@/components/SkillFeed';
 
@@ -37,6 +38,13 @@ export default async function HomePage({ searchParams }: { searchParams: Promise
       <HomeSideDock data={sideDockData} />
       <HomeHero totalSkills={totalSkills} workflowCount={workflowCount} />
       <HomeTaskGrid />
+      <HomeMcpFeature
+        status={{
+          signedIn: Boolean(sideDockData.user),
+          hasMcpToken: Boolean(sideDockData.user?.hasMcpToken),
+          lastMcpCallAt: sideDockData.user?.lastMcpCallAt ?? null,
+        }}
+      />
 
       <section id="skill-library" className="scroll-mt-24 pt-8">
         <div className="flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between mb-5">
@@ -99,7 +107,7 @@ async function fetchHomeSideDockData(uid: number | null): Promise<HomeSideDockDa
     };
   }
 
-  const [user, favoriteCount, postCount, mcpReadyCount, todayNewCount] = await Promise.all([
+  const [user, favoriteCount, postCount, mcpReadyCount, lastMcpCall, todayNewCount] = await Promise.all([
     prisma.user.findUnique({
       where: { id: uid },
       select: {
@@ -125,6 +133,11 @@ async function fetchHomeSideDockData(uid: number | null): Promise<HomeSideDockDa
     prisma.post.count({
       where: { userId: uid, status: POST_STATUS.PUBLISHED, deletedAt: null, mcpApproved: true },
     }),
+    prisma.mcpCallLog.findFirst({
+      where: { userId: uid },
+      orderBy: { createdAt: 'desc' },
+      select: { createdAt: true },
+    }),
     todayNewCountPromise,
   ]);
 
@@ -139,6 +152,7 @@ async function fetchHomeSideDockData(uid: number | null): Promise<HomeSideDockDa
           githubAvatarUrl: user.githubAvatarUrl,
           hasMcpToken: !!user.mcpTokenHash,
           tokenLastUsedAt: user.tokenLastUsedAt,
+          lastMcpCallAt: lastMcpCall?.createdAt ?? null,
         }
       : null,
     stats: {

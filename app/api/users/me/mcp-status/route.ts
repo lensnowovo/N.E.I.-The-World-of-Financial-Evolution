@@ -9,7 +9,7 @@ export async function GET() {
   const uid = await getSessionUid();
   if (!uid) return NextResponse.json({ error: '请先登录' }, { status: 401 });
 
-  const [user, favoriteCount, hasAnyMcpCall, hasListMySkillsCall] = await Promise.all([
+  const [user, favoriteCount, hasAnyMcpCall, hasListMySkillsCall, lastMcpCall] = await Promise.all([
     prisma.user.findUnique({
       where: { id: uid },
       select: { mcpTokenHash: true, tokenLastUsedAt: true },
@@ -22,6 +22,11 @@ export async function GET() {
     }),
     prisma.mcpCallLog.count({ where: { userId: uid } }),
     prisma.mcpCallLog.count({ where: { userId: uid, tool: 'list_my_skills' } }),
+    prisma.mcpCallLog.findFirst({
+      where: { userId: uid },
+      orderBy: { createdAt: 'desc' },
+      select: { createdAt: true },
+    }),
   ]);
 
   if (!user) return NextResponse.json({ error: '用户不存在' }, { status: 404 });
@@ -30,7 +35,9 @@ export async function GET() {
     favoriteCount,
     hasMcpToken: !!user.mcpTokenHash,
     tokenLastUsedAt: user.tokenLastUsedAt?.toISOString() ?? null,
+    lastMcpCallAt: lastMcpCall?.createdAt.toISOString() ?? null,
     hasAnyMcpCall: hasAnyMcpCall > 0,
     hasListMySkillsCall: hasListMySkillsCall > 0,
+    isConnected: hasAnyMcpCall > 0,
   });
 }

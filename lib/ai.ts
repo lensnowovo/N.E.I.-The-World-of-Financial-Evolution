@@ -13,6 +13,7 @@
  */
 import { glmChat, parseJsonLoose, isGlmEnabled } from './glm';
 import { SCENE_TAGS, INDUSTRY_TAGS, CONTENT_TAGS, SKILL_TAGS } from './tags';
+import JSZip from 'jszip';
 
 export function isAiEnabled(): boolean {
   return isGlmEnabled();
@@ -27,8 +28,26 @@ export type TranscribedSkill = {
   tagIndustry?: string | null;
   tagContent: string[];
   installHint?: string | null;
+  usageNotes?: string | null;
   shouldAttach: boolean; // 是否把抓来的原文作为附件
   originalAuthor?: string | null; // 原作者（从 GitHub URL owner 提取）
+};
+
+const MAX_GITHUB_REPO_ZIP_BYTES = 4 * 1024 * 1024;
+
+type GitHubRepoRef = {
+  owner: string;
+  repo: string;
+  ref?: string;
+  pathPrefix?: string;
+};
+
+export type GitHubSourceContent = {
+  text: string;
+  fileName: string;
+  attachmentBuffer?: Buffer;
+  attachmentFileName?: string;
+  attachmentMimeType?: string;
 };
 
 /**
@@ -58,6 +77,10 @@ export function isGitHubFileUrl(url: string): boolean {
     /raw\.githubusercontent\.com\//.test(url);
 }
 
+export function isGitHubImportUrl(url: string): boolean {
+  return isGitHubFileUrl(url) || !!parseGitHubRepoUrl(url);
+}
+
 async function fetchGitHubContent(url: string): Promise<{ text: string; fileName: string } | null> {
   const rawUrl = toRawUrl(url);
   if (!rawUrl) return null;
@@ -66,6 +89,113 @@ async function fetchGitHubContent(url: string): Promise<{ text: string; fileName
   const text = await res.text();
   const fileName = rawUrl.split('/').pop() || 'skill.md';
   return { text, fileName };
+}
+
+function parseGitHubRepoUrl(url: string): GitHubRepoRef | null {
+  try {
+    const u = new URL(url);
+    if (u.hostname !== 'github.com') return null;
+
+    const parts = u.pathname.split('/').filter(Boolean);
+    if (parts.length < 2) return null;
+
+    const [owner, repo] = parts;
+    if (!owner || !repo || repo.endsWith('.git')) return null;
+    if (parts[2] === 'blob') return null;
+
+    if (parts[2] === 'tree' && parts[3]) {
+      return {
+        owner,
+        repo,
+        ref: parts[3],
+        pathPrefix: parts.slice(4).join('/'),
+      };
+    }
+
+    return { owner, repo };
+  } catch {
+    return null;
+  }
+}
+
+async function fetchGitHubRepoDefaultBranch(owner: string, repo: string): Promise<string> {
+  const res = await fetch(`https://api.github.com/repos/${owner}/${repo}`, {
+    headers: {
+      Accept: 'application/vnd.github+json',
+      'User-Agent': 'nei-pevc-skill-importer',
+    },
+  });
+  if (!res.ok) return 'main';
+  const data = await res.json().catch(() => null);
+  return typeof data?.default_branch === 'string' && data.default_branch ? data.default_branch : 'main';
+}
+
+async function fetchGitHubRepoZip(ref: GitHubRepoRef): Promise<{ buffer: Buffer; normalizedRef: string }> {
+  const normalizedRef = ref.ref || await fetchGitHubRepoDefaultBranch(ref.owner, ref.repo);
+  const zipUrl = `https://codeload.github.com/${ref.owner}/${ref.repo}/zip/${encodeURIComponent(normalizedRef)}`;
+  const res = await fetch(zipUrl, {
+    redirect: 'follow',
+    headers: { 'User-Agent': 'nei-pevc-skill-importer' },
+  });
+  if (!res.ok) {
+    throw new Error('无法下载 GitHub 仓库压缩包，请确认仓库公开且链接正确');
+  }
+
+  const contentLength = Number(res.headers.get('content-length') || 0);
+  if (contentLength > MAX_GITHUB_REPO_ZIP_BYTES) {
+    throw new Error('GitHub 仓库包超过 4MB。请先精简为 Skill 文件夹 zip 后上传');
+  }
+
+  const buffer = Buffer.from(await res.arrayBuffer());
+  if (buffer.length > MAX_GITHUB_REPO_ZIP_BYTES) {
+    throw new Error('GitHub 仓库包超过 4MB。请先精简为 Skill 文件夹 zip 后上传');
+  }
+
+  return { buffer, normalizedRef };
+}
+
+async function fetchGitHubRepoSkill(url: string): Promise<GitHubSourceContent | null> {
+  const ref = parseGitHubRepoUrl(url);
+  if (!ref) return null;
+
+  const { buffer, normalizedRef } = await fetchGitHubRepoZip(ref);
+  const zip = await JSZip.loadAsync(buffer);
+  const pathPrefix = ref.pathPrefix ? ref.pathPrefix.replace(/^\/+|\/+$/g, '').toLowerCase() : '';
+  const entries = Object.values(zip.files)
+    .filter((entry) => !entry.dir)
+    .filter((entry) => !entry.name.startsWith('__MACOSX/'))
+    .filter((entry) => {
+      const normalized = entry.name.replace(/\\/g, '/').toLowerCase();
+      const isSkillMd = normalized === 'skill.md' || normalized.endsWith('/skill.md');
+      if (!isSkillMd) return false;
+      if (!pathPrefix) return true;
+      return normalized.includes(`/${pathPrefix}/skill.md`) || normalized.endsWith(`/${pathPrefix}/skill.md`);
+    })
+    .sort((a, b) => a.name.split('/').length - b.name.split('/').length);
+
+  const skillEntry = entries[0];
+  if (!skillEntry) {
+    throw new Error('这个 GitHub 仓库里没有找到 SKILL.md。请确认仓库根目录或对应目录下有 SKILL.md');
+  }
+
+  const text = await skillEntry.async('string');
+  if (!text.trim()) {
+    throw new Error('GitHub 仓库里的 SKILL.md 是空文件');
+  }
+
+  return {
+    text,
+    fileName: skillEntry.name,
+    attachmentBuffer: buffer,
+    attachmentFileName: `${ref.owner}-${ref.repo}-${normalizedRef.replace(/[^a-zA-Z0-9._-]+/g, '-')}.zip`,
+    attachmentMimeType: 'application/zip',
+  };
+}
+
+async function fetchGitHubImportContent(url: string): Promise<GitHubSourceContent | null> {
+  const file = await fetchGitHubContent(url);
+  if (file) return file;
+  return fetchGitHubRepoSkill(url);
 }
 
 // system prompt：喂完整枚举，引导 AI 输出落在合法值内
@@ -81,6 +211,7 @@ const SYSTEM_PROMPT = `你是一个 PEVC（私募股权/风险投资）Skill 资
 - tagIndustry: 行业（选填），可从这些里选或 null：${INDUSTRY_TAGS.map((t) => t.value).join(' / ')}
 - tagContent: 工作内容标签数组，0-3 个，从这些里选：${CONTENT_TAGS.map((t) => t.value).join(' / ')}
 - installHint: 安装/使用说明（选填），一句话告诉读者怎么用
+- usageNotes: 适合人群/使用场景（选填），一句话写清楚谁在什么场景下最该用它。不要写输入材料或输出材料。
 - shouldAttach: 布尔值。如果原内容是 SKILL.md/脚本/模板这种"文件型"资产，建议 true（保留原文作为附件）；如果是 prompt 文本，false
 
 标签说明（value → 含义）：
@@ -154,14 +285,15 @@ async function runTranscription(
     tagIndustry,
     tagContent,
     installHint: parsed.installHint ? String(parsed.installHint).slice(0, 2000) : null,
+    usageNotes: parsed.usageNotes ? String(parsed.usageNotes).slice(0, 2000) : null,
     shouldAttach: !!parsed.shouldAttach,
   };
 }
 
 export async function transcribeSkill(url: string): Promise<TranscribedSkill> {
-  const fetched = await fetchGitHubContent(url);
+  const fetched = await fetchGitHubImportContent(url);
   if (!fetched) {
-    throw new Error('无法获取 GitHub 内容，请确认是公开仓库的文件链接');
+    throw new Error('无法获取 GitHub 内容，请确认是公开仓库、仓库目录或文件链接');
   }
 
   const base = await runTranscription(fetched.text, fetched.fileName, `源链接：${url}`);
@@ -194,10 +326,15 @@ function extractOriginalAuthor(url: string): string | null {
 /** 把抓来的 GitHub 原文内容也返回（给接口存为附件用） */
 export async function transcribeWithSource(url: string): Promise<{
   skill: TranscribedSkill;
-  sourceContent: { text: string; fileName: string } | null;
+  sourceContent: GitHubSourceContent | null;
 }> {
   const skill = await transcribeSkill(url);
-  const sourceContent = await fetchGitHubContent(url);
+  const sourceContent = await fetchGitHubImportContent(url);
+  if (sourceContent?.attachmentBuffer) {
+    skill.branch = 'file';
+    skill.shouldAttach = true;
+    if (skill.tagSkill === 'prompt') skill.tagSkill = 'agent-skill';
+  }
   return { skill, sourceContent };
 }
 

@@ -1,7 +1,6 @@
 import { notFound } from 'next/navigation';
 import Link from 'next/link';
 import type { Metadata } from 'next';
-import { Prisma } from '@prisma/client';
 import { prisma } from '@/lib/db';
 import { cn } from '@/lib/cn';
 import { getCurrentUser } from '@/lib/session';
@@ -22,12 +21,12 @@ import { AttachmentList } from '@/components/AttachmentList';
 import { CommentSection } from '@/components/CommentSection';
 import { PostActions, PostStarButton } from './PostActions';
 import { DetailActions } from './DetailActions';
-import { SkillPreview } from './SkillPreview';
+import { LazySkillPreview } from './LazySkillPreview';
 import { PreCopyButton } from './PreCopyButton';
 import { BackLink } from './BackLink';
-import { ExecuteButton } from './ExecuteButton';
 import { ReportButton } from './ReportButton';
 import { DeleteButton } from './DeleteButton';
+import { ShareLinkButton } from './ShareLinkButton';
 import { analyzeSkillQuality } from '@/lib/skill-quality';
 import { buildSkillDisplay } from '@/lib/skill-display';
 import { SkillQualityPanel } from '@/components/SkillQualityPanel';
@@ -63,7 +62,7 @@ export async function generateMetadata({
     '面向一级市场投资人的 Skill、Prompt、模板和工作流。';
   const assetType = post.skillAsset?.assetType ? skillLabel(post.skillAsset.assetType) : 'Skill';
   const title = `${post.title} · ${assetType}`;
-  const imageUrl = `${baseUrl}/api/og/post/${post.id}`;
+  const imageUrl = `${baseUrl}/api/og/post/${post.id}/image.png`;
 
   return {
     title,
@@ -143,14 +142,9 @@ export default async function PostDetailPage({
   }
 
   let starred = false;
-  let hasApiKey = false;
   if (uid) {
-    const [starRow, apiKeyConfigured] = await Promise.all([
-      prisma.postFavorite.findUnique({ where: { userId_postId: { userId: uid, postId: id } } }),
-      getHasApiKey(uid),
-    ]);
+    const starRow = await prisma.postFavorite.findUnique({ where: { userId_postId: { userId: uid, postId: id } } });
     starred = !!starRow;
-    hasApiKey = apiKeyConfigured;
   }
 
   const tagContent: string[] = (() => {
@@ -196,6 +190,7 @@ export default async function PostDetailPage({
     tagContent,
     tagSkill: post.tagSkill,
     assetType,
+    usageNotes: post.skillAsset?.usageNotes ?? null,
     outputExample: quality.outputExample,
   });
 
@@ -296,6 +291,7 @@ export default async function PostDetailPage({
               </Link>
             )}
             {canEdit && <DeleteButton postId={post.id} isAdmin={me?.isAdmin && me.id !== post.author.id} />}
+            <ShareLinkButton title={post.title} description={excerpt} scene={sceneLabel(post.tagScene)} assetLabel={assetLabel} />
             {uid && <ReportButton postId={post.id} />}
           </div>
         </div>
@@ -338,12 +334,6 @@ export default async function PostDetailPage({
           shareScene={sceneLabel(post.tagScene)}
           shareAssetLabel={assetLabel || 'Skill'}
         />
-        {/* 执行按钮（仅 prompt 类型） */}
-        {isPrompt && (
-          <div className="mt-3">
-            <ExecuteButton postId={post.id} isAuthed={!!uid} hasApiKey={hasApiKey} />
-          </div>
-        )}
       </div>
 
       {/* —— 怎么用说明（紧凑内联）—— */}
@@ -388,10 +378,7 @@ export default async function PostDetailPage({
         securityLevel={post.securityLevel}
         version={post.version}
         displayUseCase={display.displayUseCase}
-        displayOutput={display.displayOutput}
         bestFor={quality.bestFor}
-        inputExample={quality.inputExample}
-        outputExample={quality.outputExample}
         boundary={getUsageBoundary({
           assetType,
           securityLevel: post.securityLevel,
@@ -433,8 +420,8 @@ export default async function PostDetailPage({
 
           {/* SKILL.md / md 附件原文预览（默认折叠，平衡小白与技术人） */}
           {post.attachments[0] && (
-            <SkillPreview
-              storageKey={post.attachments[0].storageKey}
+            <LazySkillPreview
+              attachmentId={post.attachments[0].id}
               fileName={post.attachments[0].fileName}
             />
           )}
@@ -593,7 +580,7 @@ export default async function PostDetailPage({
                 <dd className="mt-1 leading-5">{display.displaySummary}</dd>
               </div>
               <div>
-                <dt className="text-sepia">适用场景</dt>
+                <dt className="text-sepia">适合人群 / 场景</dt>
                 <dd className="mt-1 leading-5">{display.displayUseCase}</dd>
               </div>
               <div>
@@ -614,6 +601,14 @@ export default async function PostDetailPage({
           isAuthed={!!uid}
         />
       </div>
+
+      {/* 免责声明 */}
+      <div className="mt-10 pt-5 border-t border-paper-edge">
+        <p className="font-sans text-[11px] text-sepia leading-relaxed">
+          本 Skill 仅用于辅助分析和内容生成，不构成投资建议、法律意见、财务意见、税务意见、审计意见或合规意见。请结合实际情况和专业判断使用。详见{' '}
+          <Link href="/disclaimer" className="text-leather hover:text-ink-brown underline">免责声明</Link>。
+        </p>
+      </div>
     </article>
   );
 }
@@ -629,10 +624,7 @@ function SkillUseSummary({
   securityLevel,
   version,
   displayUseCase,
-  displayOutput,
   bestFor,
-  inputExample,
-  outputExample,
   boundary,
 }: {
   scene: string;
@@ -641,10 +633,7 @@ function SkillUseSummary({
   securityLevel: string;
   version: number;
   displayUseCase: string;
-  displayOutput: string;
   bestFor: string[];
-  inputExample: string;
-  outputExample: string;
   boundary: string;
 }) {
   const statusLabel = mcpApproved ? 'MCP Ready' : '网站可用';
@@ -653,7 +642,12 @@ function SkillUseSummary({
     : 'border-paper-edge bg-vellum text-sepia';
   const securityLabel = securityLevel === 'safe' ? '安全通过' : securityLevel === 'suspicious' ? '待复核' : '不建议调用';
   const useCaseBody = displayUseCase || [scene, assetLabel, ...bestFor.slice(1, 3)].filter(Boolean).join(' / ');
-  const outputBody = displayOutput || outputExample;
+  const scenarioBody = [scene, assetLabel, ...bestFor.slice(1, 3)]
+    .filter(Boolean)
+    .join(' / ');
+  const mcpBody = mcpApproved
+    ? '已通过 MCP 准入，可在完成连接后由 Agent 搜索和调用。'
+    : '当前可在网页阅读、复制或下载；进入 MCP 前仍需审核确认。';
 
   return (
     <section className="mb-8 rounded-md border border-paper-edge bg-vellum/55 px-4 py-4">
@@ -678,9 +672,9 @@ function SkillUseSummary({
       </div>
 
       <div className="mt-4 grid gap-3 md:grid-cols-2">
-        <SummaryBlock title="适用场景" body={useCaseBody} />
-        <SummaryBlock title="输入材料" body={inputExample} />
-        <SummaryBlock title="输出结果" body={outputBody} />
+        <SummaryBlock title="适合人群" body={useCaseBody} />
+        <SummaryBlock title="使用场景" body={scenarioBody} />
+        <SummaryBlock title="MCP 状态" body={mcpBody} />
         <SummaryBlock title="使用边界" body={boundary} />
       </div>
     </section>
@@ -724,23 +718,6 @@ async function incrementViewCount(postId: number): Promise<void> {
   }
 }
 
-async function getHasApiKey(userId: number): Promise<boolean> {
-  try {
-    const user = await prisma.user.findUnique({
-      where: { id: userId },
-      select: { apiKeyEnc: true },
-    });
-    return !!user?.apiKeyEnc;
-  } catch (error) {
-    // This field was introduced after the initial production schema. Keep the
-    // detail page usable while a deployment is applying the additive change.
-    if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2022') {
-      console.error('User.apiKeyEnc is missing from the database; run prisma db push.');
-      return false;
-    }
-    throw error;
-  }
-}
 
 /** 右栏小标签 chip */
 function TagChip({

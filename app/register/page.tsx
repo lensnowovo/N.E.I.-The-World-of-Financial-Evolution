@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { AuthFrame } from '@/components/auth/AuthFrame';
@@ -24,22 +24,56 @@ export default function RegisterPage() {
   const [err, setErr] = useState<string | null>(null);
   const [devCode, setDevCode] = useState<string | null>(null);
   const [sending, setSending] = useState(false);
+  const [codeCooldown, setCodeCooldown] = useState(0);
   const [submitting, setSubmitting] = useState(false);
+
+  useEffect(() => {
+    if (codeCooldown <= 0) return;
+
+    const timer = window.setTimeout(() => {
+      setCodeCooldown((current) => Math.max(0, current - 1));
+    }, 1000);
+
+    return () => window.clearTimeout(timer);
+  }, [codeCooldown]);
 
   /* —— 发送验证码 —— */
   const sendCode = async () => {
+    if (sending || codeCooldown > 0) return;
+
     setErr(null);
     setDevCode(null);
-    setSending(true);
-    const res = await fetch('/api/auth/verify-email', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ email }),
-    });
-    const data = await res.json();
-    setSending(false);
-    if (!res.ok) setErr(data.error || '发送失败');
-    else setDevCode(data.devCode);
+
+    if (!email.includes('@')) {
+      setErr('请输入有效的邮箱地址');
+      return;
+    }
+
+    try {
+      setSending(true);
+      const res = await fetch('/api/auth/verify-email', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email }),
+      });
+      const data = await res.json().catch(() => ({}));
+
+      if (!res.ok) {
+        const retryAfter = Number(data.retryAfter);
+        if (res.status === 429 && Number.isFinite(retryAfter) && retryAfter > 0) {
+          setCodeCooldown(Math.ceil(retryAfter));
+        }
+        setErr(data.error || '发送验证码失败，请稍后再试');
+        return;
+      }
+
+      setDevCode(data.devCode ?? null);
+      setCodeCooldown(60);
+    } catch {
+      setErr('发送验证码失败，请检查网络后重试');
+    } finally {
+      setSending(false);
+    }
   };
 
   /* —— 步骤 1 → 2 —— */
@@ -162,10 +196,10 @@ export default function RegisterPage() {
                 type="button"
                 variant="secondary"
                 onClick={sendCode}
-                disabled={sending || !email.includes('@')}
+                disabled={sending || codeCooldown > 0 || !email.includes('@')}
                 className="whitespace-nowrap"
               >
-                {sending ? '发送中…' : '获取验证码'}
+                {sending ? '发送中…' : codeCooldown > 0 ? `${codeCooldown} 秒后重发` : '获取验证码'}
               </Button>
             </div>
             {devCode && (

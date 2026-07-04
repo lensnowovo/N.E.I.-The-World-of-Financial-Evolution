@@ -2,26 +2,34 @@ import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/db';
 import { getCurrentUser, getSessionUid } from '@/lib/session';
 import { isNickname, hasSensitive } from '@/lib/validate';
-import { encryptApiKey } from '@/lib/crypto';
 import { isInvestorRole } from '@/lib/roles';
 
 export const dynamic = 'force-dynamic';
 
 /**
- * PATCH /api/users/me —— 更新当前登录用户的资料
- * 可改字段：nickname, role, institution, bio, avatarUrl, apiKey
+ * PATCH /api/users/me —— 更新当前登录用户资料
+ * 可改字段：nickname, role, institution, bio, avatarUrl
  */
 export async function PATCH(req: Request) {
   const me = await getCurrentUser();
   if (!me) return NextResponse.json({ error: '请先登录' }, { status: 401 });
 
   const data = await req.json();
+  if (data.apiKey !== undefined) {
+    return NextResponse.json(
+      {
+        error: '网站内执行 Skill 已下线，不再保存个人 AI API Key。请通过 MCP 在你的 Agent 客户端中调用。',
+        code: 'WEBSITE_EXECUTION_RETIRED',
+      },
+      { status: 410 },
+    );
+  }
+
   const nickname = typeof data.nickname === 'string' ? data.nickname.trim() : undefined;
   const role = typeof data.role === 'string' ? data.role : undefined;
   const institution = data.institution === undefined ? undefined : String(data.institution).trim() || null;
   const bio = data.bio === undefined ? undefined : String(data.bio).trim().slice(0, 200) || null;
   const avatarUrl = data.avatarUrl === undefined ? undefined : String(data.avatarUrl).trim() || null;
-  const apiKey = data.apiKey === undefined ? undefined : String(data.apiKey).trim();
 
   const update: Record<string, unknown> = {};
   if (nickname !== undefined) {
@@ -38,10 +46,6 @@ export async function PATCH(req: Request) {
   if (institution !== undefined) update.institution = institution;
   if (bio !== undefined) update.bio = bio;
   if (avatarUrl !== undefined) update.avatarUrl = avatarUrl;
-  if (apiKey !== undefined) {
-    if (!apiKey) return NextResponse.json({ error: 'API key 不能为空' }, { status: 400 });
-    update.apiKeyEnc = encryptApiKey(apiKey);
-  }
 
   if (Object.keys(update).length === 0) return NextResponse.json({ error: '没有要更新的字段' }, { status: 400 });
 
@@ -49,23 +53,38 @@ export async function PATCH(req: Request) {
   return NextResponse.json({ ok: true });
 }
 
-/** GET /api/users/me —— 查当前用户（不返回 apiKey 密文） */
+/** GET /api/users/me —— 查询当前用户（不返回敏感字段） */
 export async function GET() {
   const uid = await getSessionUid();
   if (!uid) return NextResponse.json({ error: '请先登录' }, { status: 401 });
   const user = await prisma.user.findUnique({
     where: { id: uid },
-    select: { id: true, email: true, nickname: true, role: true, avatarUrl: true, institution: true, bio: true, createdAt: true, apiKeyEnc: true, mcpTokenHash: true },
+    select: {
+      id: true,
+      email: true,
+      nickname: true,
+      role: true,
+      avatarUrl: true,
+      institution: true,
+      bio: true,
+      createdAt: true,
+      mcpTokenHash: true,
+    },
   });
   if (!user) return NextResponse.json({ error: '用户不存在' }, { status: 404 });
-  const { apiKeyEnc, mcpTokenHash, ...safe } = user;
-  return NextResponse.json({ ...safe, hasApiKey: !!apiKeyEnc, hasMcpToken: !!mcpTokenHash });
+  const { mcpTokenHash, ...safe } = user;
+  return NextResponse.json({ ...safe, hasMcpToken: !!mcpTokenHash });
 }
 
-/** DELETE /api/users/me —— 清除 API key */
+/** DELETE /api/users/me —— 旧 API Key 清除接口已下线 */
 export async function DELETE() {
   const uid = await getSessionUid();
   if (!uid) return NextResponse.json({ error: '请先登录' }, { status: 401 });
-  await prisma.user.update({ where: { id: uid }, data: { apiKeyEnc: null } });
-  return NextResponse.json({ ok: true });
+  return NextResponse.json(
+    {
+      error: '网站内执行 Skill 已下线，不再提供个人 AI API Key 管理。',
+      code: 'WEBSITE_EXECUTION_RETIRED',
+    },
+    { status: 410 },
+  );
 }

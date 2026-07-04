@@ -49,17 +49,23 @@ export function McpQuickSetupPanel({
   return (
     <div className="rounded-lg border-2 border-gilded/40 bg-gilded/5 p-5 sm:p-6">
       <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
-        <div>
+        <div className="min-w-0 flex-1">
           <p className="font-display tracking-display text-[10px] uppercase text-sepia mb-2">MCP Quick Setup</p>
-          <h2 className="font-serif text-2xl text-ink-brown">一页完成 MCP 连接</h2>
+          <h2 className="font-serif text-2xl text-ink-brown">三步连接 MCP</h2>
           <p className="mt-2 font-sans text-sm leading-7 text-leather">
-            生成 Token 后，不用再跳转、粘贴、拼配置。直接复制下面的一键配置 Prompt 到 Claude Code / Cursor / Windsurf，让客户端完成连接并调用
-            <code className="mx-1 rounded-sm bg-vellum px-1 py-0.5 font-mono text-[12px]">list_my_skills</code>
-            验证。
+            生成 Token 后，复制下方配置到 Claude Code、Codex、Workbuddy 或其它 Agent 客户端。配好后调用
+            <code className="mx-1 rounded-sm bg-vellum px-1 py-0.5 font-mono text-[12px]">search_skills</code>
+            搜索全库，或调用 <code className="mx-1 rounded-sm bg-vellum px-1 py-0.5 font-mono text-[12px]">list_my_skills</code>
+            读取你的收藏库。
           </p>
         </div>
 
-        <Button type="button" onClick={onGenerate} disabled={generating}>
+        <Button
+          type="button"
+          onClick={onGenerate}
+          disabled={generating}
+          className="h-auto min-h-10 w-full max-w-full whitespace-normal px-4 py-2 text-center leading-snug sm:w-auto sm:max-w-44"
+        >
           {generating
             ? '生成中…'
             : hasExistingToken
@@ -72,6 +78,12 @@ export function McpQuickSetupPanel({
         <p className="font-sans text-xs leading-6 text-ink-brown">
           Token 只显示一次。只把配置复制到你信任的本地或已登录 AI 客户端；不要发到陌生网页、群聊、截图、共享文档或不可信 Agent。
           如果 Token 泄露，请立即在本页重新生成。
+        </p>
+      </div>
+
+      <div className="mt-3 rounded-md border border-paper-edge bg-vellum/70 px-4 py-3">
+        <p className="font-sans text-xs leading-6 text-leather">
+          推荐先用 Claude Code、Codex、Workbuddy 或其它 Agent 客户端连接。豆包暂未验证通过，不建议作为首选 MCP 客户端。
         </p>
       </div>
 
@@ -91,7 +103,7 @@ export function McpQuickSetupPanel({
 
           <SetupCopyCard
             title="推荐：复制一键配置 Prompt"
-            description="粘贴到你正在使用的 AI 客户端。它会按安全前提保存 MCP Server，并调用 list_my_skills 验证连接。"
+            description="粘贴到 Claude Code、Codex、Workbuddy 或其它 Agent 客户端。它会按安全前提保存 MCP Server，并先用 search_skills 验证全库搜索。"
             body={setupPrompt}
             active={copied === 'prompt'}
             onCopy={() => copy('prompt', setupPrompt)}
@@ -110,9 +122,9 @@ export function McpQuickSetupPanel({
         </div>
       ) : (
         <div className="mt-5 grid gap-3 sm:grid-cols-3">
-          <EmptyStep number="01" title="收藏 Skill" text="先收藏至少一个你想在客户端调用的 Skill。" />
+          <EmptyStep number="01" title="连接后可搜索全库" text="不需要先收藏。Agent 可先用 search_skills / recommend_skills_for_task 找合适 Skill。" />
           <EmptyStep number="02" title="生成配置包" text={hasExistingToken ? '已有 Token；如需明文配置包，请重新生成。' : '点击上方按钮生成 Token。'} />
-          <EmptyStep number="03" title="粘贴到客户端" text="复制 Prompt 或 JSON，直接粘贴到 Claude / Cursor / Windsurf。" />
+          <EmptyStep number="03" title="粘贴到客户端" text="复制 Prompt 或 JSON，粘贴到 Claude Code / Codex / Workbuddy 或其它 Agent 客户端。" />
         </div>
       )}
 
@@ -121,7 +133,7 @@ export function McpQuickSetupPanel({
           {copied === 'url' ? '已复制地址' : '复制 Server URL'}
         </CopyButton>
         <Link href="/mcp" className="font-serif text-sm italic text-leather hover:text-ink-brown">
-          查看完整配置说明 →
+          查看原理与排障 →
         </Link>
         <Link href="/security" className="font-serif text-sm italic text-leather hover:text-ink-brown">
           安全边界 →
@@ -241,6 +253,13 @@ function buildSetupPrompt({
 
   return `请帮我在当前受信任的 AI 客户端中接入 N.E.I.（一级市场 PEVC AI Skill Hub）的 MCP Server，命名为 "nei-pevc"。
 
+推荐客户端：
+- Claude Code
+- Codex
+- Workbuddy
+- 其它支持 Streamable HTTP MCP 的 Agent 客户端
+- 豆包当前未验证通过，请不要优先使用豆包配置这个 MCP。
+
 安全前提：
 - 只在我信任的本地客户端或已登录客户端中保存这个 Token。
 - 不要把 MCP Token 发送到陌生网页、群聊、截图、共享文档或不可信 Agent。
@@ -253,15 +272,15 @@ function buildSetupPrompt({
 - 鉴权：请求头 ${authLine}
 - 可用工具：
   - search_skills：按关键词 / 场景 / 类型搜索公开 Skill
-  - recommend_skills_for_task：按 BP 初筛、行研、IC Memo、LP 汇报等任务推荐 Skill 组合
+  - recommend_skills_for_task：按 BP 初筛、行研、IC Memo、LP 汇报等任务从全库推荐 Skill 组合
   - get_skill：获取某个 Skill 的完整 Prompt / Workflow 原文
-  - list_my_skills：列出我在 N.E.I. 收藏且已准入 MCP 的 Skill
+  - list_my_skills：列出我在 N.E.I. 收藏且已准入 MCP 的 Skill（收藏是常用库，不是使用前置条件）
   - apply_skill：把上下文填入 Prompt 模板，返回可执行 Prompt
-  - favorite_skill / unfavorite_skill：收藏或取消收藏 Skill
+  - favorite_skill / unfavorite_skill：把搜索到的好用 Skill 收藏或取消收藏
 
 ${tokenNote}
 
-配好后请调用一次 list_my_skills 验证连接，并告诉我是否能看到我的收藏 Skill。`;
+配好后请先调用 search_skills，搜索“BP 初筛”或“IC Memo”验证全库搜索；如果我已经有收藏，再调用 list_my_skills 读取我的常用库。`;
 }
 
 async function copyText(text: string) {

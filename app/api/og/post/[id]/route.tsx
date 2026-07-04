@@ -108,8 +108,10 @@ export async function GET(_request: Request, { params }: { params: Promise<{ id:
               </span>
             ))}
           </div>
-          <div style={{ fontSize: 22, whiteSpace: 'nowrap' }}>
-            {post.author.nickname} · {post._count.stars} Stars
+          <div style={{ display: 'flex', gap: 8, fontSize: 22, whiteSpace: 'nowrap' }}>
+            <span>{post.author.nickname}</span>
+            <span>·</span>
+            <span>{post._count.stars} Stars</span>
           </div>
         </div>
       </div>

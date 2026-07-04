@@ -6,6 +6,8 @@ import { getCurrentUser } from '@/lib/session';
 import { SiteHeader } from '@/components/chrome/SiteHeader';
 import { SiteFooter } from '@/components/chrome/SiteFooter';
 import { ActivityTracker } from '@/components/ActivityTracker';
+import { WechatShareInit } from '@/components/WechatShareInit';
+import { Analytics } from '@vercel/analytics/next';
 import { getPublicBaseUrl } from '@/lib/public-url';
 
 const cormorant = Cormorant_Garamond({
@@ -98,7 +100,7 @@ export const metadata: Metadata = {
       'New Era Investors，面向 PE、VC、FA 与产业投资人的 Skill Library、Workflow 和 MCP 工作流平台。',
     images: [
       {
-        url: '/opengraph-image',
+        url: '/share-cover.png',
         width: 1200,
         height: 630,
         alt: 'N.E.I. · New Era Investors',
@@ -110,7 +112,7 @@ export const metadata: Metadata = {
     title: 'N.E.I. · 一级市场投资人的 AI Skills Hub',
     description:
       'New Era Investors，面向 PE、VC、FA 与产业投资人的 Skill Library、Workflow 和 MCP 工作流平台。',
-    images: ['/twitter-image'],
+    images: ['/share-cover.png'],
   },
   manifest: '/manifest.webmanifest',
 };
@@ -140,6 +142,8 @@ export default async function RootLayout({
           {children}
         </main>
         <SiteFooter />
+        <WechatShareInit />
+        <Analytics />
       </body>
     </html>
   );
