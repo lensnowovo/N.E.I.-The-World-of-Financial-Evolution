@@ -6,6 +6,7 @@ import { FilterStrip } from '@/components/FilterStrip';
 import { HomeHero } from '@/components/home/HomeHero';
 import { HomeTaskGrid } from '@/components/home/HomeTaskGrid';
 import { HomeMcpFeature } from '@/components/home/HomeMcpFeature';
+import { HomeMemoryFeature } from '@/components/home/HomeMemoryFeature';
 import { HomeSideDock, type HomeSideDockData } from '@/components/home/HomeSideDock';
 import { SkillFeed } from '@/components/SkillFeed';
 
@@ -45,6 +46,7 @@ export default async function HomePage({ searchParams }: { searchParams: Promise
           lastMcpCallAt: sideDockData.user?.lastMcpCallAt ?? null,
         }}
       />
+      <HomeMemoryFeature />
 
       <section id="skill-library" className="scroll-mt-24 pt-8">
         <div className="flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between mb-5">

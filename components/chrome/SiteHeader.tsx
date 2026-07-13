@@ -70,7 +70,8 @@ export function SiteHeader({ user }: { user: User }) {
   };
 
   const isAuthPage = pathname === '/login' || pathname === '/register';
-  const isActive = (href: string) => pathname === href;
+  const isActive = (href: string) =>
+    pathname === href || (href !== '/' && pathname.startsWith(`${href}/`));
 
   return (
     <>
@@ -90,6 +91,7 @@ export function SiteHeader({ user }: { user: User }) {
           <nav className="hidden md:flex items-center gap-5 font-serif text-sm">
             <NavLink href="/" active={isActive('/')}>Skills 目录</NavLink>
             <NavLink href="/mcp-library" active={isActive('/mcp-library')}>MCP 库</NavLink>
+            <NavLink href="/memory" active={isActive('/memory')}>Memory Node</NavLink>
             {user && (
               <NavLink href="/dashboard" active={isActive('/dashboard')}>控制台</NavLink>
             )}
@@ -223,6 +225,9 @@ export function SiteHeader({ user }: { user: User }) {
               <DrawerLink href="/" active={isActive('/')}>Skills 目录</DrawerLink>
               <DrawerLink href="/mcp-library" active={isActive('/mcp-library')}>
                 MCP 库
+              </DrawerLink>
+              <DrawerLink href="/memory" active={isActive('/memory')}>
+                Memory Node
               </DrawerLink>
               {user && (
                 <>
