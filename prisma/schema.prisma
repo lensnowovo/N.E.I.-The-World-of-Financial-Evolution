@@ -20,9 +20,9 @@ model User {
   institution  String?  // 机构（选填）
   bio          String?  // 个人简介（选填）
   apiKeyEnc    String?  // Legacy: 站内执行下线前的个人 AI API key 密文字段，保留仅为兼容旧数据
-  mcpTokenHash    String?   // MCP server 访问 token 的 hash
-  tokenCreatedAt  DateTime? // SEC-008: MCP token 创建时间，便于排查泄露
-  tokenLastUsedAt DateTime? // SEC-008: MCP token 最后一次成功鉴权时间
+  mcpTokenHash    String?   // Legacy single MCP token hash; new clients use McpAccessToken
+  tokenCreatedAt  DateTime? // Legacy token creation time
+  tokenLastUsedAt DateTime? // Legacy token last successful authentication
   isAdmin      Boolean  @default(false)  // 管理员
   githubId        String?   @unique
   githubAvatarUrl String?
@@ -35,6 +35,7 @@ model User {
   stars     PostFavorite[]
   commentLikes CommentLike[]
   mcpCallLogs McpCallLog[]
+  mcpAccessTokens McpAccessToken[]
   reports   Report[]   // SEC-011: 用户提交的举报（作为举报人）
   activityEvents ActivityEvent[]
   consents  UserConsent[] // 协议确认记录
@@ -42,6 +43,26 @@ model User {
   // 关注关系
   following UserFollow[] @relation("Follower")  // 我关注的人
   followers UserFollow[] @relation("Followee")  // 关注我的人
+}
+
+// ---------- MCP 访问凭证 ----------
+// 每个 Agent 客户端使用独立、可撤销的 Token。数据库只保存 hash 和末尾提示，不保存明文。
+model McpAccessToken {
+  id         Int       @id @default(autoincrement())
+  userId     Int
+  name       String
+  clientType String?
+  tokenHash  String    @unique
+  tokenHint  String
+  createdAt  DateTime  @default(now())
+  lastUsedAt DateTime?
+  revokedAt  DateTime?
+
+  user     User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  callLogs McpCallLog[]
+
+  @@index([userId, revokedAt])
+  @@index([userId, createdAt])
 }
 
 // ---------- 关注 ----------
@@ -208,6 +229,7 @@ model PostFavorite {
 model McpCallLog {
   id         Int      @id @default(autoincrement())
   userId     Int
+  tokenId    Int?
   postId     Int?
   tool       String
   createdAt  DateTime @default(now())
@@ -216,8 +238,10 @@ model McpCallLog {
   requestId  String? // SEC-009: 同请求多 tool 共享的随机 id（crypto.randomUUID）
 
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  token McpAccessToken? @relation(fields: [tokenId], references: [id], onDelete: SetNull)
 
   @@index([userId])
+  @@index([tokenId, createdAt])
   @@index([requestId])
 }
 

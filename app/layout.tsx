@@ -5,6 +5,7 @@ import './globals.css';
 import { getCurrentUser } from '@/lib/session';
 import { SiteHeader } from '@/components/chrome/SiteHeader';
 import { SiteFooter } from '@/components/chrome/SiteFooter';
+import { SiteAtmosphere } from '@/components/chrome/SiteAtmosphere';
 import { ActivityTracker } from '@/components/ActivityTracker';
 import { WechatShareInit } from '@/components/WechatShareInit';
 import { Analytics } from '@vercel/analytics/next';
@@ -129,6 +130,7 @@ export default async function RootLayout({
       className={`${cormorant.variable} ${notoSerifSC.variable} ${inter.variable} ${cinzel.variable}`}
     >
       <body className="noise-paper min-h-screen flex flex-col">
+        <SiteAtmosphere />
         <script
           id="site-json-ld"
           type="application/ld+json"

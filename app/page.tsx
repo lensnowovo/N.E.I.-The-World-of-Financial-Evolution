@@ -7,8 +7,10 @@ import { HomeHero } from '@/components/home/HomeHero';
 import { HomeTaskGrid } from '@/components/home/HomeTaskGrid';
 import { HomeMcpFeature } from '@/components/home/HomeMcpFeature';
 import { HomeMemoryFeature } from '@/components/home/HomeMemoryFeature';
+import { HomeSkillShelves } from '@/components/home/HomeSkillShelves';
 import { HomeSideDock, type HomeSideDockData } from '@/components/home/HomeSideDock';
 import { SkillFeed } from '@/components/SkillFeed';
+import { fetchHomeSkillShelves } from '@/lib/home-shelves';
 
 type SP = { [k: string]: string | string[] | undefined };
 
@@ -16,9 +18,11 @@ export default async function HomePage({ searchParams }: { searchParams: Promise
   const rawSearchParams = await searchParams;
   const query = parseFeedQuery(rawSearchParams);
   const uid = await getSessionUid();
+  const hasFilter = hasAnyFilter(query) || typeof rawSearchParams.sort === 'string';
 
-  const [feedPage, totalSkills, workflowCount, sideDockData] = await Promise.all([
-    fetchFeedPage({ ...query, page: 1, pageSize: 24 }, uid),
+  const [feedPage, shelves, totalSkills, workflowCount, sideDockData] = await Promise.all([
+    hasFilter ? fetchFeedPage({ ...query, page: 1, pageSize: 24 }, uid) : Promise.resolve(null),
+    hasFilter ? Promise.resolve([]) : fetchHomeSkillShelves(uid),
     prisma.post.count({
       where: { status: POST_STATUS.PUBLISHED, deletedAt: null, skillAsset: { isNot: null } },
     }),
@@ -31,7 +35,6 @@ export default async function HomePage({ searchParams }: { searchParams: Promise
     }),
     fetchHomeSideDockData(uid),
   ]);
-  const hasFilter = hasAnyFilter(query);
   const querySignature = buildQuerySignature(rawSearchParams);
 
   return (
@@ -55,22 +58,28 @@ export default async function HomePage({ searchParams }: { searchParams: Promise
               Skill Feed
             </p>
             <h2 className="font-serif text-2xl sm:text-3xl text-ink-brown">
-              {hasFilter ? '正在筛选 Skill Library' : '继续探索 Skill Library'}
+              {hasFilter ? '正在筛选 Skill Library' : '按工作任务浏览 Skill Library'}
             </h2>
           </div>
           <p className="font-sans text-xs sm:text-sm text-sepia">
-            搜索、筛选、收藏，也可以从上方任务入口进入完整工作流。
+            {hasFilter
+              ? '搜索、筛选、收藏，也可以从上方工作地图按手头任务查找。'
+              : '每栏先看四条；需要时再进入完整目录。'}
           </p>
         </div>
 
         <FilterStrip />
-        <SkillFeed
-          initialItems={feedPage.items}
-          initialHasMore={feedPage.hasMore}
-          initialTotal={feedPage.total}
-          currentUserId={uid}
-          querySignature={querySignature}
-        />
+        {hasFilter && feedPage ? (
+          <SkillFeed
+            initialItems={feedPage.items}
+            initialHasMore={feedPage.hasMore}
+            initialTotal={feedPage.total}
+            currentUserId={uid}
+            querySignature={querySignature}
+          />
+        ) : (
+          <HomeSkillShelves shelves={shelves} currentUserId={uid} />
+        )}
       </section>
     </div>
   );

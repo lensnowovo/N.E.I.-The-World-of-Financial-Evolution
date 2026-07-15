@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useCallback } from 'react';
 import Link from 'next/link';
 import { cn } from '@/lib/cn';
 import { Button } from '@/components/ui/Button';
@@ -28,14 +28,6 @@ type Stats = {
   last7Days: number;
   topSkills: { postId: number; title: string; calls: number }[];
   sleeping: { postId: number; title: string }[];
-};
-
-type OverviewStats = {
-  favoriteCount: number;
-  publishedCount: number;
-  receivedFavoritesCount: number;
-  viewSum: number;
-  mcpCallsCount: number;
 };
 
 type MyPost = {
@@ -73,11 +65,10 @@ const SCENE_LABELS: Record<string, string> = {
 export function DashboardClient({
   initialItems,
   initialStats,
-  overviewStats,
   myPosts,
   hasMcpToken,
-  mcpTokenCreatedAt,
-  mcpTokenLastUsedAt,
+  activeTokenCount,
+  connectedTokenCount,
   mcpCallLogs,
   defaultDiscipline,
   disciplines,
@@ -86,11 +77,10 @@ export function DashboardClient({
 }: {
   initialItems: FavItem[];
   initialStats: Stats;
-  overviewStats: OverviewStats;
   myPosts: MyPost[];
   hasMcpToken: boolean;
-  mcpTokenCreatedAt: string | null;
-  mcpTokenLastUsedAt: string | null;
+  activeTokenCount: number;
+  connectedTokenCount: number;
   mcpCallLogs: McpCallLog[];
   defaultDiscipline: DefaultDiscipline | null;
   disciplines: DefaultDiscipline[];
@@ -99,46 +89,16 @@ export function DashboardClient({
 }) {
   const [tab, setTab] = useState<'stars' | 'mine' | 'discipline' | 'mcp'>('stars');
   const [items, setItems] = useState(initialItems);
+  const [organizing, setOrganizing] = useState(false);
   const [stats] = useState(initialStats);
-  const [mcpToken, setMcpToken] = useState('');
-  const [mcpGenerating, setMcpGenerating] = useState(false);
-  // DASH-003: token 状态跟随服务端传入；生成/撤销后本地翻转
-  const [mcpActive, setMcpActive] = useState(hasMcpToken);
-  const [mcpRevoking, setMcpRevoking] = useState(false);
   const currentMcpOnboardingStatus: McpOnboardingStatus = {
     ...mcpOnboardingStatus,
     favoriteCount: items.length,
-    hasMcpToken: mcpActive,
+    hasMcpToken,
   };
-
-  // 生成 / 重新生成 MCP token
-  const generateMcpToken = useCallback(async () => {
-    setMcpGenerating(true);
-    try {
-      const r = await fetch('/api/users/me/mcp-token', { method: 'POST' });
-      const d = await r.json();
-      if (r.ok) {
-        setMcpToken(d.token);
-        setMcpActive(true);
-      }
-    } finally {
-      setMcpGenerating(false);
-    }
-  }, []);
-
-  // 撤销 MCP token
-  const revokeMcpToken = useCallback(async () => {
-    setMcpRevoking(true);
-    try {
-      const r = await fetch('/api/users/me/mcp-token', { method: 'DELETE' });
-      if (r.ok) {
-        setMcpActive(false);
-        setMcpToken('');
-      }
-    } finally {
-      setMcpRevoking(false);
-    }
-  }, []);
+  const onboardingComplete = currentMcpOnboardingStatus.hasMcpToken
+    && currentMcpOnboardingStatus.hasAnyMcpCall
+    && currentMcpOnboardingStatus.hasListMySkillsCall;
 
   // Group by scene
   const grouped = new Map<string, FavItem[]>();
@@ -157,7 +117,9 @@ export function DashboardClient({
   }, []);
 
   const moveItem = useCallback(async (postId: number, direction: 'up' | 'down') => {
-    const sorted = [...items];
+    const current = items.find((item) => item.postId === postId);
+    if (!current) return;
+    const sorted = items.filter((item) => item.tagScene === current.tagScene).sort((a, b) => a.sortOrder - b.sortOrder);
     const idx = sorted.findIndex(i => i.postId === postId);
     if (idx < 0) return;
     const swapIdx = direction === 'up' ? idx - 1 : idx + 1;
@@ -186,7 +148,7 @@ export function DashboardClient({
   return (
     <div>
       {/* Tabs */}
-      <div className="flex items-center gap-1 mb-6 border-b border-paper-edge">
+      <div className="mb-7 flex items-center gap-1 overflow-x-auto overflow-y-hidden border-b border-paper-edge" role="tablist" aria-label="个人工作台">
         {([
           ['stars', '我的收藏'],
           ['mine', '我的发布'],
@@ -195,7 +157,11 @@ export function DashboardClient({
         ] as const).map(([key, label]) => (
           <button
             key={key}
+            id={`dashboard-tab-${key}`}
             type="button"
+            role="tab"
+            aria-selected={tab === key}
+            aria-controls={`dashboard-panel-${key}`}
             onClick={() => setTab(key)}
             className={cn(
               'px-4 py-2 font-serif text-sm transition-colors border-b-2 -mb-px',
@@ -211,13 +177,18 @@ export function DashboardClient({
 
       {/* Tab: 我的收藏（收藏管理 + 控制台概览数据） */}
       {tab === 'stars' && (
-        <div>
-          <div className="mb-6 grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3">
-            <StatCard label="我的收藏" value={overviewStats.favoriteCount} />
-            <StatCard label="我的发布" value={overviewStats.publishedCount} />
-            <StatCard label="被收藏" value={overviewStats.receivedFavoritesCount} accent="wax-red" />
-            <StatCard label="被浏览" value={overviewStats.viewSum} />
-            <StatCard label="MCP 调用" value={overviewStats.mcpCallsCount} />
+        <div id="dashboard-panel-stars" role="tabpanel" aria-labelledby="dashboard-tab-stars">
+          <div className="mb-6 flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
+            <div>
+              <p className="font-display text-[10px] uppercase tracking-[0.2em] text-gilded">My library</p>
+              <h2 className="mt-1 font-serif text-2xl text-ink-brown">收藏库</h2>
+              <p className="mt-1 font-sans text-sm text-sepia">按任务场景归档；需要调整顺序或备注时，再进入整理模式。</p>
+            </div>
+            {items.length > 0 && (
+              <button type="button" onClick={() => setOrganizing((value) => !value)} className={cn('inline-flex h-9 items-center border px-4 font-serif text-sm transition-colors', organizing ? 'border-ink-brown bg-ink-brown text-parchment' : 'border-paper-edge bg-vellum text-leather hover:border-ink-brown')}>
+                {organizing ? '完成整理' : '整理收藏'}
+              </button>
+            )}
           </div>
 
           {items.length === 0 ? (
@@ -235,15 +206,15 @@ export function DashboardClient({
                     <span className="font-mono text-[11px] text-sepia">{sceneItems.length}</span>
                     <span className="flex-1 h-px bg-paper-edge" />
                   </div>
-                  <div className="space-y-2">
+                  <div className="grid min-w-0 grid-cols-1 gap-2 md:grid-cols-2">
                     {sceneItems.map((item, idx) => {
-                      const globalIdx = items.findIndex(i => i.postId === item.postId);
                       return (
                         <FavRow
                           key={item.postId}
                           item={item}
-                          canMoveUp={globalIdx > 0}
-                          canMoveDown={globalIdx < items.length - 1}
+                          organizing={organizing}
+                          canMoveUp={idx > 0}
+                          canMoveDown={idx < sceneItems.length - 1}
                           onNoteSave={(note) => updateNote(item.postId, note)}
                           onMoveUp={() => moveItem(item.postId, 'up')}
                           onMoveDown={() => moveItem(item.postId, 'down')}
@@ -261,7 +232,7 @@ export function DashboardClient({
 
       {/* Tab: 我的发布（DASH-002：我发的帖 + 编辑入口 / 删除提示） */}
       {tab === 'mine' && (
-        <div>
+        <div id="dashboard-panel-mine" role="tabpanel" aria-labelledby="dashboard-tab-mine">
           {myPosts.length === 0 ? (
             <div className="border border-paper-edge bg-vellum rounded-md py-14 px-8 text-center">
               <p className="font-serif italic text-leather text-lg mb-2">还没有发布内容</p>
@@ -283,7 +254,7 @@ export function DashboardClient({
 
       {/* Tab: 工作纪律（Agent 默认上下文） */}
       {tab === 'discipline' && (
-        <div className="space-y-6">
+        <div id="dashboard-panel-discipline" className="space-y-6" role="tabpanel" aria-labelledby="dashboard-tab-discipline">
           <div className="rounded-lg border border-paper-edge bg-vellum/50 p-5">
             <p className="font-display tracking-display text-[10px] uppercase text-sepia mb-2">
               Agent Context
@@ -328,8 +299,21 @@ export function DashboardClient({
 
       {/* Tab: MCP 连接（DASH-003：token 状态 + 生成/撤销 + 调用历史） */}
       {tab === 'mcp' && (
-        <div className="space-y-6">
-          <McpOnboardingChecklist status={currentMcpOnboardingStatus} compact />
+        <div id="dashboard-panel-mcp" className="space-y-6" role="tabpanel" aria-labelledby="dashboard-tab-mcp">
+          {onboardingComplete ? (
+            <div className="flex flex-col gap-3 border-y border-moss/30 bg-moss/[0.045] px-4 py-3 sm:flex-row sm:items-center sm:justify-between">
+              <div className="flex items-center gap-3">
+                <span className="h-2 w-2 rounded-full bg-moss shadow-[0_0_12px_rgba(77,94,63,0.45)]" aria-hidden="true" />
+                <div>
+                  <p className="font-serif text-sm text-ink-brown">MCP 已调通</p>
+                  <p className="font-sans text-xs text-sepia">{connectedTokenCount} 个客户端已产生真实调用，完整引导已自动收起。</p>
+                </div>
+              </div>
+              <Link href="/connect" className="font-serif text-sm italic text-leather hover:text-ink-brown">查看连接状态 →</Link>
+            </div>
+          ) : (
+            <McpOnboardingChecklist status={currentMcpOnboardingStatus} compact />
+          )}
 
           {stats.totalCalls > 0 && (
             <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
@@ -364,61 +348,19 @@ export function DashboardClient({
             </div>
           )}
 
-          {/* MCP */}
-          <div className="rounded-lg border-2 border-gilded/40 bg-gilded/5 p-5">
-            <h3 className="font-serif text-base text-ink-brown mb-2">MCP Server（推荐）</h3>
-            {mcpToken ? (
-              <div className="space-y-2">
-                <div className="p-3 rounded border border-gilded bg-vellum">
-                  <p className="font-sans text-xs text-leather mb-1">MCP Token（只显示一次，请立即复制保存）：</p>
-                  <code className="font-mono text-sm text-ink-brown break-all">{mcpToken}</code>
-                </div>
-                <Button type="button" variant="secondary" onClick={() => navigator.clipboard.writeText(mcpToken)}>复制 Token</Button>
-                <Link href="/mcp" className="ml-2 inline-flex items-center h-9 px-4 border border-paper-edge text-sm font-serif rounded-sm">配置指南 →</Link>
-              </div>
-            ) : mcpActive ? (
-              <div className="space-y-3">
-                <div className="flex items-center gap-3 flex-wrap">
-                  <span className="inline-flex items-center gap-1.5 h-9 px-4 border border-moss/40 bg-moss/5 text-moss text-sm font-sans rounded-sm">
-                    ✓ 已配置
-                  </span>
-                  <Button type="button" onClick={generateMcpToken} disabled={mcpGenerating} variant="secondary">
-                    {mcpGenerating ? '生成中…' : '重新生成'}
-                  </Button>
-                  <button
-                    type="button"
-                    onClick={revokeMcpToken}
-                    disabled={mcpRevoking}
-                    className="text-sm text-wax-red hover:underline font-sans disabled:opacity-50"
-                  >
-                    {mcpRevoking ? '撤销中…' : '撤销 Token'}
-                  </button>
-                  <Link href="/mcp" className="text-sm text-leather hover:text-ink-brown font-serif italic">配置指南 →</Link>
-                </div>
-                {/* Token 元信息 */}
-                <div className="flex flex-wrap gap-x-6 gap-y-1 text-xs">
-                  {mcpTokenCreatedAt && (
-                    <span className="font-sans text-sepia">
-                      创建时间：<span className="font-mono text-leather"><TimeText value={mcpTokenCreatedAt} /></span>
-                    </span>
-                  )}
-                  {mcpTokenLastUsedAt ? (
-                    <span className="font-sans text-sepia">
-                      最近使用：<span className="font-mono text-leather"><TimeText value={mcpTokenLastUsedAt} /></span>
-                    </span>
-                  ) : (
-                    <span className="font-sans text-sepia italic">尚未使用</span>
-                  )}
-                </div>
-              </div>
-            ) : (
-              <div>
-                <p className="font-sans text-xs text-leather mb-3">让你的 AI 客户端直接搜索和调用 N.E.I. 的 Skill</p>
-                <Button type="button" onClick={generateMcpToken} disabled={mcpGenerating}>
-                  {mcpGenerating ? '生成中…' : '生成 MCP Token'}
-                </Button>
-              </div>
-            )}
+          {/* Credential mutations live in /connect so this page cannot
+              accidentally invalidate a different client's Token. */}
+          <div className="border border-gilded/45 bg-gilded/5 p-5 sm:flex sm:items-center sm:justify-between sm:gap-6">
+            <div>
+              <p className="font-display text-[10px] uppercase tracking-[0.18em] text-gilded">Agent access</p>
+              <h3 className="mt-1 font-serif text-lg text-ink-brown">MCP 客户端连接</h3>
+              <p className="mt-2 font-sans text-sm leading-6 text-leather">
+                当前保留 {activeTokenCount} 个有效凭证，其中 {connectedTokenCount} 个已产生真实连接。每个客户端可单独命名和撤销。
+              </p>
+            </div>
+            <Link href="/connect" className="mt-4 inline-flex h-10 shrink-0 items-center border border-ink-brown bg-ink-brown px-5 font-serif text-sm text-parchment transition-colors hover:bg-sepia sm:mt-0">
+              管理客户端连接 →
+            </Link>
           </div>
 
           {/* MCP 调用历史（最近 10 条） */}
@@ -551,29 +493,11 @@ function DisciplineHint({ title, body }: { title: string; body: string }) {
   );
 }
 
-function StatCard({
-  label,
-  value,
-  accent,
-}: {
-  label: string;
-  value: number;
-  accent?: 'wax-red';
-}) {
-  return (
-    <div className="border border-paper-edge bg-vellum rounded-md p-4 text-center">
-      <p className={cn('font-serif text-2xl num-osf', accent === 'wax-red' ? 'text-wax-red' : 'text-ink-brown')}>
-        {value}
-      </p>
-      <p className="font-sans text-xs text-sepia mt-1">{label}</p>
-    </div>
-  );
-}
-
 function FavRow({
-  item, canMoveUp, canMoveDown, onNoteSave, onMoveUp, onMoveDown, onRemove,
+  item, organizing, canMoveUp, canMoveDown, onNoteSave, onMoveUp, onMoveDown, onRemove,
 }: {
   item: FavItem;
+  organizing: boolean;
   canMoveUp: boolean;
   canMoveDown: boolean;
   onNoteSave: (note: string) => void;
@@ -585,17 +509,19 @@ function FavRow({
   const [noteText, setNoteText] = useState(item.note || '');
 
   return (
-    <div className="border border-paper-edge bg-vellum/60 rounded p-3 group hover:border-sepia transition-colors">
+    <div className="group w-full min-w-0 rounded border border-paper-edge bg-vellum/60 p-3 transition-colors hover:border-sepia">
       <div className="flex items-center gap-3">
         {/* 排序按钮 */}
-        <div className="flex flex-col gap-0.5 shrink-0">
-          <button type="button" onClick={onMoveUp} disabled={!canMoveUp} className={cn('text-sepia hover:text-ink-brown disabled:opacity-20 transition-colors', !canMoveUp && 'cursor-default')} aria-label="上移">
-            <svg width="12" height="12" viewBox="0 0 12 12" fill="none" stroke="currentColor" strokeWidth="1.5"><path d="M3 7L6 4L9 7" strokeLinecap="round" strokeLinejoin="round" /></svg>
-          </button>
-          <button type="button" onClick={onMoveDown} disabled={!canMoveDown} className={cn('text-sepia hover:text-ink-brown disabled:opacity-20 transition-colors', !canMoveDown && 'cursor-default')} aria-label="下移">
-            <svg width="12" height="12" viewBox="0 0 12 12" fill="none" stroke="currentColor" strokeWidth="1.5"><path d="M3 5L6 8L9 5" strokeLinecap="round" strokeLinejoin="round" /></svg>
-          </button>
-        </div>
+        {organizing && (
+          <div className="flex shrink-0 flex-col gap-0.5">
+            <button type="button" onClick={onMoveUp} disabled={!canMoveUp} className={cn('text-sepia hover:text-ink-brown disabled:opacity-20 transition-colors', !canMoveUp && 'cursor-default')} aria-label={`在${SCENE_LABELS[item.tagScene] || item.tagScene}中上移 ${item.title}`}>
+              <svg width="12" height="12" viewBox="0 0 12 12" fill="none" stroke="currentColor" strokeWidth="1.5"><path d="M3 7L6 4L9 7" strokeLinecap="round" strokeLinejoin="round" /></svg>
+            </button>
+            <button type="button" onClick={onMoveDown} disabled={!canMoveDown} className={cn('text-sepia hover:text-ink-brown disabled:opacity-20 transition-colors', !canMoveDown && 'cursor-default')} aria-label={`在${SCENE_LABELS[item.tagScene] || item.tagScene}中下移 ${item.title}`}>
+              <svg width="12" height="12" viewBox="0 0 12 12" fill="none" stroke="currentColor" strokeWidth="1.5"><path d="M3 5L6 8L9 5" strokeLinecap="round" strokeLinejoin="round" /></svg>
+            </button>
+          </div>
+        )}
 
         {/* 标题 */}
         <Link href={`/posts/${item.postId}`} className="font-serif text-sm text-ink-brown hover:text-wax-red flex-1 min-w-0 truncate">
@@ -608,14 +534,16 @@ function FavRow({
         )}
 
         {/* 操作 */}
-        <div className="flex items-center gap-1 shrink-0">
-          <button type="button" onClick={() => { setEditing(!editing); setNoteText(item.note || ''); }} className="text-sepia hover:text-ink-brown transition-colors p-1" aria-label="备注">
-            <svg width="12" height="12" viewBox="0 0 12 12" fill="none" stroke="currentColor" strokeWidth="1.2"><path d="M2 10 L2 8 L8 2 L10 4 L4 10 Z" strokeLinejoin="round" /></svg>
-          </button>
-          <button type="button" onClick={onRemove} className="text-sepia hover:text-wax-red transition-colors p-1" aria-label="取消收藏">
-            <svg width="12" height="12" viewBox="0 0 12 12" fill="none" stroke="currentColor" strokeWidth="1.2"><path d="M1 1 L11 11 M11 1 L1 11" strokeLinecap="round" /></svg>
-          </button>
-        </div>
+        {organizing && (
+          <div className="flex shrink-0 items-center gap-1">
+            <button type="button" onClick={() => { setEditing(!editing); setNoteText(item.note || ''); }} className="p-1 text-sepia transition-colors hover:text-ink-brown" aria-label={`备注 ${item.title}`}>
+              <svg width="12" height="12" viewBox="0 0 12 12" fill="none" stroke="currentColor" strokeWidth="1.2"><path d="M2 10 L2 8 L8 2 L10 4 L4 10 Z" strokeLinejoin="round" /></svg>
+            </button>
+            <button type="button" onClick={onRemove} className="p-1 text-sepia transition-colors hover:text-wax-red" aria-label={`取消收藏 ${item.title}`}>
+              <svg width="12" height="12" viewBox="0 0 12 12" fill="none" stroke="currentColor" strokeWidth="1.2"><path d="M1 1 L11 11 M11 1 L1 11" strokeLinecap="round" /></svg>
+            </button>
+          </div>
+        )}
       </div>
 
       {/* 备注 */}

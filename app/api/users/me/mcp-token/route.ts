@@ -25,6 +25,7 @@ export async function POST() {
     data: {
       mcpTokenHash: hash,
       tokenCreatedAt: new Date(),
+      tokenLastUsedAt: null,
     },
   });
   trackActivity({

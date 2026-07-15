@@ -14,17 +14,24 @@ export default async function DashboardPage() {
   if (!me) redirect('/login?next=/dashboard');
   const uid = me.id;
 
-  const userWithKey = await prisma.user.findUnique({
-    where: { id: uid },
-    select: {
-      mcpTokenHash: true,
-      tokenCreatedAt: true,
-      tokenLastUsedAt: true,
-    },
-  });
-  const hasMcpToken = !!userWithKey?.mcpTokenHash;
-  const mcpTokenCreatedAt = userWithKey?.tokenCreatedAt?.toISOString() ?? null;
-  const mcpTokenLastUsedAt = userWithKey?.tokenLastUsedAt?.toISOString() ?? null;
+  const [userWithKey, activeAccessTokens] = await Promise.all([
+    prisma.user.findUnique({
+      where: { id: uid },
+      select: { mcpTokenHash: true, tokenLastUsedAt: true },
+    }),
+    prisma.mcpAccessToken.findMany({
+      where: { userId: uid, revokedAt: null },
+      select: { lastUsedAt: true },
+    }),
+  ]);
+  const activeTokenCount = activeAccessTokens.length + (userWithKey?.mcpTokenHash ? 1 : 0);
+  const connectedTokenCount = activeAccessTokens.filter((token) => token.lastUsedAt).length
+    + (userWithKey?.mcpTokenHash && userWithKey.tokenLastUsedAt ? 1 : 0);
+  const hasMcpToken = activeTokenCount > 0;
+  const latestTokenUse = [
+    userWithKey?.tokenLastUsedAt ?? null,
+    ...activeAccessTokens.map((token) => token.lastUsedAt),
+  ].filter((value): value is Date => Boolean(value)).sort((a, b) => b.getTime() - a.getTime())[0] ?? null;
 
   // DASH-003 MCP 调用历史：最近 10 条（server 端查好传给 client）
   const mcpCallLogsRaw = await prisma.mcpCallLog.findMany({
@@ -46,7 +53,6 @@ export default async function DashboardPage() {
     favoriteCount,
     publishedCount,
     receivedFavoritesAgg,
-    viewSumAgg,
     mcpCallsCount,
   ] = await Promise.all([
     // 1. 我的收藏数
@@ -65,22 +71,9 @@ export default async function DashboardPage() {
         },
       },
     }),
-    // 4. 被浏览数：我的帖 viewCount 求和
-    prisma.post.aggregate({
-      where: { userId: uid, status: POST_STATUS.PUBLISHED, deletedAt: null },
-      _sum: { viewCount: true },
-    }),
-    // 5. MCP 调用数
+    // 4. MCP 调用数
     prisma.mcpCallLog.count({ where: { userId: uid } }),
   ]);
-
-  const overviewStats = {
-    favoriteCount,
-    publishedCount,
-    receivedFavoritesCount: receivedFavoritesAgg,
-    viewSum: viewSumAgg._sum.viewCount || 0,
-    mcpCallsCount,
-  };
 
   // DASH-002 我的发布：列出当前用户 published 且未软删的帖子，按 updatedAt desc
   const myPostsRaw = await prisma.post.findMany({
@@ -202,32 +195,57 @@ export default async function DashboardPage() {
   const defaultDiscipline = disciplines.find((discipline) => discipline.isDefault) ?? disciplines[0] ?? null;
 
   return (
-    <div className="mx-auto max-w-page px-4 sm:px-6 py-8">
-      <div className="mb-6 pb-5 border-b border-paper-edge">
-        <Link href="/" className="inline-flex items-center gap-1.5 font-serif italic text-sm text-sepia hover:text-ink-brown mb-3">
-          ← 返回首页
-        </Link>
-        <div className="flex items-baseline gap-3">
-          <h1 className="font-serif text-3xl text-ink-brown">我的控制台</h1>
-          <span className="font-mono text-sm text-sepia">{items.length} 个 Skill</span>
+    <div className="mx-auto max-w-page px-4 py-8 sm:px-6 sm:py-10">
+      <header className="relative mb-7 overflow-hidden border-y border-paper-edge bg-vellum/55">
+        <div className="pointer-events-none absolute -right-2 -top-7 font-serif text-[120px] leading-none tracking-[-0.07em] text-gilded opacity-[0.05]" aria-hidden="true">DESK</div>
+        <div className="relative grid lg:grid-cols-[minmax(0,1.3fr)_minmax(330px,0.7fr)]">
+          <div className="px-5 py-7 sm:px-8 sm:py-9">
+            <Link href="/" className="mb-5 inline-flex font-serif text-sm italic text-sepia transition-colors hover:text-ink-brown">← 返回首页</Link>
+            <p className="font-display text-[10px] uppercase tracking-[0.22em] text-gilded">Private work desk</p>
+            <h1 className="mt-2 font-serif text-3xl text-ink-brown sm:text-4xl">{me.nickname} 的工作台</h1>
+            <p className="mt-3 max-w-2xl font-sans text-sm leading-7 text-leather">
+              继续整理收藏、维护自己的贡献，确认 Agent 是否在正常调用 N.E.I.。
+            </p>
+            <div className="mt-5 flex flex-wrap gap-2">
+              <Link href="/publish" className="inline-flex h-9 items-center border border-ink-brown bg-ink-brown px-4 font-serif text-sm text-parchment transition-colors hover:bg-sepia">发布 Skill</Link>
+              <Link href={`/profile/${uid}`} className="inline-flex h-9 items-center border border-paper-edge bg-vellum px-4 font-serif text-sm text-leather transition-colors hover:border-ink-brown hover:text-ink-brown">查看个人主页</Link>
+              <Link href="/connect" className="inline-flex h-9 items-center px-3 font-serif text-sm italic text-leather transition-colors hover:text-ink-brown">管理 Agent →</Link>
+            </div>
+          </div>
+          <aside className="border-t border-paper-edge bg-parchment/35 px-5 py-7 sm:px-7 lg:border-l lg:border-t-0">
+            <div className="flex items-center justify-between border-b border-paper-edge pb-3">
+              <span className="font-display text-[10px] uppercase tracking-[0.2em] text-sepia">Desk brief</span>
+              <span className={connectedTokenCount > 0 ? 'font-mono text-[10px] text-moss' : 'font-mono text-[10px] text-sepia'}>
+                {connectedTokenCount > 0 ? `${connectedTokenCount} Agent online` : 'Agent offline'}
+              </span>
+            </div>
+            <dl className="mt-5 grid grid-cols-2 gap-x-6 gap-y-5">
+              <DashboardMetric value={favoriteCount} label="收藏库" />
+              <DashboardMetric value={publishedCount} label="公开发布" />
+              <DashboardMetric value={receivedFavoritesAgg} label="被收藏" />
+              <DashboardMetric value={mcpCallsCount} label="MCP 调用" />
+            </dl>
+            <p className="mt-5 border-t border-paper-edge pt-3 font-sans text-xs leading-5 text-sepia">
+              {latestTokenUse ? <>最近连接于 <TimeStamp value={latestTokenUse} /></> : '尚未产生真实 Agent 调用'}
+            </p>
+          </aside>
         </div>
-      </div>
+      </header>
 
       <DashboardClient
         initialItems={items}
         initialStats={stats}
-        overviewStats={overviewStats}
         myPosts={myPosts}
         hasMcpToken={hasMcpToken}
-        mcpTokenCreatedAt={mcpTokenCreatedAt}
-        mcpTokenLastUsedAt={mcpTokenLastUsedAt}
+        activeTokenCount={activeTokenCount}
+        connectedTokenCount={connectedTokenCount}
         mcpCallLogs={mcpCallLogs}
         defaultDiscipline={defaultDiscipline}
         disciplines={disciplines}
         mcpOnboardingStatus={{
           favoriteCount: items.length,
           hasMcpToken,
-          tokenLastUsedAt: mcpTokenLastUsedAt,
+          tokenLastUsedAt: latestTokenUse?.toISOString() ?? null,
           lastMcpCallAt: mcpCallLogs[0]?.createdAt ?? null,
           hasAnyMcpCall: totalCalls > 0,
           hasListMySkillsCall: listMySkillsCalls > 0,
@@ -237,4 +255,17 @@ export default async function DashboardPage() {
       />
     </div>
   );
+}
+
+function DashboardMetric({ value, label }: { value: number; label: string }) {
+  return (
+    <div className="flex flex-col">
+      <dt className="order-2 mt-1 font-sans text-[10px] text-sepia">{label}</dt>
+      <dd className="order-1 font-serif text-2xl text-ink-brown num-osf">{value}</dd>
+    </div>
+  );
+}
+
+function TimeStamp({ value }: { value: Date }) {
+  return <time dateTime={value.toISOString()}>{value.toLocaleDateString('zh-CN')}</time>;
 }

@@ -2,7 +2,7 @@ import type { MetadataRoute } from 'next';
 import { prisma } from '@/lib/db';
 import { getPublicBaseUrl } from '@/lib/public-url';
 import { POST_STATUS } from '@/lib/status';
-import { taskBundles } from '@/lib/bundles';
+import { taskMaps } from '@/lib/task-maps';
 
 export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
   const baseUrl = getPublicBaseUrl();
@@ -18,18 +18,24 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     { url: `${baseUrl}/skills-map`, lastModified: now, changeFrequency: 'weekly', priority: 0.6 },
   ];
 
-  const bundleRoutes = taskBundles.map((bundle) => ({
-    url: `${baseUrl}/bundles/${bundle.slug}`,
+  const taskRoutes = taskMaps.map((task) => ({
+    url: `${baseUrl}/tasks/${task.slug}`,
     lastModified: now,
     changeFrequency: 'weekly' as const,
     priority: 0.75,
   }));
 
+  // Sitemap should never make a deployment depend on a successful database
+  // connection. Neon may be temporarily unreachable during Vercel's static
+  // generation phase; public static routes are still valid in that case.
   const posts = await prisma.post.findMany({
     where: { status: POST_STATUS.PUBLISHED, deletedAt: null },
     select: { id: true, updatedAt: true, featured: true },
     orderBy: { updatedAt: 'desc' },
     take: 5000,
+  }).catch((error: unknown) => {
+    console.error('[sitemap] unable to load published posts; emitting static routes only', error);
+    return [];
   });
 
   const postRoutes = posts.map((post) => ({
@@ -39,5 +45,5 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     priority: post.featured ? 0.85 : 0.65,
   }));
 
-  return [...staticRoutes, ...bundleRoutes, ...postRoutes];
+  return [...staticRoutes, ...taskRoutes, ...postRoutes];
 }

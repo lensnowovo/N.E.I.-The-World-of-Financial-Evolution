@@ -67,7 +67,7 @@ N.E.I. 是 New Era Investor 的缩写，由 jammyssy 发起并组织，是一个
 
 ### MCP Server
 
-N.E.I. 提供 MCP Server。用户生成 Token 后，可以在自己的 Agent 客户端中调用平台内容。
+N.E.I. 提供 MCP Server。用户可为 Codex、Claude Code、Workbuddy 等客户端分别生成独立 Token，在自己的 Agent 客户端中调用平台内容。
 
 当前 MCP 工具包括：
 
@@ -125,7 +125,7 @@ N.E.I. 会被用于投资工作，因此安全边界必须清楚。
 - 不上传用户文件
 - 不保存 BP、财务模型、IC 材料、LP 名单等敏感材料
 - 只分发 Skill / Workflow 文本
-- Token 可随时撤销和重置
+- 每个 Agent 客户端使用独立 Token，可单独撤销且互不影响
 - 用户投稿内容审核后才进入 MCP
 - 调用日志不记录用户敏感正文
 - 外部 MCP / API 需要用户自行确认权限和数据边界

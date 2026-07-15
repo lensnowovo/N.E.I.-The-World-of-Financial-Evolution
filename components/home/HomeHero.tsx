@@ -1,4 +1,5 @@
 import Link from 'next/link';
+import { SkillAtlas } from '@/components/home/SkillAtlas';
 
 export function HomeHero({
   totalSkills,
@@ -8,7 +9,8 @@ export function HomeHero({
   workflowCount: number;
 }) {
   return (
-    <section className="pb-8 sm:pb-10 border-b border-paper-edge">
+    <SkillAtlas>
+    <section className="relative px-5 py-7 sm:px-9 sm:py-10 lg:px-12 lg:py-12">
       <p className="max-w-4xl font-serif text-3xl sm:text-5xl leading-tight text-ink-brown mb-2">
         N.E.I. · New Era Investors
       </p>
@@ -83,6 +85,7 @@ export function HomeHero({
         <Stat value="3" label="类客户端连接方式" />
       </dl>
     </section>
+    </SkillAtlas>
   );
 }
 

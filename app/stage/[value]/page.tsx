@@ -2,6 +2,7 @@ import Link from 'next/link';
 import { prisma } from '@/lib/db';
 import { getSessionUid } from '@/lib/session';
 import { STAGE_GROUPS } from '@/lib/tags';
+import { SKILL_SHELF_GROUPS } from '@/lib/skill-shelf-config';
 import { POST_STATUS } from '@/lib/status';
 import { PostCard } from '@/components/PostCard';
 import { fetchUserStars, mapPostToCardData, normalizeSort, sortPosts } from '@/lib/feed';
@@ -22,7 +23,7 @@ export default async function StagePage({
   searchParams: Promise<{ [k: string]: string | string[] | undefined }>;
 }) {
   const { value: stageValue } = await params;
-  const stage = STAGE_GROUPS.find((s) => s.value === stageValue);
+  const stage = [...STAGE_GROUPS, ...SKILL_SHELF_GROUPS].find((s) => s.value === stageValue);
   if (!stage) {
     return (
       <div className="mx-auto max-w-page px-4 sm:px-6 py-20 text-center">

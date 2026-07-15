@@ -1,6 +1,7 @@
 import type { Metadata } from 'next';
 import Link from 'next/link';
 import { getSessionUid } from '@/lib/session';
+import { MemoryAtmosphere } from '@/components/memory/MemoryAtmosphere';
 
 export const metadata: Metadata = {
   title: 'N.E.I. Memory Node｜跨项目、跨客户端的本地投资记忆',
@@ -37,7 +38,7 @@ export default async function MemoryPage() {
 
   return (
     <div className="mx-auto max-w-page px-4 pb-16 pt-8 sm:px-6 sm:pt-12">
-      <section className="overflow-hidden rounded-lg border border-ink-brown bg-ink-brown text-vellum shadow-card">
+      <MemoryAtmosphere className="rounded-lg border border-[#315d5b]/60 text-vellum shadow-[0_20px_60px_-35px_rgba(4,38,40,0.8)]">
         <div className="grid lg:grid-cols-[1.45fr_0.55fr]">
           <div className="relative px-6 py-10 sm:px-10 sm:py-14 lg:px-14 lg:py-16">
             <div aria-hidden="true" className="pointer-events-none absolute -right-16 -top-20 h-64 w-64 rounded-full border border-gilded/20" />
@@ -82,12 +83,12 @@ export default async function MemoryPage() {
             </div>
           </div>
 
-          <aside className="border-t border-vellum/15 bg-leather/55 px-6 py-8 sm:px-10 lg:border-l lg:border-t-0 lg:px-7 lg:py-10">
-            <p className="font-display text-[10px] uppercase tracking-display text-gilded">Node Status</p>
-            <div className="mt-5 flex items-center gap-3 border-y border-vellum/15 py-5">
+          <aside className="border-t border-[#8adacc]/15 bg-[#041111]/42 px-6 py-8 backdrop-blur-[2px] sm:px-10 lg:border-l lg:border-t-0 lg:px-7 lg:py-10">
+            <p className="font-display text-[10px] uppercase tracking-display text-[#77d7c7]">Node Status</p>
+            <div className="mt-5 flex items-center gap-3 border-y border-[#8adacc]/15 py-5">
               <span className="relative flex h-3 w-3" aria-hidden="true">
-                <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-gilded opacity-30" />
-                <span className="relative inline-flex h-3 w-3 rounded-full border border-gilded bg-ink-brown" />
+                <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-[#65d9c4] opacity-30" />
+                <span className="relative inline-flex h-3 w-3 rounded-full border border-[#7ee8d5] bg-[#0a2727]" />
               </span>
               <div>
                 <p className="font-serif text-lg text-vellum">内部版本开发中</p>
@@ -102,12 +103,12 @@ export default async function MemoryPage() {
               <StatusRow label="云端记忆" value="无" />
             </dl>
 
-            <p className="mt-8 border-l border-gilded/55 pl-3 font-serif text-xs leading-6 text-vellum/60">
+            <p className="mt-8 border-l border-[#77d7c7]/55 pl-3 font-serif text-xs leading-6 text-vellum/60">
               登录和后续订阅通过 nei-pevc.com 管理；机构、基金、项目与记忆正文不会进入网站数据库。
             </p>
           </aside>
         </div>
-      </section>
+      </MemoryAtmosphere>
 
       <section id="how-it-works" className="scroll-mt-24 border-x border-b border-paper-edge bg-vellum">
         <div className="grid border-b border-paper-edge md:grid-cols-[0.72fr_1.28fr]">
@@ -141,7 +142,7 @@ export default async function MemoryPage() {
       </section>
 
       <section className="mt-12 grid gap-5 lg:grid-cols-[1.08fr_0.92fr]">
-        <div className="rounded-lg border border-paper-edge bg-vellum p-6 sm:p-9">
+        <div className="rounded-lg border border-[#cbd8d3] bg-[#f2f6f3] p-6 shadow-[0_12px_36px_-30px_rgba(16,69,67,0.7)] sm:p-9">
           <p className="font-display text-[10px] uppercase tracking-display text-sepia">Scoped Memory</p>
           <h2 className="mt-2 font-serif text-3xl text-ink-brown">记忆有边界，也会沉淀。</h2>
           <p className="mt-3 max-w-2xl font-sans text-sm leading-7 text-leather">
@@ -159,7 +160,7 @@ export default async function MemoryPage() {
           </div>
         </div>
 
-        <div className="rounded-lg border border-gilded/45 bg-parchment p-6 sm:p-9">
+        <div className="rounded-lg border border-[#bfd2cb] bg-[#eaf2ef] p-6 shadow-[0_12px_36px_-30px_rgba(16,69,67,0.7)] sm:p-9">
           <div className="flex items-start justify-between gap-4">
             <div>
               <p className="font-display text-[10px] uppercase tracking-display text-sepia">Local-first Promise</p>
@@ -182,7 +183,7 @@ export default async function MemoryPage() {
         </div>
       </section>
 
-      <section className="mt-12 rounded-lg border border-paper-edge bg-vellum">
+      <section className="mt-12 rounded-lg border border-[#cbd8d3] bg-[#f3f6f3] shadow-[0_12px_36px_-32px_rgba(16,69,67,0.7)]">
         <div className="border-b border-paper-edge px-6 py-5 sm:px-8">
           <p className="font-display text-[10px] uppercase tracking-display text-sepia">Two MCP Connections</p>
           <h2 className="mt-1 font-serif text-2xl text-ink-brown">两种连接，各自负责一件事。</h2>

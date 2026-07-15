@@ -3,176 +3,213 @@
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { PUBLIC_BASE_URL } from '@/lib/public-url';
-import { McpQuickSetupPanel } from '@/components/mcp/McpQuickSetupPanel';
 import {
-  McpOnboardingChecklist,
-  type McpOnboardingStatus,
-} from '@/components/mcp/McpOnboardingChecklist';
+  McpConnectionConsole,
+  type McpTokenView,
+  type NewMcpCredential,
+} from '@/components/mcp/McpConnectionConsole';
 
-type ConnectProfile = {
-  id: number;
-  hasMcpToken: boolean;
-};
+type ConnectProfile = { id: number };
+type TokenListResponse = { items: McpTokenView[]; activeCount: number; maxActive: number };
 
 export default function ConnectPage() {
   const [profile, setProfile] = useState<ConnectProfile | null>(null);
-  const [mcpStatus, setMcpStatus] = useState<McpOnboardingStatus | null>(null);
+  const [tokens, setTokens] = useState<McpTokenView[]>([]);
+  const [maxActive, setMaxActive] = useState(8);
+  const [newCredential, setNewCredential] = useState<NewMcpCredential | null>(null);
   const [loading, setLoading] = useState(true);
-
-  const [mcpToken, setMcpToken] = useState('');
-  const [mcpGenerating, setMcpGenerating] = useState(false);
-
+  const [creating, setCreating] = useState(false);
+  const [error, setError] = useState<string | null>(null);
   const mcpUrl = `${PUBLIC_BASE_URL}/api/mcp`;
-  const connectUrl = `${PUBLIC_BASE_URL}/connect`;
 
   useEffect(() => {
+    let active = true;
     Promise.all([
-      fetch('/api/users/me').then((r) => (r.ok ? r.json() : null)),
-      fetch('/api/users/me/mcp-status').then((r) => (r.ok ? r.json() : null)),
+      fetch('/api/users/me', { cache: 'no-store' }),
+      fetch('/api/users/me/mcp-tokens', { cache: 'no-store' }),
     ])
-      .then(([profileData, statusData]) => {
-        setProfile(profileData);
-        setMcpStatus(statusData);
+      .then(async ([profileRes, tokenRes]) => {
+        if (!active) return;
+        if (!profileRes.ok) {
+          setProfile(null);
+          return;
+        }
+        const profileData = await readResponseObject(profileRes);
+        setProfile(profileData as ConnectProfile);
+        if (!tokenRes.ok) throw new Error('连接凭证读取失败，请刷新页面重试。');
+        const tokenData = (await readResponseObject(tokenRes)) as TokenListResponse;
+        if (!Array.isArray(tokenData.items)) throw new Error('连接凭证返回格式异常，请刷新页面重试。');
+        setTokens(tokenData.items);
+        setMaxActive(tokenData.maxActive);
       })
-      .finally(() => setLoading(false));
+      .catch((reason) => {
+        if (active) setError(reason instanceof Error ? reason.message : '页面加载失败，请稍后重试。');
+      })
+      .finally(() => {
+        if (active) setLoading(false);
+      });
+    return () => {
+      active = false;
+    };
   }, []);
 
-  const generateMcpToken = async () => {
-    setMcpGenerating(true);
-    const res = await fetch('/api/users/me/mcp-token', { method: 'POST' });
-    const data = await res.json();
-    setMcpGenerating(false);
-
-    if (res.ok) {
-      setMcpToken(data.token);
-      setProfile((p) => (p ? { ...p, hasMcpToken: true } : p));
-      setMcpStatus((s) => (s ? { ...s, hasMcpToken: true } : s));
+  const createToken = async (name: string, clientType: string) => {
+    setCreating(true);
+    setError(null);
+    try {
+      const res = await fetch('/api/users/me/mcp-tokens', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ name, clientType }),
+      });
+      const data = await readResponseObject(res);
+      if (!res.ok) throw new Error(typeof data.error === 'string' ? data.error : `Token 创建失败（${res.status}）`);
+      if (typeof data.token !== 'string' || !data.item) throw new Error('Token 创建接口未返回凭证，请稍后重试。');
+      const credential = data as NewMcpCredential;
+      setNewCredential(credential);
+      setTokens((current) => [credential.item, ...current]);
+    } catch (reason) {
+      setError(reason instanceof Error ? reason.message : 'Token 创建失败，请稍后重试。');
+    } finally {
+      setCreating(false);
     }
   };
 
-  if (loading) {
-    return (
-      <div className="mx-auto max-w-prose py-20 text-center">
-        <p className="font-serif italic text-sm text-sepia">正在检查登录状态…</p>
-      </div>
-    );
-  }
+  const revokeToken = async (id: string) => {
+    setError(null);
+    try {
+      const res = await fetch(`/api/users/me/mcp-tokens/${encodeURIComponent(id)}`, { method: 'DELETE' });
+      const data = await readResponseObject(res);
+      if (!res.ok) throw new Error(typeof data.error === 'string' ? data.error : `撤销失败（${res.status}）`);
+      setTokens((current) => current.filter((token) => token.id !== id));
+      if (newCredential?.item.id === id) setNewCredential(null);
+    } catch (reason) {
+      setError(reason instanceof Error ? reason.message : '撤销失败，请稍后重试。');
+    }
+  };
 
+  if (loading) return <ConnectLoadingState />;
   if (!profile) return <ConnectGuestState />;
 
+  const connectedCount = tokens.filter((token) => token.connected).length;
+
   return (
-    <div className="mx-auto max-w-page px-4 sm:px-6 py-8">
-      <div className="mb-6">
-        <Link href={`/profile/${profile.id}`} className="inline-flex items-center gap-1.5 font-serif italic text-sm text-sepia hover:text-ink-brown transition-colors">
-          ← 返回个人主页
-        </Link>
+    <div className="mx-auto max-w-page px-4 py-8 sm:px-6">
+      <ConnectHero tokenCount={tokens.length} connectedCount={connectedCount} />
+
+      <div className="mt-7">
+        <McpConnectionConsole
+          tokens={tokens}
+          maxActive={maxActive}
+          newCredential={newCredential}
+          creating={creating}
+          error={error}
+          mcpUrl={mcpUrl}
+          onCreate={createToken}
+          onRevoke={revokeToken}
+        />
       </div>
 
-      <header className="mb-8 max-w-3xl border-b border-paper-edge pb-5">
-        <p className="font-display tracking-display text-[11px] text-sepia uppercase mb-1">
-          Connect N.E.I.
-        </p>
-        <h1 className="font-serif text-3xl text-ink-brown">连接你的 AI 客户端</h1>
-        <p className="font-serif italic text-sm text-leather mt-2 leading-7">
-          最短路径：生成 Token → 复制配置包 → 粘贴到 Claude Code、Codex、Workbuddy 或其它 Agent 客户端 → 调用 search_skills 搜全库。收藏只是常用库，不是使用前置条件。
-        </p>
-      </header>
+      <section className="mt-8 grid gap-4 border-t border-paper-edge pt-6 md:grid-cols-3">
+        <InfoCard index="01" title="只分发方法" text="N.E.I. MCP 返回 Skill 与 Workflow，不读取本地文件，也不上传项目材料。" href="/security" link="安全边界" />
+        <InfoCard index="02" title="全库先搜索" text="收藏不是使用前置。让 Agent 先调用 search_skills，再把真正好用的 Skill 收藏沉淀。" href="/mcp" link="工具与排障" />
+        <InfoCard index="03" title="外部信息另接" text="论文、网页、市场和工程数据来自独立连接器；接入前先核对权限与数据流向。" href="/mcp-library" link="浏览 MCP 库" />
+      </section>
+    </div>
+  );
+}
 
-      <div className="grid grid-cols-1 gap-8 lg:grid-cols-[minmax(0,1fr)_320px]">
-        <main className="space-y-8">
-          <McpQuickSetupPanel
-            token={mcpToken}
-            hasExistingToken={profile.hasMcpToken}
-            generating={mcpGenerating}
-            mcpUrl={mcpUrl}
-            connectUrl={connectUrl}
-            onGenerate={generateMcpToken}
-          />
-        </main>
-
-        <aside className="space-y-5 lg:sticky lg:top-6 lg:self-start">
-          {mcpStatus && <McpOnboardingChecklist status={mcpStatus} compact />}
-
-          <ClientSupportCard />
-
-          <div className="rounded-md border border-paper-edge bg-vellum p-4">
-            <p className="font-display tracking-display text-[10px] uppercase text-sepia mb-2">
-              安全边界
-            </p>
-            <p className="font-sans text-xs leading-6 text-leather">
-              N.E.I. MCP 只分发 Skill / Workflow，不读取本地文件，不上传 BP、财务模型、投委会材料或 LP 名单。
-              Token 可随时重新生成。
-            </p>
-            <Link href="/security" className="mt-3 inline-flex font-serif text-sm italic text-leather hover:text-ink-brown">
-              查看安全原则 →
-            </Link>
+function ConnectHero({ tokenCount, connectedCount }: { tokenCount: number; connectedCount: number }) {
+  return (
+    <header className="mcp-access-hero relative overflow-hidden border-b border-paper-edge pb-7 pt-2">
+      <div className="relative grid gap-6 lg:grid-cols-[1fr_350px] lg:items-end">
+        <div>
+          <Link href="/" className="font-serif text-sm italic text-sepia transition-colors hover:text-ink-brown">← 返回 Skills 目录</Link>
+          <p className="mt-7 font-display text-[10px] uppercase tracking-[0.22em] text-gilded">N.E.I. MCP / Client Setup</p>
+          <h1 className="mt-2 max-w-4xl font-serif text-4xl leading-[1.08] text-ink-brown sm:text-5xl">连接 N.E.I. MCP</h1>
+          <p className="mt-4 max-w-2xl font-sans text-sm leading-7 text-leather">
+            为 Codex、Claude Code、Workbuddy 分别创建 Token。多个客户端可以同时使用，互不影响。
+          </p>
+        </div>
+        <div className="mcp-access-brief relative border border-gilded/35 bg-parchment/55 px-5 py-4 backdrop-blur-[2px]">
+          <div className="flex items-center justify-between gap-4 border-b border-gilded/25 pb-3">
+            <p className="font-display text-[9px] uppercase tracking-[0.18em] text-sepia">Connection status</p>
+            <span className="font-mono text-[9px] text-gilded">N.E.I. / MCP</span>
           </div>
-
-          <div className="rounded-md border border-paper-edge bg-vellum/60 p-4">
-            <p className="font-display tracking-display text-[10px] uppercase text-sepia mb-2">
-              调通后怎么用
-            </p>
-            <ul className="space-y-2 font-sans text-xs leading-6 text-leather">
-              <li>1. 在客户端调用 <code className="font-mono">search_skills</code> 搜全库。</li>
-              <li>2. 调用 <code className="font-mono">recommend_skills_for_task</code> 让 Agent 按任务推荐。</li>
-              <li>3. 遇到好用的 Skill，再用 <code className="font-mono">favorite_skill</code> 收藏沉淀。</li>
-            </ul>
+          <div className="mt-4 grid grid-cols-2 gap-5">
+            <HeroConnectionStat label="有效 Token" value={tokenCount} />
+            <HeroConnectionStat label="已验证连接" value={connectedCount} active={connectedCount > 0} />
           </div>
-        </aside>
+          <p className="mt-4 font-sans text-[11px] leading-5 text-leather">状态来自真实 MCP 请求，不用生成 Token 代替连接成功。</p>
+        </div>
       </div>
+    </header>
+  );
+}
+
+function HeroConnectionStat({ label, value, active = false }: { label: string; value: number; active?: boolean }) {
+  return (
+    <div>
+      <div className="flex items-center gap-2">
+        <span className={`h-1.5 w-1.5 rounded-full ${active ? 'mcp-signal-dot bg-moss' : 'bg-gilded/55'}`} />
+        <span className="font-serif text-3xl text-ink-brown">{value}</span>
+      </div>
+      <p className="mt-1 font-sans text-[11px] text-sepia">{label}</p>
+    </div>
+  );
+}
+
+function InfoCard({ index, title, text, href, link }: { index: string; title: string; text: string; href: string; link: string }) {
+  return (
+    <article className="group border-l border-gilded/35 px-4 py-2 transition-colors hover:border-gilded">
+      <p className="font-mono text-[10px] text-gilded">{index}</p>
+      <h2 className="mt-2 font-serif text-lg text-ink-brown">{title}</h2>
+      <p className="mt-2 font-sans text-xs leading-6 text-leather">{text}</p>
+      <Link href={href} className="mt-3 inline-flex font-serif text-xs italic text-sepia transition-colors group-hover:text-wax-red">{link} →</Link>
+    </article>
+  );
+}
+
+function ConnectLoadingState() {
+  return (
+    <div className="mx-auto max-w-page px-4 py-12 sm:px-6" aria-busy="true" aria-label="正在读取连接状态">
+      <div className="h-3 w-32 animate-pulse bg-paper-edge" />
+      <div className="mt-7 h-12 max-w-2xl animate-pulse bg-paper-edge/70" />
+      <div className="mt-4 h-5 max-w-xl animate-pulse bg-paper-edge/45" />
+      <div className="mt-10 h-[420px] animate-pulse border border-paper-edge bg-vellum/40" />
     </div>
   );
 }
 
 function ConnectGuestState() {
   return (
-    <div className="mx-auto max-w-prose px-4 sm:px-6 py-12">
-      <header className="mb-8 border-b border-paper-edge pb-5">
-        <p className="font-display tracking-display text-[11px] text-sepia uppercase mb-1">
-          Connect N.E.I.
-        </p>
-        <h1 className="font-serif text-3xl text-ink-brown">登录后连接你的 AI 客户端</h1>
-        <p className="font-serif italic text-sm text-leather mt-2 leading-7">
-          登录后生成 MCP Token，一键复制配置包，把 Skill Library 接入 Claude Code、Codex、Workbuddy 或其它 Agent 客户端。
-        </p>
-      </header>
-
-      <div className="rounded-md border border-gilded/40 bg-gilded/5 p-5">
-        <h2 className="font-serif text-xl text-ink-brown mb-2">MCP 是什么？</h2>
-        <p className="font-sans text-sm text-leather leading-7">
-          MCP 让 AI 客户端读取你收藏的 N.E.I. Skill。N.E.I. 只分发 Skill / Workflow，
-          不读取本地文件，不上传你的 BP、财务模型或投委会材料。
-        </p>
-        <div className="mt-5 flex flex-wrap gap-3">
-          <Link href="/login?next=/connect" className="inline-flex h-10 items-center rounded-sm bg-ink-brown px-5 font-serif text-sm text-vellum transition-colors hover:bg-wax-red">
-            登录后生成配置包
-          </Link>
-          <Link href="/register" className="inline-flex h-10 items-center rounded-sm border border-ink-brown px-5 font-serif text-sm text-ink-brown transition-colors hover:bg-ink-brown hover:text-vellum">
-            注册账号
-          </Link>
-          <Link href="/mcp" className="inline-flex h-10 items-center px-2 font-serif text-sm italic text-leather transition-colors hover:text-wax-red">
-            查看原理与排障 →
-          </Link>
+    <div className="mx-auto max-w-page px-4 py-12 sm:px-6">
+      <section className="relative overflow-hidden border border-paper-edge bg-vellum/72 p-6 sm:p-10">
+        <div className="mcp-connect-orbit" aria-hidden="true" />
+        <div className="relative max-w-2xl">
+          <p className="font-display text-[10px] uppercase tracking-[0.2em] text-gilded">Agent Access</p>
+          <h1 className="mt-3 font-serif text-4xl leading-tight text-ink-brown">登录后，为每个 AI 客户端创建独立 Token</h1>
+          <p className="mt-4 font-sans text-sm leading-7 text-leather">Token 只在创建时显示明文，可独立撤销。N.E.I. 只分发 Skill / Workflow，不读取本地文件。</p>
+          <div className="mt-6 flex flex-wrap gap-3">
+            <Link href="/login?next=/connect" className="inline-flex h-11 items-center bg-ink-brown px-5 font-serif text-sm text-vellum transition-colors hover:bg-wax-red">登录并连接</Link>
+            <Link href="/register" className="inline-flex h-11 items-center border border-ink-brown px-5 font-serif text-sm text-ink-brown transition-colors hover:bg-ink-brown hover:text-vellum">注册账号</Link>
+            <Link href="/mcp" className="inline-flex h-11 items-center px-2 font-serif text-sm italic text-leather hover:text-wax-red">查看原理与排障 →</Link>
+          </div>
         </div>
-      </div>
+      </section>
     </div>
   );
 }
 
-function ClientSupportCard() {
-  return (
-    <div className="rounded-md border border-paper-edge bg-vellum/60 p-4">
-      <p className="font-display tracking-display text-[10px] uppercase text-sepia mb-2">
-        推荐客户端
-      </p>
-      <div className="space-y-2 font-sans text-xs leading-6 text-leather">
-        <p>
-          已按当前配置口径优先支持：<span className="text-ink-brown">Claude Code、Codex、Workbuddy 或其它 Agent 客户端</span>。
-        </p>
-        <p>
-          豆包目前不作为推荐连接客户端展示；实测连接不稳定，等有明确可用的 MCP Client 配置方式后再补教程。
-        </p>
-      </div>
-    </div>
-  );
+async function readResponseObject(response: Response): Promise<Record<string, unknown>> {
+  const text = await response.text();
+  if (!text.trim()) return {};
+  try {
+    const parsed: unknown = JSON.parse(text);
+    return parsed && typeof parsed === 'object' && !Array.isArray(parsed)
+      ? parsed as Record<string, unknown>
+      : {};
+  } catch {
+    return {};
+  }
 }

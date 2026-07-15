@@ -26,10 +26,10 @@ export function PostCard({
 }: {
   post: PostCardData;
   currentUserId: number | null;
-  variant?: 'default' | 'compact';
+  variant?: 'default' | 'compact' | 'shelf';
 }) {
-  if (variant === 'compact') {
-    return <SkillFeedPostCard post={post} currentUserId={currentUserId} />;
+  if (variant === 'compact' || variant === 'shelf') {
+    return <SkillFeedPostCard post={post} currentUserId={currentUserId} quiet={variant === 'shelf'} />;
   }
   return <DefaultPostCard post={post} currentUserId={currentUserId} />;
 }
@@ -44,6 +44,7 @@ function DefaultPostCard({
   const router = useRouter();
   const [starred, setStarred] = useState(post.starred);
   const [stars, setStars] = useState(post.counts.stars);
+  const originalAuthor = getDistinctOriginalAuthor(post.skillAsset?.originalAuthor, post.author.nickname);
 
   const toggleStar = async (e: React.MouseEvent) => {
     e.preventDefault();
@@ -63,15 +64,8 @@ function DefaultPostCard({
   };
 
   return (
-    <article className="group relative">
-      <Link href={`/posts/${post.id}`} className="block">
-        <div
-          className={cn(
-            'relative border border-paper-edge bg-vellum rounded-md',
-            'transition-colors duration-150 group-hover:border-sepia',
-            'p-6 sm:p-7',
-          )}
-        >
+    <article className="group relative overflow-hidden rounded-md border border-paper-edge bg-vellum transition-colors duration-150 hover:border-sepia">
+      <Link href={`/posts/${post.id}`} className="block p-6 focus:outline-none focus:ring-2 focus:ring-inset focus:ring-gilded/40 sm:p-7">
           {post.skillAsset && (
             <div className="mb-2 flex items-center gap-1.5">
               <SkillIcon skill={post.skillAsset.assetType} className="h-4 w-4 text-wax-red" />
@@ -81,9 +75,15 @@ function DefaultPostCard({
             </div>
           )}
 
-          <div className="flex items-center gap-2 mb-3 font-sans text-xs text-sepia">
+          <div className="flex flex-wrap items-center gap-x-2 gap-y-1 mb-3 font-sans text-xs text-sepia">
             <RoleBadge role={post.author.role} size={16} />
-            <span className="text-ink-brown">{post.skillAsset?.originalAuthor || post.author.nickname}</span>
+            <span className="text-ink-brown">发布者 {post.author.nickname}</span>
+            {originalAuthor && (
+              <>
+                <DotSep />
+                <span title="该 Skill 标注的原始作者或来源">原作者 {originalAuthor}</span>
+              </>
+            )}
             <DotSep />
             <TimeText value={post.createdAt} />
             {post.counts.attachments > 0 && (
@@ -119,20 +119,16 @@ function DefaultPostCard({
             {post.tagSkill && <SkillChip skillKey={post.tagSkill}>{skillLabel(post.tagSkill)}</SkillChip>}
           </div>
 
-          <div className="pt-4 border-t border-paper-edge flex items-center gap-5 font-sans text-xs">
-            <CardAction
-              onClick={toggleStar}
-              active={starred}
-              icon={<StarIcon filled={starred} />}
-            >
-              {formatCount(stars)}
-            </CardAction>
-            <CardAction icon={<CommentIcon />}>
-              {formatCount(post.counts.comments)}
-            </CardAction>
-          </div>
-        </div>
       </Link>
+      <div className="flex items-center gap-5 border-t border-paper-edge px-6 py-3 font-sans text-xs sm:px-7">
+        <CardAction onClick={toggleStar} active={starred} icon={<StarIcon filled={starred} />}>
+          {formatCount(stars)}
+        </CardAction>
+        <span className="inline-flex items-center gap-1.5 text-sepia" title="评论数">
+          <CommentIcon />
+          {formatCount(post.counts.comments)}
+        </span>
+      </div>
     </article>
   );
 }
@@ -140,15 +136,18 @@ function DefaultPostCard({
 function SkillFeedPostCard({
   post,
   currentUserId,
+  quiet = false,
 }: {
   post: PostCardData;
   currentUserId: number | null;
+  quiet?: boolean;
 }) {
   const router = useRouter();
   const [starred, setStarred] = useState(post.starred);
   const [stars, setStars] = useState(post.counts.stars);
   const [copied, setCopied] = useState(false);
   const assetType = post.assetType ?? post.skillAsset?.assetType ?? post.tagSkill ?? '';
+  const originalAuthor = getDistinctOriginalAuthor(post.skillAsset?.originalAuthor, post.author.nickname);
 
   const toggleStar = async (e: React.MouseEvent) => {
     e.preventDefault();
@@ -180,26 +179,31 @@ function SkillFeedPostCard({
   };
 
   return (
-    <article className="group relative break-inside-avoid">
+    <article className="group relative h-full break-inside-avoid">
       <Link
         href={`/posts/${post.id}`}
-        className="block overflow-hidden rounded-md border border-paper-edge bg-vellum transition-all duration-200 hover:-translate-y-0.5 hover:border-sepia hover:shadow-card focus:outline-none focus:ring-2 focus:ring-gilded/40"
+        className={cn(
+          'flex h-full flex-col overflow-hidden rounded-md bg-vellum transition-all duration-200 hover:-translate-y-0.5 hover:shadow-card focus:outline-none focus:ring-2 focus:ring-gilded/40',
+          quiet
+            ? 'shadow-[0_1px_5px_rgba(61,46,31,0.08)] hover:bg-vellum'
+            : 'border border-paper-edge hover:border-sepia',
+        )}
       >
-        <div className="border-b border-paper-edge bg-parchment/35 px-3.5 py-2.5 pr-20">
+        <div className={cn('px-3.5 py-2.5 pr-20', quiet ? 'bg-parchment/20' : 'border-b border-paper-edge bg-parchment/35')}>
           <div className="mb-1 flex min-w-0 flex-wrap items-center gap-1.5">
-            <SignalBadge tone="neutral">
+            <SignalBadge tone="neutral" quiet={quiet}>
               {assetType ? skillLabel(assetType) : 'Skill'}
             </SignalBadge>
-            <SignalBadge tone="neutral">{sceneLabel(post.tagScene)}</SignalBadge>
-            {post.mcpApproved && <SignalBadge tone="mcp">MCP Ready</SignalBadge>}
-            {post.featured && <SignalBadge tone="featured">精选</SignalBadge>}
+            <SignalBadge tone="neutral" quiet={quiet}>{sceneLabel(post.tagScene)}</SignalBadge>
+            {post.mcpApproved && <SignalBadge tone="mcp" quiet={quiet}>MCP Ready</SignalBadge>}
+            {post.featured && <SignalBadge tone="featured" quiet={quiet}>精选</SignalBadge>}
           </div>
           <h2 className="font-serif text-[16px] leading-snug text-ink-brown transition-colors group-hover:text-wax-red line-clamp-2">
             <span title={post.title}>{post.displayTitle || post.title}</span>
           </h2>
         </div>
 
-        <div className="px-3.5 py-3">
+        <div className="flex-1 px-3.5 py-3">
           <p className="font-sans text-[13px] leading-5 text-leather line-clamp-2">
             {post.displaySummary || post.excerpt}
           </p>
@@ -208,13 +212,21 @@ function SkillFeedPostCard({
           </p>
           <div className="mt-2 flex items-center gap-1.5 font-sans text-[11px] text-sepia">
             <RoleBadge role={post.author.role} size={14} />
-            <span className="truncate text-ink-brown">{post.skillAsset?.originalAuthor || post.author.nickname}</span>
+            <span className="truncate text-ink-brown" title={`发布者：${post.author.nickname}`}>
+              {post.author.nickname}
+            </span>
+            {originalAuthor && (
+              <span className="truncate" title={`原作者：${originalAuthor}`}>· 原作 {originalAuthor}</span>
+            )}
             <span className="shrink-0">·</span>
             <TimeText value={post.createdAt} className="shrink-0" />
           </div>
         </div>
 
-        <footer className="flex items-center justify-between gap-2 border-t border-paper-edge bg-parchment/20 px-3.5 py-2 font-sans text-xs text-sepia">
+        <footer className={cn(
+          'flex items-center justify-between gap-2 bg-parchment/20 px-3.5 py-2 font-sans text-xs text-sepia',
+          !quiet && 'border-t border-paper-edge',
+        )}>
           <div className="flex min-w-0 items-center gap-2">
             <span className="inline-flex items-center gap-1" title="浏览">
               <EyeIcon />
@@ -240,7 +252,8 @@ function SkillFeedPostCard({
           type="button"
           onClick={toggleStar}
           className={cn(
-            'inline-flex h-7 items-center gap-1 rounded-sm border border-paper-edge bg-vellum px-1.5 font-mono text-[10px] transition-colors',
+            'inline-flex h-7 items-center gap-1 rounded-sm px-1.5 font-mono text-[10px] transition-colors',
+            quiet ? 'bg-parchment/65' : 'border border-paper-edge bg-vellum',
             starred ? 'text-gilded' : 'text-sepia hover:text-ink-brown',
           )}
           title="收藏"
@@ -251,7 +264,10 @@ function SkillFeedPostCard({
         <button
           type="button"
           onClick={copyLink}
-          className="inline-flex h-7 items-center rounded-sm border border-paper-edge bg-vellum px-1.5 font-sans text-[10px] text-sepia transition-colors hover:text-ink-brown"
+          className={cn(
+            'inline-flex h-7 items-center rounded-sm px-1.5 font-sans text-[10px] text-sepia transition-colors hover:text-ink-brown',
+            quiet ? 'bg-parchment/65' : 'border border-paper-edge bg-vellum',
+          )}
           title="复制链接"
         >
           {copied ? '已复制' : '复制'}
@@ -264,18 +280,21 @@ function SkillFeedPostCard({
 function SignalBadge({
   tone,
   children,
+  quiet = false,
 }: {
   tone: 'neutral' | 'mcp' | 'featured' | 'file';
   children: React.ReactNode;
+  quiet?: boolean;
 }) {
   return (
     <span
       className={cn(
-        'inline-flex h-5 items-center border px-1.5 font-sans text-[10px]',
-        tone === 'neutral' && 'border-paper-edge bg-vellum text-sepia',
-        tone === 'mcp' && 'border-moss/50 bg-moss/5 text-moss',
-        tone === 'featured' && 'border-ink-brown bg-parchment text-ink-brown',
-        tone === 'file' && 'border-gilded/50 bg-gilded/5 text-gilded',
+        'inline-flex h-5 items-center px-1.5 font-sans text-[10px]',
+        !quiet && 'border',
+        tone === 'neutral' && (quiet ? 'bg-parchment/70 text-sepia' : 'border-paper-edge bg-vellum text-sepia'),
+        tone === 'mcp' && (quiet ? 'bg-moss/10 text-moss' : 'border-moss/50 bg-moss/5 text-moss'),
+        tone === 'featured' && (quiet ? 'bg-gilded/10 text-ink-brown' : 'border-ink-brown bg-parchment text-ink-brown'),
+        tone === 'file' && (quiet ? 'bg-gilded/10 text-gilded' : 'border-gilded/50 bg-gilded/5 text-gilded'),
       )}
     >
       {children}
@@ -287,18 +306,23 @@ function DotSep() {
   return <span className="text-sepia/60">·</span>;
 }
 
+function getDistinctOriginalAuthor(originalAuthor: string | null | undefined, publisher: string) {
+  const normalized = originalAuthor?.trim();
+  if (!normalized || normalized.toLocaleLowerCase() === publisher.trim().toLocaleLowerCase()) return null;
+  return normalized;
+}
+
 function CardAction({
   onClick,
   active,
   icon,
   children,
 }: {
-  onClick?: (e: React.MouseEvent) => void;
+  onClick: (e: React.MouseEvent<HTMLButtonElement>) => void;
   active?: boolean;
   icon: React.ReactNode;
   children: React.ReactNode;
 }) {
-  const interactive = !!onClick;
   return (
     <button
       type="button"
@@ -306,8 +330,7 @@ function CardAction({
       className={cn(
         'inline-flex items-center gap-1.5 transition-colors',
         active ? 'text-wax-red' : 'text-sepia',
-        interactive && 'hover:text-ink-brown cursor-pointer',
-        !interactive && 'cursor-default',
+        'cursor-pointer hover:text-ink-brown',
       )}
     >
       {icon}
