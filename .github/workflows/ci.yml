@@ -54,6 +54,9 @@ jobs:
       - name: Validate Prisma schema
         run: npx prisma validate
 
+      - name: Memory web schema migration safety
+        run: npm run test:memory-schema
+
       - name: Lint
         run: npm run lint
 

@@ -17,6 +17,7 @@
     "verify": "prisma validate && npm run lint && tsc --noEmit --pretty false",
     "check:release-safety": "node scripts/check-release-safety.mjs",
     "test:release-safety": "node --test scripts/check-release-safety.test.mjs",
+    "test:memory-schema": "node --test scripts/check-memory-schema.test.mjs",
     "smoke:public-posts": "tsx scripts/smoke-public-posts.ts",
     "smoke:public-downloads": "tsx scripts/smoke-public-downloads.ts",
     "materialize:file-cache": "tsx scripts/materialize-public-file-cache.ts",
