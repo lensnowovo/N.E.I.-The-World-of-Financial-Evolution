@@ -32,8 +32,11 @@ const migration = readFileSync(MIGRATION_PATH, "utf8");
 
 // Strip SQL line comments (-- to end of line) so documentation comments
 // (e.g. "无 DROP / TRUNCATE") don't trip the destructive-op scan.
+// Split on \r?\n so CRLF checkouts (Windows) are handled: a trailing \r would
+// otherwise make /--.*$/ fail to match (JS `.` does not cross \r), leaving the
+// comment — and its "TRUNCATE" wording — intact.
 const migrationNoComments = migration
-  .split("\n")
+  .split(/\r?\n/)
   .map((l) => l.replace(/--.*$/, ""))
   .join("\n");
 

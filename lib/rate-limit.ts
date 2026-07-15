@@ -13,7 +13,14 @@
  *
  * 注意：纯内存实现，在多实例 / serverless 多 lambda 实例间不共享。
  * Sprint 0.x 的目标是「基础防护」，足够；后续如需跨实例一致限流，换 Redis 后端。
+ *
+ * 另提供 `checkAndConsume`：基于 RateLimitBucket 表的**原子时间桶**限流
+ * （契约 §11），用于 Memory Node 激活相关端点（需要跨实例一致、并发安全）。
  */
+
+import { Prisma, PrismaClient } from '@prisma/client';
+import { prisma } from '@/lib/db';
+import { computeRateWindow, retryAfterSeconds } from '@/lib/rate-window';
 
 interface Bucket {
   count: number;
@@ -94,4 +101,51 @@ export function getClientIp(req: Request): string {
   const realIp = req.headers.get('x-real-ip');
   if (realIp) return realIp.trim();
   return 'unknown';
+}
+
+// ---------------------------------------------------------------------------
+// 原子时间桶限流（契约 §11）—— Memory Node 激活端点专用。
+// ---------------------------------------------------------------------------
+
+export interface CheckAndConsumeArgs {
+  ip: string;
+  endpoint: string; // "code" | "activate" | "refresh"
+  limit: number;
+  windowMs: number;
+}
+
+export interface CheckAndConsumeResult {
+  allowed: boolean;
+  /** 秒；allowed=true 时为 0 */
+  retryAfter: number;
+}
+
+/**
+ * 原子固定窗口计数：INSERT 新桶(count=1) 或 ON CONFLICT 自增，RETURNING 自增后的 count。
+ * 单语句完成读-改-写，由 ON CONFLICT 的行锁串行化同一桶上的并发，无 count→create 竞态。
+ *
+ * @param args   限流维度与阈值
+ * @param client 默认全局 prisma；集成测试可传入连到一次性库的 PrismaClient
+ */
+export async function checkAndConsume(
+  args: CheckAndConsumeArgs,
+  client: PrismaClient | Prisma.TransactionClient = prisma
+): Promise<CheckAndConsumeResult> {
+  const now = Date.now();
+  const { windowStart, bucketEnd, expiresAt } = computeRateWindow(now, args.windowMs);
+
+  const rows = await client.$queryRaw<Array<{ new_count: bigint }>>`
+    INSERT INTO "RateLimitBucket"
+      ("ip", "endpoint", "windowStart", "count", "expiresAt", "createdAt")
+    VALUES (${args.ip}, ${args.endpoint}, ${windowStart}, 1, ${expiresAt}, ${new Date(now)})
+    ON CONFLICT ("ip", "endpoint", "windowStart")
+    DO UPDATE SET "count" = "RateLimitBucket"."count" + 1
+    RETURNING "count" AS new_count
+  `;
+  const newCount = Number(rows[0]?.new_count ?? 0);
+  if (newCount > args.limit) {
+    // retryAfter 基于 bucketEnd，不含 60s 清理缓冲（B9）。
+    return { allowed: false, retryAfter: retryAfterSeconds(bucketEnd.getTime(), now) };
+  }
+  return { allowed: true, retryAfter: 0 };
 }

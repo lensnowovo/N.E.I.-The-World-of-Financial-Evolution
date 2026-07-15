@@ -60,6 +60,9 @@ jobs:
       - name: MCP search intelligence
         run: npm run test:mcp-search-intelligence
 
+      - name: Activation license / Ed25519 interop tests
+        run: npm run test:activation
+
       - name: Lint
         run: npm run lint
 
