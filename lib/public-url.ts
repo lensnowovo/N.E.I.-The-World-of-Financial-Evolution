@@ -6,9 +6,27 @@ const LEGACY_HOSTS = [
 ];
 
 export function getPublicBaseUrl(): string {
-  const raw = process.env.NEXT_PUBLIC_BASE_URL?.trim() || PUBLIC_BASE_URL;
-  const normalized = normalizePublicText(raw).replace(/\/+$/, '');
-  return normalized || PUBLIC_BASE_URL;
+  const configured = process.env.NEXT_PUBLIC_BASE_URL;
+  if (!configured) return PUBLIC_BASE_URL;
+
+  // Environment values normally arrive without quotes, but local launch
+  // wrappers and some CI systems can expose an empty quoted value (`""`) or
+  // a bare hostname. Neither should be allowed to crash module evaluation in
+  // app/layout.tsx when Metadata constructs a URL.
+  const unquoted = configured.trim().replace(/^(['"])(.*)\1$/, '$2').trim();
+  if (!unquoted) return PUBLIC_BASE_URL;
+
+  const candidate = /^[a-z][a-z\d+.-]*:\/\//i.test(unquoted)
+    ? unquoted
+    : `https://${unquoted}`;
+
+  try {
+    const parsed = new URL(normalizePublicText(candidate));
+    if (parsed.protocol !== 'http:' && parsed.protocol !== 'https:') return PUBLIC_BASE_URL;
+    return parsed.href.replace(/\/+$/, '');
+  } catch {
+    return PUBLIC_BASE_URL;
+  }
 }
 
 export function normalizePublicUrl(url: string | null | undefined): string | null {
