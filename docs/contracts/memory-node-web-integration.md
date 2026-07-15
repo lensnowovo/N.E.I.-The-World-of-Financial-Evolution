@@ -359,7 +359,7 @@ const ip = getClientIp(req);
 const rl = await checkAndConsume(ip, "activate", 10, 60_000);   // 原子桶，见 §11
 if (!rl.allowed) return error(429, "RATE_LIMITED", { retry_after: rl.retryAfter });
 
-validateCodeFormat(body.code);        // ^[0-9A-Z]{8}$（大小写不敏感）
+validateCodeFormat(body.code);        // ^[0-9A-HJKMNP-TV-Z]{8}$（Crockford，大小写不敏感）
 validateUuid(body.device_id);
 validateSemver(body.client_version);
 validatePlatform(body.platform);      // "windows" | "macos"

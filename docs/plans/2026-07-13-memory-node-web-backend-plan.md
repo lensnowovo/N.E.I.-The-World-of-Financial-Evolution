@@ -275,7 +275,7 @@ export function verifyLicense(license: string) {
 
 **安全**：
 - `/code` 无 cookie → 401；`/activate` 不需 cookie
-- 日志不含 code 明文（前 4 位 `A1B2****`）和 license 明文
+- 日志不含 code 明文或任何码片段，也不含 license 明文；关联排障只记录 `ActivationCode.id` / request ID
 
 ### 验收标准
 - `tsc --noEmit` 通过
@@ -488,7 +488,7 @@ MEMORY_LICENSE_PRIVATE_KEY="<PEM with \n>"
 
 | 字段 | 格式 | 校验位置 |
 |---|---|---|
-| `code` | `^[0-9A-Z]{8}$`（Crockford，大小写不敏感） | activate |
+| `code` | `^[0-9A-HJKMNP-TV-Z]{8}$`（Crockford，大小写不敏感） | activate |
 | `device_id` | UUID v4 | activate/refresh |
 | `client_version` | semver | activate |
 | `platform` | `"windows"` \| `"macos"` | activate |
@@ -511,7 +511,7 @@ MEMORY_LICENSE_PRIVATE_KEY="<PEM with \n>"
 | 信息 | 记录 |
 |---|---|
 | userId / deviceId / 操作类型 / client_version / kid | ✅ |
-| 激活码明文 | ❌（前 4 位 `A1B2****`） |
+| 激活码明文及任意片段 | ❌（仅记录 `ActivationCode.id` / request ID） |
 | 许可证明文 | ❌（`license_len`、`exp`、`ee`、`ga`） |
 | 设备名 | ❌ |
 | IP | ✅（随 `RateLimitBucket.expiresAt` 清理） |
