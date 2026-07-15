@@ -144,6 +144,92 @@ const SKILLS: SkillMeta[] = [
     contents: ['memo', 'report-gen'],
     assetType: 'agent-skill',
   },
+  {
+    mdPath: 'plugins/vertical-plugins/private-equity/skills/dd-meeting-prep/SKILL.md',
+    skillName: 'dd-meeting-prep',
+    plugin: 'vertical-plugins/private-equity',
+    title: 'Anthropic尽调访谈准备',
+    intro: `<p>Anthropic 官方的 PE <strong>尽调访谈准备</strong> skill。根据访谈对象和已有材料，整理一份有优先级、可追问的提纲：</p>
+<ul>
+<li>适配管理层访谈、专家访谈、客户回访、顾问会议和现场走访</li>
+<li>结合 CIM、数据室发现和已知疑点，避免重复问基础问题</li>
+<li>为关键问题补充行业基准、验证目标和红旗追问</li>
+<li>按会议时长压缩成核心问题、备选问题和会后核验事项</li>
+</ul>
+<blockquote>适合：投资经理、尽调负责人和 FA 在访谈前整理问题、统一团队口径。</blockquote>`,
+    scene: 'business-dd',
+    contents: ['expert-call', 'risk-id', 'info-gather'],
+    assetType: 'agent-skill',
+  },
+  {
+    mdPath: 'plugins/vertical-plugins/private-equity/skills/portfolio-monitoring/SKILL.md',
+    skillName: 'portfolio-monitoring',
+    plugin: 'vertical-plugins/private-equity',
+    title: 'Anthropic投后监控',
+    intro: `<p>Anthropic 官方的 PE <strong>投后监控</strong> skill。读取月报、季报和财务包，对照预算与上期表现，快速识别偏差：</p>
+<ul>
+<li>抽取收入、EBITDA、现金、债务、资本开支和营运资金等指标</li>
+<li>按行业补充客户、人员、订单、留存等经营 KPI</li>
+<li>用绿、黄、红分级标记预算偏差和 covenant 风险</li>
+<li>输出管理层追问、趋势判断和董事会材料摘要</li>
+</ul>
+<blockquote>适合：投后经理、项目负责人和董事会观察员做月度监控与经营复盘。</blockquote>`,
+    scene: 'post-investment',
+    contents: ['doc-parse', 'risk-id', 'report-gen'],
+    assetType: 'agent-skill',
+  },
+  {
+    mdPath: 'plugins/vertical-plugins/private-equity/skills/returns-analysis/SKILL.md',
+    skillName: 'returns-analysis',
+    plugin: 'vertical-plugins/private-equity',
+    title: 'Anthropic回报测算',
+    intro: `<p>Anthropic 官方的 PE <strong>回报测算</strong> skill。围绕进入估值、杠杆、经营增长、退出估值和持有期，快速搭建 IRR / MOIC 敏感性分析：</p>
+<ul>
+<li>梳理交易对价、融资结构、经营假设和退出假设</li>
+<li>计算基础情景下的股权投入、退出价值、MOIC 与 IRR</li>
+<li>生成进入倍数、退出倍数、增长率和持有期的敏感性矩阵</li>
+<li>检查回报究竟依赖经营改善、去杠杆还是倍数扩张</li>
+</ul>
+<blockquote>适合：投资经理做项目粗测、压力测试和投委会回报页。</blockquote>`,
+    scene: 'financial',
+    contents: ['report-gen', 'risk-id'],
+    assetType: 'agent-skill',
+  },
+  {
+    mdPath: 'plugins/vertical-plugins/private-equity/skills/value-creation-plan/SKILL.md',
+    skillName: 'value-creation-plan',
+    plugin: 'vertical-plugins/private-equity',
+    title: 'Anthropic价值创造计划',
+    intro: `<p>Anthropic 官方的 PE <strong>价值创造计划</strong> skill。把投后设想拆成收入、成本、运营和战略杠杆，并映射到 EBITDA 改善路径：</p>
+<ul>
+<li>梳理当前经营基线、组织能力和尽调阶段识别的机会</li>
+<li>量化增长、提价、采购、费用、数字化和并购等改善杠杆</li>
+<li>形成 100 天优先事项、负责人、时间表和 KPI</li>
+<li>输出可用于董事会和经营团队沟通的执行路线图</li>
+</ul>
+<blockquote>适合：投后团队、运营合伙人和项目负责人设计交割后的经营改善计划。</blockquote>`,
+    scene: 'post-investment',
+    contents: ['automation', 'report-gen'],
+    assetType: 'agent-skill',
+  },
+  {
+    mdPath: 'plugins/vertical-plugins/private-equity/skills/ai-readiness/SKILL.md',
+    skillName: 'ai-readiness',
+    plugin: 'vertical-plugins/private-equity',
+    title: 'Anthropic投后AI机会评估',
+    intro: `<p>Anthropic 官方的 PE <strong>Portfolio AI Readiness</strong> skill。扫描多家被投企业，找出最值得优先投入运营资源的 AI 应用机会：</p>
+<ul>
+<li>从季报、董事会材料和财务数据提取业务、人员与系统背景</li>
+<li>判断数据是否可用、是否有业务负责人、能否在 30 天内试点</li>
+<li>识别后台、销售、客服和运营环节的高杠杆场景</li>
+<li>跨项目排序机会、预期收益、实施难度和退出期适配度</li>
+</ul>
+<blockquote>适合：投后团队和运营合伙人规划 AI 赋能，不适合拿来做泛泛的企业数字化报告。</blockquote>`,
+    scene: 'post-investment',
+    industry: 'ai-saas',
+    contents: ['info-gather', 'automation', 'risk-id'],
+    assetType: 'agent-skill',
+  },
 
   // ===== financial-analysis 插件（建模实操）=====
   {
@@ -178,6 +264,40 @@ const SKILLS: SkillMeta[] = [
 <blockquote>适合：做公司财务预测、估值建模打底的人。三表联动是所有模型的基础。</blockquote>`,
     scene: 'financial',
     contents: ['report-gen', 'data-clean'],
+    assetType: 'agent-skill',
+  },
+  {
+    mdPath: 'plugins/vertical-plugins/financial-analysis/skills/dcf-model/SKILL.md',
+    skillName: 'dcf-model',
+    plugin: 'vertical-plugins/financial-analysis',
+    title: 'Anthropic DCF模型',
+    intro: `<p>Anthropic 官方的 <strong>DCF 估值模型</strong> skill。按投行标准搭建可追溯、可调整的现金流折现模型：</p>
+<ul>
+<li>整理历史数据与收入、利润率、资本开支和营运资金假设</li>
+<li>计算 WACC、自由现金流、终值和股权价值</li>
+<li>所有预测与敏感性分析保留为 Excel 公式，不写死结果</li>
+<li>包含模型检查、情景分析和面向决策者的摘要</li>
+</ul>
+<blockquote>适合：投资经理、财务顾问和研究人员做成熟企业内在价值分析。</blockquote>`,
+    scene: 'financial',
+    contents: ['data-clean', 'report-gen'],
+    assetType: 'agent-skill',
+  },
+  {
+    mdPath: 'plugins/vertical-plugins/financial-analysis/skills/comps-analysis/SKILL.md',
+    skillName: 'comps-analysis',
+    plugin: 'vertical-plugins/financial-analysis',
+    title: 'Anthropic可比公司估值',
+    intro: `<p>Anthropic 官方的 <strong>可比公司分析</strong> skill。构建包含经营指标、估值倍数和统计区间的机构级可比公司表：</p>
+<ul>
+<li>筛选业务模式、规模、地区和增长特征相近的上市公司</li>
+<li>统一口径整理收入、利润率、增长率和交易倍数</li>
+<li>计算中位数、四分位数和异常值，识别估值位置</li>
+<li>保留数据来源、日期、计算公式和审计痕迹</li>
+</ul>
+<blockquote>适合：投资经理和 FA 做估值对标、融资定价与投委会估值依据。</blockquote>`,
+    scene: 'financial',
+    contents: ['info-gather', 'data-clean', 'report-gen'],
     assetType: 'agent-skill',
   },
   {
@@ -299,6 +419,23 @@ const SKILLS: SkillMeta[] = [
 <blockquote>适合：FA 组织竞标拍卖流程。流程信是拍卖有序进行的关键文档。</blockquote>`,
     scene: 'fundraising',
     contents: ['report-gen'],
+    assetType: 'agent-skill',
+  },
+  {
+    mdPath: 'plugins/vertical-plugins/investment-banking/skills/datapack-builder/SKILL.md',
+    skillName: 'datapack-builder',
+    plugin: 'vertical-plugins/investment-banking',
+    title: 'Anthropic交易数据包',
+    intro: `<p>Anthropic 官方的 <strong>交易数据包</strong> skill。把 CIM、募集说明书、财报和数据室材料整理成口径统一、可用于 IC 的 Excel 工作簿：</p>
+<ul>
+<li>抽取并标准化历史财务、经营数据和关键假设</li>
+<li>为每个数字保留来源页码，检查合计、勾稽和资产负债平衡</li>
+<li>区分货币、数量、百分比和年份格式，避免模型展示错误</li>
+<li>形成可供尽调、估值和投委会复用的基础数据层</li>
+</ul>
+<blockquote>适合：投资经理、FA 和交易执行团队把分散材料整理成统一底稿。</blockquote>`,
+    scene: 'business-dd',
+    contents: ['doc-parse', 'data-clean', 'report-gen'],
     assetType: 'agent-skill',
   },
 
