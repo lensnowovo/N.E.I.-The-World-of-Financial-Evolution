@@ -164,17 +164,66 @@ Vercel 构建命令：
 npm run vercel-build
 ```
 
-`vercel-build` 会执行：
+`vercel-build` 只负责**生成 Prisma Client 并构建网站**，不修改任何数据库：
 
 ```bash
-prisma generate && prisma db push --skip-generate && next build
+prisma generate && next build
 ```
+
+> ⚠️ **构建阶段禁止任何数据库写入或 schema 变更。** 历史上 `vercel-build` 曾包含 `prisma db push`，会在每次 Preview Deployment 执行时直接同步 `schema.prisma` 到数据库——当 Preview 与 Production 共用 `DATABASE_URL` 时，预览构建可能改写甚至删除生产表（如已发生过的 `McpAccessToken` 险情）。该命令已移除，并由 `npm run check:release-safety`（CI 门禁）防止回归。
 
 如果 Vercel 没有 deployment，先确认：
 
 1. `main` 是否有新 commit
 2. Vercel Git Integration 是否仍连接当前仓库
 3. Vercel 项目 Production Branch 是否为 `main`
+
+---
+
+## 5b. 数据库迁移与发布安全（重要）
+
+本仓库的数据库 schema 变更走 **受控的 Prisma migration 流程**，与 Vercel 构建彻底分离。构建只生成 Client、不碰数据库结构。
+
+### Preview Deployment
+
+- 只执行 `prisma generate && next build`，**不修改任何数据库**。
+- Preview 与 Production **不得共用同一个可写 `DATABASE_URL` 后再执行迁移**。如 Preview 需要数据库，应使用**独立的 Preview 数据库**（Neon 支持按分支创建），并仅在本地/受控脚本里对其执行 `db:push`/`migrate deploy`，绝不在 Vercel 构建阶段执行。
+
+### Production 数据库迁移（与应用构建分离）
+
+正式数据库的 schema 变更必须作为**单独的、受控的步骤**执行，不在 `vercel-build` 内：
+
+1. **备份**：在 Neon 对生产数据库创建一个恢复点（branch / PITR 快照）。
+2. **检查待执行 migration**（不写入）：
+
+   ```bash
+   DATABASE_URL=<production DATABASE_URL> npm run db:migrate:status
+   ```
+
+3. **人工审核** `prisma/migrations/` 下待应用的新 migration SQL，确认无意外 `DROP`/破坏性操作。
+4. **执行迁移**（受控环境，指向生产库）：
+
+   ```bash
+   DATABASE_URL=<production DATABASE_URL> npm run db:migrate:deploy
+   ```
+
+   `prisma migrate deploy` 只应用 `prisma/migrations/` 里尚未执行的、版本化的 migration，不会像 `db push` 那样按 `schema.prisma` 隐式同步（含隐式删表）。
+5. **迁移成功后再发布应用**：push 到 `main` → Vercel Production Deployment（此时只做 `prisma generate && next build`）。
+
+### 绝对禁止
+
+- 对生产库执行 `prisma db push`（会按 schema 隐式同步，可能删表）。
+- 使用 `--accept-data-loss` 或 `--force-reset`。
+- 在 Vercel 构建阶段（`vercel-build`/`build`/`postinstall`）执行任何数据库写入或 schema 变更命令。
+- Preview 与 Production 共用可写数据库后再在 Preview 构建里执行迁移。
+
+> CI 门禁 `Release safety (no db push in build)`（`node scripts/check-release-safety.mjs`）会扫描构建生命周期脚本与 `vercel.json`，发现 `prisma db push` / `prisma migrate deploy` / `--accept-data-loss` / `--force-reset` 等立即让 CI 失败。本地可用 `npm run check:release-safety` 自查。
+
+### 回滚策略
+
+- **应用版本**可回滚：在 Vercel Dashboard 回滚到上一个 Production Deployment，或提交 revert commit。
+- **数据库 migration 不要依赖自动向下回滚**（`migrate reset` 会清库，生产禁用）。
+- **破坏性变更采用 expand → migrate data → contract 分阶段**：先加新列/新表（兼容）、迁移数据、最后在确认无回滚需求后再删旧结构。每个阶段都是独立的 forward-only migration。
 
 ---
 
