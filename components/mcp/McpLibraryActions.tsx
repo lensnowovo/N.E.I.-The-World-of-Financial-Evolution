@@ -24,10 +24,13 @@ export function McpLibraryActions({
   compact?: boolean;
 }) {
   const [copied, setCopied] = useState(false);
+  const [copyFailed, setCopyFailed] = useState(false);
 
   const handleCopy = async () => {
     const text = buildConnectorSetupPrompt(item);
-    await copyText(text);
+    const ok = await copyText(text);
+    setCopyFailed(!ok);
+    if (!ok) return;
     setCopied(true);
     setTimeout(() => setCopied(false), 2200);
   };
@@ -52,7 +55,11 @@ export function McpLibraryActions({
               : 'bg-ink-brown text-vellum hover:bg-wax-red',
           )}
         >
-          {copied ? '✓ 已复制' : '复制接入 Prompt'}
+          {copied
+            ? '✓ 已复制'
+            : item.kind === 'API'
+              ? '复制 API 封装需求'
+              : '复制接入指令'}
         </button>
       )}
 
@@ -75,6 +82,9 @@ export function McpLibraryActions({
           N.E.I. 说明
         </Link>
       )}
+      <span aria-live="polite" className="sr-only">
+        {copyFailed ? '复制失败，请检查浏览器剪贴板权限。' : copied ? '已复制到剪贴板。' : ''}
+      </span>
     </div>
   );
 }
@@ -82,15 +92,20 @@ export function McpLibraryActions({
 async function copyText(text: string) {
   try {
     await navigator.clipboard.writeText(text);
-    return;
+    return true;
   } catch {
-    const textarea = document.createElement('textarea');
-    textarea.value = text;
-    textarea.style.position = 'fixed';
-    textarea.style.opacity = '0';
-    document.body.appendChild(textarea);
-    textarea.select();
-    document.execCommand('copy');
-    document.body.removeChild(textarea);
+    try {
+      const textarea = document.createElement('textarea');
+      textarea.value = text;
+      textarea.style.position = 'fixed';
+      textarea.style.opacity = '0';
+      document.body.appendChild(textarea);
+      textarea.select();
+      const copied = document.execCommand('copy');
+      document.body.removeChild(textarea);
+      return copied;
+    } catch {
+      return false;
+    }
   }
 }

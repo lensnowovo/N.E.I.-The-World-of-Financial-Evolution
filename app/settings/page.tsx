@@ -38,12 +38,7 @@ export default function SettingsPage() {
   const [newPw, setNewPw] = useState('');
   const [pwSaving, setPwSaving] = useState(false);
   const [pwMsg, setPwMsg] = useState<{ ok: boolean; text: string } | null>(null);
-
-  // MCP Token
-  const [mcpToken, setMcpToken] = useState('');
-  const [mcpGenerating, setMcpGenerating] = useState(false);
-  const [mcpMsg, setMcpMsg] = useState<{ ok: boolean; text: string } | null>(null);
-  const [copied, setCopied] = useState(false);
+  const [pwCooldown, setPwCooldown] = useState(0);
 
   useEffect(() => {
     fetch('/api/users/me')
@@ -62,6 +57,14 @@ export default function SettingsPage() {
       .finally(() => setLoading(false));
   }, [router]);
 
+  useEffect(() => {
+    if (pwCooldown <= 0) return;
+    const timer = window.setTimeout(() => {
+      setPwCooldown((current) => Math.max(0, current - 1));
+    }, 1000);
+    return () => window.clearTimeout(timer);
+  }, [pwCooldown]);
+
   const submit = async (e: React.FormEvent) => {
     e.preventDefault();
     setMsg(null);
@@ -77,7 +80,7 @@ export default function SettingsPage() {
         avatarUrl: avatarUrl.trim(),
       }),
     });
-    const data = await res.json();
+    const data = await res.json().catch(() => ({}));
     setSaving(false);
     if (!res.ok) {
       setMsg({ ok: false, text: data.error || '保存失败' });
@@ -90,24 +93,30 @@ export default function SettingsPage() {
 
   // 修改密码：先发验证码到当前邮箱，再用验证码+新密码重置
   const sendPwCode = async () => {
+    if (pwCooldown > 0) return;
     setPwMsg(null);
     if (!profile?.email) return;
-    const res = await fetch('/api/auth/verify-email', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ email: profile.email }),
-    });
-    const data = await res.json();
-    if (!res.ok) {
-      setPwMsg({ ok: false, text: data.error || '发送验证码失败' });
-      return;
+    try {
+      const res = await fetch('/api/auth/verify-email', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email: profile.email }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        setPwMsg({ ok: false, text: data.error || '发送验证码失败' });
+        return;
+      }
+      setPwMsg({
+        ok: true,
+        text: data.devCode
+          ? `验证码已发送（开发模式：${data.devCode}）`
+          : '验证码已发送到你的邮箱',
+      });
+      setPwCooldown(60);
+    } catch {
+      setPwMsg({ ok: false, text: '发送失败，请检查网络后重试' });
     }
-    setPwMsg({
-      ok: true,
-      text: data.devCode
-        ? `验证码已发送（开发模式：${data.devCode}）`
-        : '验证码已发送到你的邮箱',
-    });
   };
 
   const submitPw = async (e: React.FormEvent) => {
@@ -128,7 +137,7 @@ export default function SettingsPage() {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ email: profile.email, code: pwCode, newPassword: newPw }),
     });
-    const data = await res.json();
+    const data = await res.json().catch(() => ({}));
     setPwSaving(false);
     if (!res.ok) {
       setPwMsg({ ok: false, text: data.error || '修改失败' });
@@ -152,162 +161,129 @@ export default function SettingsPage() {
   }
 
   return (
-    <div className="mx-auto max-w-prose px-4 sm:px-6 py-8">
-      <div className="mb-6">
-        <Link href={`/profile/${profile?.id}`} className="inline-flex items-center gap-1.5 font-serif italic text-sm text-sepia hover:text-ink-brown transition-colors">
-          ← 返回个人主页
-        </Link>
-      </div>
+    <div className="mx-auto max-w-page px-4 py-8 sm:px-6 sm:py-12">
+      <header className="mb-8 grid gap-6 border-b border-paper-edge pb-8 lg:grid-cols-[1fr_22rem] lg:items-end">
+        <div>
+          <Link href={`/profile/${profile.id}`} className="mb-6 inline-flex font-serif text-sm italic text-sepia transition-colors hover:text-ink-brown">
+            ← 返回个人主页
+          </Link>
+          <p className="mb-2 font-display text-[10px] uppercase tracking-[0.22em] text-antique-gold">Account ledger</p>
+          <h1 className="font-serif text-4xl text-ink-brown sm:text-5xl">管理你的公开身份</h1>
+          <p className="mt-3 max-w-2xl font-sans text-sm leading-7 text-leather">
+            这里保存你在 N.E.I. 展示的资料。密码与 Agent 连接分开管理，避免把不同性质的设置挤在同一张表单里。
+          </p>
+        </div>
 
-      <header className="mb-8 pb-5 border-b border-paper-edge">
-        <p className="font-display tracking-display text-[11px] text-sepia uppercase mb-1">
-          个人设置
-        </p>
-        <h1 className="font-serif text-3xl text-ink-brown">编辑资料</h1>
+        <div className="border-l border-antique-gold/45 pl-5">
+          <p className="font-display text-[9px] uppercase tracking-[0.2em] text-sepia">Public identity</p>
+          <p className="mt-3 font-serif text-2xl text-ink-brown">{nickname || profile.nickname}</p>
+          <p className="mt-1 font-sans text-xs text-leather">{institution || '暂未填写机构'} · {role}</p>
+          <Link href={`/profile/${profile.id}`} className="mt-4 inline-flex font-serif text-sm italic text-sepia hover:text-wax-red">
+            预览个人主页 →
+          </Link>
+        </div>
       </header>
 
-      <form onSubmit={submit} className="space-y-6">
-        {/* 昵称 */}
-        <Field label="昵称" hint="2-20 字符，全平台唯一" required>
-          <Input
-            value={nickname}
-            onChange={(e) => setNickname(e.target.value)}
-            maxLength={20}
-            required
-          />
-        </Field>
-
-        {/* 身份 */}
-        <Field label="身份" hint="展示在个人主页和内容卡片上">
-          <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
-            {INVESTOR_ROLES.map((item) => (
-              <button
-                key={item.value}
-                type="button"
-                onClick={() => setRole(item.value)}
-                className={cn(
-                  'inline-flex items-center justify-center min-h-10 px-3 py-2 font-serif text-sm rounded-sm border transition-colors text-center',
-                  role === item.value
-                    ? 'border-ink-brown bg-ink-brown text-vellum'
-                    : 'border-paper-edge text-leather hover:border-ink-brown',
-                )}
-              >
-                {item.label}
-              </button>
-            ))}
-          </div>
-        </Field>
-
-        {/* 机构（选填） */}
-        <Field label="机构" hint="选填 · 你所在的基金 / 机构">
-          <Input
-            value={institution}
-            onChange={(e) => setInstitution(e.target.value)}
-            maxLength={50}
-            placeholder="例如：XX 资本、独立 FA"
-          />
-        </Field>
-
-        {/* 个人简介（选填） */}
-        <Field label="个人简介" hint="选填 · 最多 200 字">
-          <Textarea
-            value={bio}
-            onChange={(e) => setBio(e.target.value)}
-            maxLength={200}
-            rows={3}
-            placeholder="一句话介绍自己，比如专注的赛道、做的事…"
-          />
-          <p className="mt-1 text-right font-sans text-[11px] text-sepia num-osf">
-            {bio.length}/200
+      <div className="grid gap-8 lg:grid-cols-[14rem_minmax(0,1fr)]">
+        <aside className="lg:sticky lg:top-24 lg:self-start">
+          <p className="mb-4 font-display text-[9px] uppercase tracking-[0.2em] text-sepia">Setting index</p>
+          <nav className="space-y-px border-y border-paper-edge font-serif text-sm">
+            <a href="#public-profile" className="flex items-center justify-between border-b border-paper-edge/70 py-3 text-ink-brown hover:text-wax-red">
+              <span>公开资料</span><span className="font-mono text-[10px] text-sepia">01</span>
+            </a>
+            <a href="#account-security" className="flex items-center justify-between border-b border-paper-edge/70 py-3 text-leather hover:text-ink-brown">
+              <span>账号安全</span><span className="font-mono text-[10px] text-sepia">02</span>
+            </a>
+            <a href="#agent-access" className="flex items-center justify-between py-3 text-leather hover:text-ink-brown">
+              <span>Agent 连接</span><span className="font-mono text-[10px] text-sepia">03</span>
+            </a>
+          </nav>
+          <p className="mt-5 font-serif text-xs italic leading-6 text-sepia">
+            邮箱仅用于登录与安全验证，不会展示在个人主页。
           </p>
-        </Field>
+        </aside>
 
-        {/* 头像 URL（选填） */}
-        <Field label="头像链接" hint="选填 · 图片 URL（GitHub 登录会自动带）">
-          <Input
-            type="url"
-            value={avatarUrl}
-            onChange={(e) => setAvatarUrl(e.target.value)}
-            placeholder="https://..."
-          />
-        </Field>
+        <div className="space-y-8">
+          <section id="public-profile" className="scroll-mt-24 bg-vellum/55 p-5 ring-1 ring-paper-edge sm:p-8">
+            <SectionHeading index="01" title="公开资料" note="展示在个人主页和内容署名中" />
+            <form onSubmit={submit} className="mt-7 space-y-6">
+              <Field label="昵称" hint="2-20 字符，全平台唯一" required>
+                <Input value={nickname} onChange={(e) => setNickname(e.target.value)} maxLength={20} required />
+              </Field>
 
-        {msg && (
-          <p
-            className={cn(
-              'font-sans text-sm border-l pl-3',
-              msg.ok ? 'text-moss border-moss' : 'text-wax-red border-wax-red',
-            )}
-          >
-            {msg.text}
-          </p>
-        )}
+              <Field label="身份" hint="选择最接近你当前工作的身份">
+                <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
+                  {INVESTOR_ROLES.map((item) => (
+                    <button
+                      key={item.value}
+                      type="button"
+                      aria-pressed={role === item.value}
+                      onClick={() => setRole(item.value)}
+                      className={cn(
+                        'inline-flex min-h-10 items-center justify-center border px-3 py-2 text-center font-serif text-sm transition-colors',
+                        role === item.value
+                          ? 'border-ink-brown bg-ink-brown text-vellum'
+                          : 'border-paper-edge bg-paper/25 text-leather hover:border-ink-brown hover:text-ink-brown',
+                      )}
+                    >
+                      {item.label}
+                    </button>
+                  ))}
+                </div>
+              </Field>
 
-        <div className="pt-4 border-t border-paper-edge flex items-center justify-between">
-          <p className="font-serif italic text-xs text-sepia hidden sm:block">
-            昵称、身份、机构等会显示在你的个人主页
-          </p>
-          <Button type="submit" size="lg" disabled={saving} className="ml-auto">
-            {saving ? '保存中…' : '保存'}
-          </Button>
+              <div className="grid gap-6 sm:grid-cols-2">
+                <Field label="机构" hint="选填 · 基金 / 机构">
+                  <Input value={institution} onChange={(e) => setInstitution(e.target.value)} maxLength={50} placeholder="例如：XX 资本、独立 FA" />
+                </Field>
+                <Field label="头像链接" hint="选填 · GitHub 登录会自动带入">
+                  <Input type="url" value={avatarUrl} onChange={(e) => setAvatarUrl(e.target.value)} placeholder="https://..." />
+                </Field>
+              </div>
+
+              <Field label="个人简介" hint="选填 · 最多 200 字">
+                <Textarea value={bio} onChange={(e) => setBio(e.target.value)} maxLength={200} rows={3} placeholder="一句话介绍自己，比如专注的赛道、做的事…" />
+                <p className="mt-1 text-right font-sans text-[11px] text-sepia num-osf">{bio.length}/200</p>
+              </Field>
+
+              {msg && <StatusMessage ok={msg.ok}>{msg.text}</StatusMessage>}
+
+              <div className="flex items-center justify-between border-t border-paper-edge pt-5">
+                <p className="hidden font-serif text-xs italic text-sepia sm:block">保存后会同步更新站内署名</p>
+                <Button type="submit" size="lg" disabled={saving} className="ml-auto">{saving ? '保存中…' : '保存公开资料'}</Button>
+              </div>
+            </form>
+          </section>
+
+          <section id="account-security" className="scroll-mt-24 border-t border-antique-gold/45 pt-8">
+            <SectionHeading index="02" title="账号安全" note={`验证码发送至 ${profile.email}`} />
+            <form onSubmit={submitPw} className="mt-6 grid gap-4 sm:grid-cols-[minmax(0,1fr)_auto]">
+              <Input value={pwCode} onChange={(e) => setPwCode(e.target.value.replace(/\D/g, '').slice(0, 6))} placeholder="6 位验证码" maxLength={6} />
+              <Button type="button" variant="secondary" onClick={sendPwCode} disabled={pwCooldown > 0}>
+                {pwCooldown > 0 ? `${pwCooldown} 秒后重发` : '发送验证码'}
+              </Button>
+              <div className="sm:col-span-2">
+                <Input type="password" value={newPw} onChange={(e) => setNewPw(e.target.value)} placeholder="新密码（8-20 位，含字母和数字）" maxLength={20} />
+              </div>
+              {pwMsg && <div className="sm:col-span-2"><StatusMessage ok={pwMsg.ok}>{pwMsg.text}</StatusMessage></div>}
+              <div className="sm:col-span-2"><Button type="submit" disabled={pwSaving}>{pwSaving ? '修改中…' : '修改密码'}</Button></div>
+            </form>
+          </section>
+
+          <section id="agent-access" className="scroll-mt-24 border-t border-antique-gold/45 pt-8">
+            <SectionHeading index="03" title="Agent 连接" note="每个客户端使用独立 Token，可分别撤销" />
+            <div className="mt-6 flex flex-col gap-5 bg-ink-brown px-5 py-6 text-vellum sm:flex-row sm:items-center sm:justify-between sm:px-7">
+              <div>
+                <p className="font-serif text-xl">在连接台管理你的客户端</p>
+                <p className="mt-2 max-w-xl font-sans text-xs leading-6 text-vellum/70">N.E.I. 只分发 Skill 内容。连接、撤销和状态检测都在独立页面完成。</p>
+              </div>
+              <Link href="/connect" className="inline-flex h-10 shrink-0 items-center justify-center border border-vellum/45 px-5 font-serif text-sm transition-colors hover:bg-vellum hover:text-ink-brown">
+                打开连接台 →
+              </Link>
+            </div>
+          </section>
         </div>
-      </form>
-
-      {/* —— 修改密码 —— */}
-      <section className="mt-10 pt-8 border-t border-paper-edge">
-        <h2 className="font-serif text-xl text-ink-brown mb-1">修改密码</h2>
-        <p className="font-sans text-xs text-sepia mb-4">
-          通过邮箱验证码重置密码。验证码会发到 <span className="text-ink-brown">{profile?.email}</span>
-        </p>
-        <form onSubmit={submitPw} className="space-y-4">
-          <div className="flex gap-2">
-            <Input
-              value={pwCode}
-              onChange={(e) => setPwCode(e.target.value.replace(/\D/g, '').slice(0, 6))}
-              placeholder="6 位验证码"
-              maxLength={6}
-              className="flex-1"
-            />
-            <Button type="button" variant="secondary" onClick={sendPwCode}>
-              发送验证码
-            </Button>
-          </div>
-          <Input
-            type="password"
-            value={newPw}
-            onChange={(e) => setNewPw(e.target.value)}
-            placeholder="新密码（8-20 位，含字母和数字）"
-            maxLength={20}
-          />
-          {pwMsg && (
-            <p
-              className={cn(
-                'font-sans text-sm border-l pl-3',
-                pwMsg.ok ? 'text-moss border-moss' : 'text-wax-red border-wax-red',
-              )}
-            >
-              {pwMsg.text}
-            </p>
-          )}
-          <Button type="submit" disabled={pwSaving}>
-            {pwSaving ? '修改中…' : '修改密码'}
-          </Button>
-        </form>
-      </section>
-
-      {/* —— 连接配置入口 —— */}
-      <section className="mt-10 pt-8 border-t border-paper-edge">
-        <h2 className="font-serif text-xl text-ink-brown mb-1">连接配置</h2>
-        <p className="font-sans text-xs text-sepia mb-3">
-          MCP Token 已移到独立页面。N.E.I. 不在网站内执行 Prompt，建议在你的 Agent 客户端中使用 MCP。
-        </p>
-        <Link
-          href="/connect"
-          className="inline-flex items-center h-9 px-4 border border-paper-edge text-leather hover:border-ink-brown hover:text-ink-brown font-serif text-sm rounded-sm transition-colors"
-        >
-          连接配置 →
-        </Link>
-      </section>
+      </div>
     </div>
   );
 }
@@ -344,6 +320,26 @@ function SettingsGuestState() {
         </div>
       </div>
     </div>
+  );
+}
+
+function SectionHeading({ index, title, note }: { index: string; title: string; note: string }) {
+  return (
+    <div className="flex flex-col gap-2 border-b border-paper-edge pb-4 sm:flex-row sm:items-end sm:justify-between">
+      <div className="flex items-baseline gap-3">
+        <span className="font-mono text-[10px] text-antique-gold">{index}</span>
+        <h2 className="font-serif text-2xl text-ink-brown">{title}</h2>
+      </div>
+      <p className="font-serif text-xs italic text-sepia">{note}</p>
+    </div>
+  );
+}
+
+function StatusMessage({ ok, children }: { ok: boolean; children: React.ReactNode }) {
+  return (
+    <p className={cn('border-l pl-3 font-sans text-sm', ok ? 'border-moss text-moss' : 'border-wax-red text-wax-red')}>
+      {children}
+    </p>
   );
 }
 

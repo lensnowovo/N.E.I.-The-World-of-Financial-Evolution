@@ -5,7 +5,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { useSearchParams } from 'next/navigation';
 import { PostCard } from '@/components/PostCard';
 import type { PostCardData } from '@/lib/types';
-import { taskBundles } from '@/lib/bundles';
+import { taskMaps } from '@/lib/task-maps';
 
 type SkillFeedResponse = {
   items: PostCardData[];
@@ -156,7 +156,7 @@ export function SkillFeed({
 
 type FeedEntry =
   | { type: 'post'; key: string; post: PostCardData; index: number }
-  | { type: 'bundle'; key: string; bundleIndex: number };
+  | { type: 'task'; key: string; taskIndex: number };
 
 function buildFeedEntries(posts: PostCardData[]): FeedEntry[] {
   const entries: FeedEntry[] = [];
@@ -164,9 +164,9 @@ function buildFeedEntries(posts: PostCardData[]): FeedEntry[] {
     entries.push({ type: 'post', key: `post-${post.id}`, post, index });
     if ((index + 1) % 12 === 0) {
       entries.push({
-        type: 'bundle',
-        key: `bundle-${index + 1}`,
-        bundleIndex: Math.floor(index / 12) % taskBundles.length,
+        type: 'task',
+        key: `task-${index + 1}`,
+        taskIndex: Math.floor(index / 12) % taskMaps.length,
       });
     }
   });
@@ -200,22 +200,22 @@ function FeedItem({
     );
   }
 
-  const bundle = taskBundles[entry.bundleIndex];
+  const task = taskMaps[entry.taskIndex];
   return (
     <li>
       <Link
-        href={`/bundles/${bundle.slug}`}
+        href={`/tasks/${task.slug}`}
         className="block rounded-md border border-gilded/45 bg-gilded/10 px-4 py-4 transition-colors hover:border-ink-brown"
       >
         <p className="font-display tracking-display text-[10px] uppercase text-sepia mb-1">
-          Bundle Recommendation
+          Task Map
         </p>
-        <h3 className="font-serif text-lg text-ink-brown">{bundle.title}</h3>
+        <h3 className="font-serif text-lg text-ink-brown">{task.title}</h3>
         <p className="mt-1.5 font-sans text-xs leading-5 text-leather">
-          {bundle.description}
+          {task.description}
         </p>
         <p className="mt-3 font-serif italic text-sm text-sepia">
-          进入工作流 →
+          打开工作地图 →
         </p>
       </Link>
     </li>

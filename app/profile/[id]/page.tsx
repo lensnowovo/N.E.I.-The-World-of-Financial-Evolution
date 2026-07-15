@@ -9,17 +9,14 @@ import { industryLabel, sceneLabel } from '@/lib/tags';
 import { roleFullName as investorRoleFullName } from '@/lib/roles';
 import { PostCard } from '@/components/PostCard';
 import { RoleBadge } from '@/components/icons/RoleBadge';
-import { CrestCorners } from '@/components/icons/Crest';
-import { Ornament } from '@/components/icons/Ornament';
 import { FollowButton } from '@/components/FollowButton';
 
 type SP = { tab?: string };
-type Tab = 'posts' | 'stars' | 'favorites';
+type Tab = 'posts' | 'favorites';
 
 const TAB_LABEL: Record<Tab, { numeral: string; label: string; subtitle: string; ownerOnly: boolean }> = {
   posts:     { numeral: 'I',   label: '发布',  subtitle: '已发布',   ownerOnly: false },
-  stars:     { numeral: 'II',  label: 'Star',  subtitle: 'Star 过',  ownerOnly: true },
-  favorites: { numeral: 'III', label: '收藏',  subtitle: '收藏',     ownerOnly: true },
+  favorites: { numeral: 'II', label: '收藏',  subtitle: '收藏',     ownerOnly: true },
 };
 
 export default async function ProfilePage({
@@ -37,7 +34,8 @@ export default async function ProfilePage({
 
   const me = await getCurrentUser();
   const isOwner = me?.id === id;
-  const tab = ((await searchParams).tab ?? 'posts') as Tab;
+  const requestedTab = (await searchParams).tab;
+  const tab: Tab = requestedTab === 'favorites' ? 'favorites' : 'posts';
 
   // 非本人不允许访问私密 Tab
   if (!isOwner && TAB_LABEL[tab]?.ownerOnly) redirect(`/profile/${id}`);
@@ -45,9 +43,8 @@ export default async function ProfilePage({
   /* —— 计数 —— */
   const [
     postCount,
-    starCount,
     favCount,
-    receivedLikesAgg,
+    receivedFavoritesCount,
     followersCount,
     followingCount,
     workflowCount,
@@ -57,12 +54,9 @@ export default async function ProfilePage({
     myFollowRow,
   ] =
     await Promise.all([
-      prisma.post.count({
-        where: isOwner ? { userId: id, deletedAt: null } : { userId: id, status: 'published', deletedAt: null },
-      }),
+      prisma.post.count({ where: { userId: id, status: 'published', deletedAt: null } }),
       isOwner ? prisma.postFavorite.count({ where: { userId: id } }) : Promise.resolve(0),
-      isOwner ? prisma.postFavorite.count({ where: { userId: id } }) : Promise.resolve(0),
-      // 该用户所有已发布卷收到的点赞合计（对外公开，需排除软删除帖）
+      // 该用户所有公开内容被收藏的次数。
       prisma.postFavorite.count({
         where: { post: { userId: id, status: 'published', deletedAt: null } },
       }),
@@ -81,6 +75,7 @@ export default async function ProfilePage({
         where: {
           userId: id,
           status: 'published',
+          mcpApproved: true,
           skillAsset: { isNot: null },
         },
       }),
@@ -104,7 +99,6 @@ export default async function ProfilePage({
           })
         : Promise.resolve(null),
     ]);
-  const receivedLikes = receivedLikesAgg;
   const isFollowing = !!myFollowRow;
   const profileBadges = getProfileBadges({
     postCount,
@@ -125,7 +119,7 @@ export default async function ProfilePage({
   /* —— 取该 Tab 对应的内容 —— */
   let posts: any[] = [];
   if (tab === 'posts') {
-    const where = isOwner ? { userId: id, deletedAt: null } : { userId: id, status: 'published', deletedAt: null };
+    const where = { userId: id, status: 'published', deletedAt: null };
     posts = await prisma.post.findMany({
       where,
       include: {
@@ -142,34 +136,9 @@ export default async function ProfilePage({
           },
         },
       },
-      orderBy: { createdAt: 'desc' },
+      orderBy: [{ featured: 'desc' }, { createdAt: 'desc' }],
       take: 50,
     });
-  } else if (tab === 'stars') {
-    const likes = await prisma.postFavorite.findMany({
-      where: { userId: id },
-      include: {
-        post: {
-          include: {
-            author: { select: { id: true, nickname: true, role: true, avatarUrl: true } },
-            _count: { select: { comments: true, stars: true, attachments: true } },
-            skillAsset: {
-              select: {
-                id: true,
-                assetType: true,
-                originalAuthor: true,
-                sourceUrl: true,
-                installHint: true,
-                usageNotes: true,
-              },
-            },
-          },
-        },
-      },
-      orderBy: { createdAt: 'desc' },
-      take: 50,
-    });
-    posts = likes.filter((l) => l.post.status === 'published').map((l) => l.post);
   } else if (tab === 'favorites') {
     const favs = await prisma.postFavorite.findMany({
       where: { userId: id },
@@ -211,158 +180,100 @@ export default async function ProfilePage({
   const items = posts.map((p) => mapPostToCardData(p, myStarredIds.has(p.id)));
 
   return (
-    <div className="mx-auto max-w-prose">
-      {/* ============ 纹章 Hero ============ */}
-      <header className="relative border border-paper-edge bg-vellum rounded-md px-5 sm:px-8 py-8 sm:py-10 mb-10 text-center">
-        <CrestCorners className="m-2" />
-
-        <p className="font-display tracking-display text-[10px] text-sepia uppercase mb-4">
-          Collected Works
-        </p>
-
-        <div className="flex justify-center mb-5">
-          <RoleBadge role={user.role} size={68} />
+    <div className="mx-auto max-w-page px-4 py-8 sm:px-6 sm:py-10">
+      <header className="relative mb-9 overflow-hidden border-y border-paper-edge bg-vellum/55">
+        <div className="pointer-events-none absolute -right-5 top-0 font-serif text-[96px] leading-none tracking-[-0.06em] text-gilded opacity-[0.055] sm:text-[150px]" aria-hidden="true">
+          PROFILE
         </div>
+        <div className="relative grid lg:grid-cols-[minmax(0,1.45fr)_minmax(300px,0.55fr)]">
+          <div className="px-5 py-7 sm:px-8 sm:py-9 lg:pr-12">
+            <div className="mb-5 flex items-center gap-4">
+              <RoleBadge role={user.role} size={58} />
+              <div className="min-w-0">
+                <p className="mb-1 font-display text-[10px] uppercase tracking-[0.22em] text-gilded">Contributor profile</p>
+                <h1 className="break-words font-serif text-[30px] leading-tight text-ink-brown sm:text-[40px]">{user.nickname}</h1>
+                <p className="mt-1 font-serif text-sm italic text-leather">
+                  {investorRoleFullName(user.role)}
+                  {user.institution && <span className="text-sepia"> · {user.institution}</span>}
+                </p>
+              </div>
+            </div>
 
-        <h1 className="font-serif text-[26px] sm:text-[34px] leading-tight text-ink-brown break-all">
-          {user.nickname}
-        </h1>
-        <p className="font-serif italic text-leather mt-1.5">
-          {investorRoleFullName(user.role)}
-          {user.institution && <span className="text-sepia"> · {user.institution}</span>}
-        </p>
-        {user.bio && (
-          <p className="mt-3 font-sans text-sm text-leather leading-relaxed max-w-lg mx-auto">
-            {user.bio}
-          </p>
-        )}
+            {user.bio && <p className="max-w-2xl font-sans text-sm leading-7 text-leather">{user.bio}</p>}
 
-        {profileBadges.length > 0 && (
-          <div className="mt-5 flex flex-wrap justify-center gap-2">
-            {profileBadges.map((badge) => (
-              <span
-                key={badge}
-                className="inline-flex items-center h-7 px-3 rounded-full border border-gilded/50 bg-gilded/10 font-sans text-[11px] text-ink-brown"
-              >
-                {badge}
-              </span>
-            ))}
-          </div>
-        )}
+            <div className="mt-5 flex flex-wrap items-center gap-2">
+              {isOwner ? (
+                <>
+                  <Link href="/settings" className="inline-flex h-9 items-center border border-ink-brown bg-ink-brown px-4 font-serif text-sm text-parchment transition-colors hover:bg-sepia">编辑资料</Link>
+                  <Link href="/dashboard" className="inline-flex h-9 items-center border border-paper-edge bg-vellum px-4 font-serif text-sm text-leather transition-colors hover:border-ink-brown hover:text-ink-brown">我的工作台</Link>
+                  <span className="ml-1 font-sans text-xs text-sepia">私有收藏 {favCount}</span>
+                </>
+              ) : (
+                <FollowButton userId={user.id} initialFollowing={isFollowing} isAuthed={!!me} />
+              )}
+            </div>
 
-        {(focusScenes.length > 0 || focusIndustries.length > 0) && (
-          <div className="mt-5 grid grid-cols-1 sm:grid-cols-2 gap-3 text-left">
-            {focusScenes.length > 0 && (
-              <ProfileFocus title="常写任务" items={focusScenes} />
-            )}
-            {focusIndustries.length > 0 && (
-              <ProfileFocus title="关注赛道" items={focusIndustries} />
+            {(focusScenes.length > 0 || focusIndustries.length > 0) && (
+              <div className="mt-6 grid gap-3 sm:grid-cols-2">
+                {focusScenes.length > 0 && <ProfileFocus title="常写任务" items={focusScenes} />}
+                {focusIndustries.length > 0 && <ProfileFocus title="关注赛道" items={focusIndustries} />}
+              </div>
             )}
           </div>
-        )}
 
-        {/* 本人主页：编辑资料入口 */}
-        {isOwner && (
-          <div className="mt-4">
-            <Link
-              href="/settings"
-              className="inline-flex items-center h-8 px-4 border border-paper-edge text-leather hover:border-ink-brown hover:text-ink-brown font-serif text-sm rounded-sm transition-colors"
-            >
-              编辑资料
-            </Link>
-          </div>
-        )}
-
-        {/* —— 关注按钮（仅他人主页可见） —— */}
-        {!isOwner && (
-          <div className="mt-5">
-            <FollowButton
-              userId={user.id}
-              initialFollowing={isFollowing}
-              isAuthed={!!me}
-            />
-          </div>
-        )}
-
-        <div className="mt-5 flex justify-center text-sepia">
-          <Ornament width={56} />
+          <aside className="border-t border-paper-edge bg-parchment/35 px-5 py-7 sm:px-7 lg:border-l lg:border-t-0">
+            <div className="flex items-baseline justify-between border-b border-paper-edge pb-3">
+              <p className="font-display text-[10px] uppercase tracking-[0.2em] text-sepia">Contribution record</p>
+              <span className="font-mono text-[10px] text-gilded">#{String(user.id).padStart(4, '0')}</span>
+            </div>
+            <dl className="grid grid-cols-2 gap-px bg-paper-edge my-5 border border-paper-edge">
+              <ProfileMetric n={postCount} label="公开发布" />
+              <ProfileMetric n={workflowCount} label="工作流" />
+              <ProfileMetric n={receivedFavoritesCount} label="被收藏" />
+              <ProfileMetric n={followersCount} label="关注者" />
+            </dl>
+            <div className="space-y-2">
+              {profileBadges.map((badge) => (
+                <div key={badge.label} className="flex items-center justify-between gap-3 border-b border-paper-edge/70 pb-2 last:border-0">
+                  <span className="font-serif text-sm text-ink-brown">{badge.label}</span>
+                  <span className="font-mono text-[10px] text-sepia">{badge.detail}</span>
+                </div>
+              ))}
+            </div>
+            <p className="mt-5 font-serif text-xs italic text-sepia">加入于 {formatTime(user.createdAt)} · 关注 {followingCount}</p>
+          </aside>
         </div>
-
-        {/* —— 数据条 —— */}
-        <dl className="mt-5 flex flex-wrap items-baseline justify-center gap-x-6 gap-y-2 font-sans text-xs text-sepia">
-          <Stat n={postCount} label="发布" />
-          <Sep dot />
-          <Stat n={workflowCount} label="工作流" />
-          <Sep dot />
-          <Stat n={receivedLikes} label="获赞" />
-          <Sep dot />
-          <Stat n={followersCount} label="粉丝" />
-          <Sep dot />
-          <Stat n={followingCount} label="关注" />
-          {isOwner && (
-            <>
-              <Sep dot />
-              <Stat n={starCount} label="我的赞" />
-              <Sep dot />
-              <Stat n={favCount} label="收藏" />
-            </>
-          )}
-        </dl>
-
-        <p className="mt-3 font-serif italic text-xs text-sepia">
-          执笔自 {formatTime(user.createdAt)}
-        </p>
       </header>
 
-      {/* ============ Tab 切换 ============ */}
-      <nav className="flex justify-center items-baseline gap-0 mb-8 border-b border-paper-edge">
-        <TabLink href={`/profile/${id}?tab=posts`} active={tab === 'posts'} numeral={TAB_LABEL.posts.numeral} count={postCount}>
-          {TAB_LABEL.posts.label}
-        </TabLink>
-        {isOwner && (
-          <>
-            <Sep />
-            <TabLink href={`/profile/${id}?tab=stars`} active={tab === 'stars'} numeral={TAB_LABEL.stars.numeral} count={starCount}>
-              {TAB_LABEL.stars.label}
-            </TabLink>
-            <Sep />
-            <TabLink href={`/profile/${id}?tab=favorites`} active={tab === 'favorites'} numeral={TAB_LABEL.favorites.numeral} count={favCount}>
-              {TAB_LABEL.favorites.label}
-            </TabLink>
-          </>
-        )}
-      </nav>
+      <div className="mb-6 flex flex-col gap-3 border-b border-paper-edge sm:flex-row sm:items-end sm:justify-between">
+        <div>
+          <p className="font-display text-[10px] uppercase tracking-[0.2em] text-gilded">Selected work</p>
+          <h2 className="mt-1 font-serif text-2xl text-ink-brown">贡献与作品</h2>
+        </div>
+        <nav className="flex items-baseline" aria-label="个人主页内容">
+          <TabLink href={`/profile/${id}?tab=posts`} active={tab === 'posts'} numeral={TAB_LABEL.posts.numeral} count={postCount}>{TAB_LABEL.posts.label}</TabLink>
+          {isOwner && (
+            <>
+              <Sep />
+              <TabLink href={`/profile/${id}?tab=favorites`} active={tab === 'favorites'} numeral={TAB_LABEL.favorites.numeral} count={favCount}>{TAB_LABEL.favorites.label}</TabLink>
+            </>
+          )}
+        </nav>
+      </div>
 
-      {/* ============ 内容 ============ */}
       {items.length === 0 ? (
         <EmptyTab tab={tab} isOwner={isOwner} />
       ) : (
-        <ol className="space-y-5">
-          {items.map((p, idx) => (
-            <li key={p.id} className="relative">
-              <span
-                className="hidden lg:block absolute -left-12 top-7 font-display tracking-display text-xs text-sepia num-osf"
-                aria-hidden="true"
-              >
-                {String(idx + 1).padStart(2, '0')}
-              </span>
-              <PostCard post={p} currentUserId={me?.id ?? null} />
+        <ol className="grid min-w-0 grid-cols-1 gap-4 md:grid-cols-2">
+          {items.map((post) => (
+            <li key={post.id} className="min-w-0">
+              <PostCard post={post} currentUserId={me?.id ?? null} variant="shelf" />
             </li>
           ))}
         </ol>
       )}
 
-      {/* —— 尾部 —— */}
-      {items.length > 0 && (
-        <footer className="mt-12 text-center">
-          <div className="flex justify-center mb-3 text-leather">
-            <Ornament width={48} />
-          </div>
-          <p className="font-serif italic text-sm text-sepia">
-            共 <span className="num-osf">{items.length}</span> 条
-          </p>
-        </footer>
-      )}
+      {items.length > 0 && <p className="mt-8 border-t border-paper-edge pt-4 text-right font-serif text-sm italic text-sepia">共 {items.length} 条公开记录</p>}
     </div>
   );
 }
@@ -386,6 +297,7 @@ function TabLink({
   return (
     <Link
       href={href}
+      aria-current={active ? 'page' : undefined}
       className={cn(
         'relative inline-flex items-baseline gap-2 px-5 py-3 transition-colors',
         active ? 'text-ink-brown' : 'text-sepia hover:text-leather',
@@ -403,18 +315,15 @@ function TabLink({
   );
 }
 
-function Sep({ dot }: { dot?: boolean } = {}) {
-  if (dot) return <span className="text-paper-edge select-none">·</span>;
+function Sep() {
   return <span className="h-3 w-px bg-paper-edge" />;
 }
 
-function Stat({ n, label }: { n: number; label: string }) {
+function ProfileMetric({ n, label }: { n: number; label: string }) {
   return (
-    <div className="inline-flex items-baseline gap-1.5">
-      <span className="num-osf font-serif text-base text-ink-brown">
-        {formatStatNumber(n)}
-      </span>
-      <span className="font-serif text-[11px] text-sepia">{label}</span>
+    <div className="flex flex-col bg-vellum/80 px-3 py-3">
+      <dt className="order-2 mt-1 font-sans text-[10px] text-sepia">{label}</dt>
+      <dd className="order-1 num-osf font-serif text-2xl text-ink-brown">{formatStatNumber(n)}</dd>
     </div>
   );
 }
@@ -458,12 +367,12 @@ function getProfileBadges({
   featuredCount: number;
   isAdmin: boolean;
 }) {
-  const badges: string[] = [];
-  if (isAdmin || featuredCount > 0) badges.push('Curated by N.E.I.');
-  if (postCount > 0) badges.push('Skill Contributor');
-  if (workflowCount > 0) badges.push('Workflow Builder');
-  if (mcpReadyCount > 0) badges.push('MCP Ready Builder');
-  if (postCount === 0) badges.push('Founding Member');
+  const badges: { label: string; detail: string }[] = [];
+  if (isAdmin || featuredCount > 0) badges.push({ label: 'N.E.I. 精选贡献者', detail: `${featuredCount} 项精选` });
+  if (postCount > 0) badges.push({ label: '内容贡献者', detail: `${postCount} 项公开` });
+  if (workflowCount > 0) badges.push({ label: '工作流作者', detail: `${workflowCount} 项` });
+  if (mcpReadyCount > 0) badges.push({ label: 'MCP Ready', detail: `${mcpReadyCount} 项可调用` });
+  if (postCount === 0) badges.push({ label: 'N.E.I. 成员', detail: '尚未发布' });
   return badges.slice(0, 4);
 }
 
@@ -485,10 +394,6 @@ function EmptyTab({ tab, isOwner }: { tab: Tab; isOwner: boolean }) {
       line: isOwner ? '还没有发布过内容' : '这个人还没有发布内容',
       sub:  isOwner ? '把好用的 prompt、模板、工作流分享出来吧' : '',
       cta:  isOwner ? { href: '/publish', label: '发布第一个' } : undefined,
-    },
-    stars: {
-      line: '还没有点赞过内容',
-      sub:  '看到有用的内容，点个赞就会在这里显示',
     },
     favorites: {
       line: '还没有收藏内容',

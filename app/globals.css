@@ -195,6 +195,477 @@
   animation: pevc-breath 1.8s ease-in-out infinite;
 }
 
+/* 全站底纸：Deal Flow Field。墨点与路径只在页面空白处显现。 */
+.site-atmosphere {
+  pointer-events: none;
+  position: fixed;
+  inset: 0;
+  z-index: 0;
+  overflow: hidden;
+}
+
+.site-atmosphere__light,
+.site-atmosphere__field,
+.site-atmosphere__fibres {
+  position: absolute;
+}
+
+.site-atmosphere__light {
+  inset: -8vh -7vw;
+  opacity: 0.76;
+  background:
+    radial-gradient(ellipse 42% 36% at 11% 14%, rgba(255, 253, 244, 0.92), transparent 72%),
+    radial-gradient(ellipse 34% 42% at 88% 28%, rgba(214, 205, 167, 0.22), transparent 74%),
+    radial-gradient(ellipse 46% 36% at 70% 88%, rgba(174, 191, 169, 0.12), transparent 76%);
+  transform: scale(1.03);
+  animation: site-light-breathe 18s ease-in-out infinite alternate;
+}
+
+.site-atmosphere__field {
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  opacity: 0.92;
+}
+
+.site-atmosphere__fibres {
+  inset: 0;
+  opacity: 0.16;
+  background-image:
+    repeating-linear-gradient(8deg, rgba(96, 73, 42, 0.055) 0, rgba(96, 73, 42, 0.055) 1px, transparent 1px, transparent 17px);
+  mask-image: radial-gradient(ellipse at center, #000 0%, transparent 76%);
+}
+
+@keyframes site-light-breathe {
+  from { opacity: 0.62; filter: saturate(90%); }
+  to { opacity: 0.82; filter: saturate(108%); }
+}
+
+@media (max-width: 767px) {
+  .site-atmosphere__field { opacity: 0.62; }
+  .site-atmosphere__fibres { opacity: 0.11; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .site-atmosphere__light {
+    animation: none;
+  }
+}
+
+/* ========================================================================
+   Memory Node · Local Aurora
+   独立于全站羊皮纸视觉：低功耗、冷色、本地节点感。
+   ======================================================================== */
+.memory-atmosphere {
+  position: relative;
+  isolation: isolate;
+  overflow: hidden;
+  background:
+    radial-gradient(circle at 72% 15%, rgba(53, 126, 120, 0.19), transparent 34%),
+    linear-gradient(128deg, #071414 0%, #071a21 52%, #0a2021 100%);
+}
+
+.memory-atmosphere__aurora,
+.memory-atmosphere__grid,
+.memory-atmosphere__spotlight,
+.memory-atmosphere__noise {
+  pointer-events: none;
+  position: absolute;
+  inset: 0;
+}
+
+.memory-atmosphere__aurora {
+  inset: -42%;
+  opacity: 0.72;
+  filter: blur(54px) saturate(115%);
+  background:
+    radial-gradient(ellipse at 28% 38%, rgba(45, 171, 154, 0.25), transparent 30%),
+    radial-gradient(ellipse at 72% 64%, rgba(30, 104, 134, 0.25), transparent 29%),
+    radial-gradient(ellipse at 54% 42%, rgba(190, 153, 82, 0.09), transparent 21%);
+  animation: memory-aurora-drift 16s ease-in-out infinite alternate;
+}
+
+.memory-atmosphere__grid {
+  opacity: 0.13;
+  background-image:
+    linear-gradient(rgba(151, 221, 207, 0.22) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(151, 221, 207, 0.22) 1px, transparent 1px);
+  background-size: 52px 52px;
+  mask-image: linear-gradient(to bottom right, black 5%, transparent 68%);
+}
+
+.memory-atmosphere__spotlight {
+  opacity: 0.9;
+  background: radial-gradient(
+    circle 310px at var(--memory-x) var(--memory-y),
+    rgba(93, 226, 204, 0.2),
+    rgba(41, 154, 160, 0.075) 35%,
+    transparent 72%
+  );
+  transition: opacity 240ms ease;
+}
+
+.memory-atmosphere__noise {
+  opacity: 0.12;
+  background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 180 180' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.95' numOctaves='2' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='.28'/%3E%3C/svg%3E");
+  mix-blend-mode: soft-light;
+}
+
+.memory-atmosphere--compact .memory-atmosphere__aurora {
+  opacity: 0.58;
+  filter: blur(42px) saturate(110%);
+}
+
+.memory-atmosphere--compact .memory-atmosphere__grid {
+  background-size: 42px 42px;
+  opacity: 0.1;
+}
+
+.memory-atmosphere--compact .memory-atmosphere__spotlight {
+  background: radial-gradient(
+    circle 220px at var(--memory-x) var(--memory-y),
+    rgba(93, 226, 204, 0.2),
+    rgba(41, 154, 160, 0.065) 42%,
+    transparent 76%
+  );
+}
+
+@keyframes memory-aurora-drift {
+  0% { transform: translate3d(-2%, -1%, 0) rotate(-2deg) scale(1); }
+  55% { transform: translate3d(3%, 2%, 0) rotate(2deg) scale(1.04); }
+  100% { transform: translate3d(-1%, 4%, 0) rotate(-1deg) scale(1.02); }
+}
+
+@media (hover: none), (pointer: coarse) {
+  .memory-atmosphere__spotlight {
+    background: radial-gradient(circle 280px at 72% 24%, rgba(93, 226, 204, 0.17), transparent 72%);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .memory-atmosphere__aurora { animation: none; }
+  .memory-atmosphere__spotlight { transition: none; }
+}
+
+/* ========================================================================
+   Skills Directory · Living Research Atlas
+   开放知识库使用明亮的索引地图语言，与 Memory Node 的暗色节点区分。
+   ======================================================================== */
+.skill-atlas {
+  position: relative;
+  isolation: isolate;
+  overflow: hidden;
+  border: 1px solid rgba(115, 91, 58, 0.2);
+  border-radius: 4px;
+  background:
+    linear-gradient(112deg, rgba(251, 248, 239, 0.96) 0%, rgba(246, 241, 228, 0.95) 62%, rgba(235, 238, 226, 0.92) 100%);
+  box-shadow: 0 24px 70px -60px rgba(46, 62, 55, 0.65);
+}
+
+.skill-atlas::after {
+  content: '';
+  pointer-events: none;
+  position: absolute;
+  inset: 11px;
+  z-index: 1;
+  border: 1px solid rgba(115, 91, 58, 0.08);
+}
+
+.skill-atlas__coordinates,
+.skill-atlas__contours,
+.skill-atlas__index {
+  pointer-events: none;
+  position: absolute;
+  inset: 0;
+}
+
+.skill-atlas__coordinates {
+  opacity: 0.32;
+  background-image:
+    linear-gradient(rgba(49, 99, 91, 0.12) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(49, 99, 91, 0.12) 1px, transparent 1px);
+  background-size: 36px 36px;
+  mask-image: linear-gradient(90deg, transparent 46%, #000 72%, rgba(0, 0, 0, 0.65));
+  transform: translate3d(var(--atlas-shift-x), var(--atlas-shift-y), 0);
+  transition: transform 180ms ease-out;
+}
+
+.skill-atlas__contours {
+  left: 51%;
+  top: -50%;
+  width: 68%;
+  height: 175%;
+  opacity: 0.42;
+  border: 1px solid rgba(65, 103, 91, 0.18);
+  border-radius: 47% 53% 45% 55%;
+  box-shadow:
+    0 0 0 38px rgba(65, 103, 91, 0.055),
+    0 0 0 39px rgba(65, 103, 91, 0.12),
+    0 0 0 92px rgba(65, 103, 91, 0.035),
+    0 0 0 93px rgba(65, 103, 91, 0.1),
+    0 0 0 156px rgba(65, 103, 91, 0.025),
+    0 0 0 157px rgba(65, 103, 91, 0.075);
+  transform: translate3d(var(--atlas-shift-x), var(--atlas-shift-y), 0) rotate(-9deg);
+  transition: transform 220ms cubic-bezier(.2,.8,.2,1);
+  animation: atlas-contour-breathe 12s ease-in-out infinite alternate;
+}
+
+.skill-atlas__index {
+  z-index: 1;
+  opacity: 0.76;
+  transform: translate3d(var(--atlas-shift-x), var(--atlas-shift-y), 0);
+  transition: transform 240ms cubic-bezier(.2,.8,.2,1);
+}
+
+.skill-atlas__node {
+  position: absolute;
+  display: none;
+  align-items: center;
+  width: 130px;
+  color: rgba(53, 83, 73, 0.72);
+  font-family: ui-monospace, 'SF Mono', Menlo, monospace;
+  font-size: 9px;
+  letter-spacing: 0.08em;
+  animation: atlas-node-float 7s ease-in-out infinite alternate;
+}
+
+.skill-atlas__node span { color: rgba(160, 119, 48, 0.68); }
+.skill-atlas__node i {
+  height: 4px;
+  width: 4px;
+  margin: 0 7px;
+  border: 1px solid rgba(39, 101, 89, 0.64);
+  border-radius: 999px;
+  background: rgba(249, 246, 236, 0.8);
+  box-shadow: 0 0 0 4px rgba(60, 132, 118, 0.06);
+}
+.skill-atlas__node strong { font-weight: 500; white-space: nowrap; }
+
+@media (min-width: 1024px) {
+  .skill-atlas__node { display: flex; }
+  .skill-atlas > div:last-child { max-width: 79%; }
+}
+
+@keyframes atlas-contour-breathe {
+  from { border-radius: 47% 53% 45% 55%; }
+  to { border-radius: 54% 46% 53% 47%; }
+}
+
+@keyframes atlas-node-float {
+  from { margin-top: -3px; opacity: 0.58; }
+  to { margin-top: 4px; opacity: 0.94; }
+}
+
+@media (hover: none), (pointer: coarse) {
+  .skill-atlas__coordinates { transform: none; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .skill-atlas__contours,
+  .skill-atlas__node { animation: none; }
+  .skill-atlas__coordinates,
+  .skill-atlas__contours,
+  .skill-atlas__index { transition: none; }
+}
+
+/* MCP surfaces: the library reads like an intelligence radar, while /connect
+   behaves like a quiet local access console. Keep both inside the paper system. */
+.mcp-library-radar,
+.mcp-connect-orbit {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+  pointer-events: none;
+}
+
+.mcp-library-radar::before {
+  content: '';
+  position: absolute;
+  width: min(74vw, 980px);
+  aspect-ratio: 1;
+  right: -18%;
+  top: -58%;
+  opacity: 0.58;
+  border-radius: 999px;
+  background:
+    radial-gradient(circle at center, rgba(69, 112, 99, 0.16) 0 2px, transparent 3px),
+    repeating-radial-gradient(circle at center, transparent 0 78px, rgba(91, 112, 91, 0.12) 79px, transparent 80px 124px),
+    conic-gradient(from 12deg at center, transparent 0 12%, rgba(166, 129, 56, 0.08) 12.2% 12.45%, transparent 12.7% 37%, rgba(70, 108, 95, 0.08) 37.2% 37.45%, transparent 37.7% 100%);
+  mask-image: radial-gradient(circle, #000 0 52%, rgba(0, 0, 0, 0.72) 68%, transparent 76%);
+  animation: mcp-radar-drift 24s ease-in-out infinite alternate;
+}
+
+.mcp-library-radar::after {
+  content: 'SEARCH  /  PAPERS  /  BIOMED  /  HARDTECH  /  MARKET';
+  position: absolute;
+  right: 3%;
+  bottom: 16%;
+  color: rgba(74, 103, 91, 0.35);
+  font-family: ui-monospace, 'SF Mono', Menlo, monospace;
+  font-size: 9px;
+  letter-spacing: 0.2em;
+  transform: rotate(-90deg) translateX(100%);
+  transform-origin: right bottom;
+}
+
+.mcp-connect-orbit::before {
+  content: '';
+  position: absolute;
+  width: min(66vw, 860px);
+  aspect-ratio: 1;
+  right: -8%;
+  top: -66%;
+  border-radius: 999px;
+  opacity: 0.48;
+  background:
+    radial-gradient(circle at 50% 50%, rgba(57, 112, 98, 0.17) 0 2px, transparent 3px),
+    repeating-radial-gradient(circle at 50% 50%, transparent 0 92px, rgba(169, 132, 58, 0.11) 93px, transparent 94px 146px);
+  mask-image: linear-gradient(110deg, transparent 4%, #000 30%, rgba(0, 0, 0, 0.74) 68%, transparent 92%);
+  animation: mcp-orbit-breathe 16s ease-in-out infinite alternate;
+}
+
+.mcp-access-hero {
+  isolation: isolate;
+}
+
+.mcp-access-hero::before {
+  content: '';
+  position: absolute;
+  z-index: -1;
+  inset: -22% -6%;
+  pointer-events: none;
+  opacity: 0.78;
+  background:
+    radial-gradient(circle 230px at 72% 38%, rgba(57, 113, 98, 0.08), rgba(177, 136, 54, 0.035) 44%, transparent 72%),
+    radial-gradient(ellipse at 78% 48%, rgba(248, 241, 218, 0.58), transparent 58%);
+}
+
+.mcp-access-brief {
+  transition: border-color 220ms ease;
+}
+
+.mcp-access-hero:hover .mcp-access-brief {
+  border-color: rgba(166, 127, 52, 0.5);
+}
+
+.mcp-console-shell {
+  --console-pointer-x: 76%;
+  --console-pointer-y: 22%;
+  position: relative;
+  isolation: isolate;
+  background-image:
+    radial-gradient(circle at 84% 8%, rgba(100, 148, 132, 0.13), transparent 28%),
+    linear-gradient(120deg, rgba(255, 255, 255, 0.025), transparent 38%);
+}
+
+.mcp-console-pointer {
+  position: absolute;
+  z-index: 0;
+  inset: 0;
+  overflow: hidden;
+  pointer-events: none;
+  opacity: 0.76;
+  background:
+    radial-gradient(circle 210px at var(--console-pointer-x) var(--console-pointer-y), rgba(112, 158, 139, 0.13), rgba(196, 154, 69, 0.045) 48%, transparent 72%),
+    linear-gradient(rgba(239, 225, 198, 0.035) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(239, 225, 198, 0.035) 1px, transparent 1px);
+  background-size: auto, 38px 38px, 38px 38px;
+  mask-image: radial-gradient(circle 250px at var(--console-pointer-x) var(--console-pointer-y), #000 0 32%, rgba(0, 0, 0, 0.76) 62%, transparent 100%);
+}
+
+.mcp-console-input {
+  color: #f5ead6 !important;
+  background: rgba(18, 12, 7, 0.28) !important;
+  caret-color: #c49a45;
+}
+
+.mcp-console-scan {
+  position: absolute;
+  z-index: -1;
+  inset: 0;
+  overflow: hidden;
+  pointer-events: none;
+}
+
+.mcp-console-scan::after {
+  content: '';
+  position: absolute;
+  top: -20%;
+  left: 0;
+  width: 100%;
+  height: 18%;
+  opacity: 0.42;
+  background: linear-gradient(to bottom, transparent, rgba(121, 178, 155, 0.075), transparent);
+  animation: mcp-console-scan 9s linear infinite;
+}
+
+.mcp-panel-enter,
+.mcp-dossier-enter {
+  animation: mcp-panel-enter 300ms cubic-bezier(.2,.8,.2,1) both;
+}
+
+.mcp-dossier-grid {
+  background-image:
+    linear-gradient(rgba(59, 94, 82, 0.055) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(59, 94, 82, 0.055) 1px, transparent 1px);
+  background-size: 28px 28px;
+  mask-image: linear-gradient(135deg, #000 0 62%, transparent 100%);
+}
+
+.mcp-signal-dot {
+  position: relative;
+}
+
+.mcp-signal-dot::after {
+  content: '';
+  position: absolute;
+  inset: -4px;
+  border: 1px solid currentColor;
+  border-radius: 999px;
+  opacity: 0;
+  animation: mcp-signal-pulse 2.4s ease-out infinite;
+}
+
+@keyframes mcp-radar-drift {
+  from { transform: rotate(-3deg) scale(0.98); }
+  to { transform: rotate(5deg) scale(1.025); }
+}
+
+@keyframes mcp-orbit-breathe {
+  from { transform: translate3d(-5px, 4px, 0) scale(0.98); }
+  to { transform: translate3d(8px, -5px, 0) scale(1.02); }
+}
+
+@keyframes mcp-console-scan {
+  from { transform: translateY(-15%); }
+  to { transform: translateY(720%); }
+}
+
+@keyframes mcp-panel-enter {
+  from { opacity: 0; transform: translateY(7px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes mcp-signal-pulse {
+  0% { opacity: 0.42; transform: scale(0.72); }
+  70%, 100% { opacity: 0; transform: scale(1.8); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .mcp-library-radar::before,
+  .mcp-connect-orbit::before,
+  .mcp-console-scan::after,
+  .mcp-panel-enter,
+  .mcp-dossier-enter,
+  .mcp-signal-dot::after {
+    animation: none;
+  }
+
+  .mcp-access-brief {
+    transition: none;
+  }
+}
+
 @layer utilities {
   .divider-double {
     border: 0;

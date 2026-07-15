@@ -56,9 +56,9 @@ export default function SecurityPage() {
           <h2>Token 管理</h2>
           <ul>
             <li>Token 以 <code>nei_</code> 开头，只在生成时显示一次；平台只保存 hash，不保存明文。</li>
-            <li>Token 可在 <Link href="/connect" className="text-wax-red">连接配置页</Link> 随时重置或撤销。</li>
+            <li>建议每个 Agent 客户端使用独立 Token，并在 <Link href="/connect" className="text-wax-red">连接配置页</Link> 单独命名、查看状态或撤销。</li>
             <li>不要把 Token 发给陌生网页、群聊、截图、共享文档或不可信 Agent。</li>
-            <li>如 Token 泄露，请立即重置；旧 Token 会失效。</li>
+            <li>如某个 Token 泄露，只需撤销对应连接，不影响其他客户端。</li>
           </ul>
 
           <h2>Skill 准入 MCP 的规则</h2>
@@ -104,7 +104,7 @@ export default function SecurityPage() {
               <br />
               N.E.I. 不保存项目材料。
               <br />
-              Token 泄露后立即重置。
+              Token 泄露后立即撤销对应连接。
             </p>
           </div>
         </aside>

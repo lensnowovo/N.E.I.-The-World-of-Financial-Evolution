@@ -11,6 +11,7 @@ import { withMetrics } from '@/lib/metrics';
 import { wrapWithSafetyRules } from '@/lib/mcp-safety';
 import { normalizePublicText } from '@/lib/public-url';
 import { ACTIVITY_EVENT, trackActivity } from '@/lib/activity';
+import { hashMcpAccessToken } from '@/lib/mcp-access-tokens';
 import {
   buildConnectorSetupPrompt,
   getConnectorById,
@@ -69,12 +70,27 @@ const RECOMMENDED_SEQUENCES: Record<string, string[]> = {
 
 type JsonValue = Record<string, unknown> | Array<unknown> | string | number | boolean | null;
 
-async function getUidFromRequest(req: Request): Promise<number | null> {
+type McpAuthContext = { uid: number; tokenId: number | null };
+
+async function getAuthContextFromRequest(req: Request): Promise<McpAuthContext | null> {
   const auth = req.headers.get('authorization');
   if (!auth?.startsWith('Bearer ')) return null;
   const token = auth.slice(7).trim();
   if (!token.startsWith('nei_')) return null;
-  const hash = crypto.createHash('sha256').update(token).digest('hex');
+  const hash = hashMcpAccessToken(token);
+
+  const accessToken = await prisma.mcpAccessToken.findUnique({
+    where: { tokenHash: hash },
+    select: { id: true, userId: true, revokedAt: true },
+  });
+  if (accessToken && !accessToken.revokedAt) {
+    void prisma.mcpAccessToken
+      .update({ where: { id: accessToken.id }, data: { lastUsedAt: new Date() } })
+      .catch(() => {});
+    return { uid: accessToken.userId, tokenId: accessToken.id };
+  }
+
+  // Backward compatibility for Tokens created before multi-client credentials shipped.
   const user = await prisma.user.findFirst({
     where: { mcpTokenHash: hash },
     select: { id: true },
@@ -85,7 +101,7 @@ async function getUidFromRequest(req: Request): Promise<number | null> {
     .update({ where: { id: user.id }, data: { tokenLastUsedAt: new Date() } })
     .catch(() => {});
 
-  return user.id;
+  return { uid: user.id, tokenId: null };
 }
 
 function safeJsonArray(raw: string | null): string[] {
@@ -254,7 +270,7 @@ function toolResultMessage(ok: boolean, message: string, extra: Record<string, u
   return jsonContent({ ok, message, ...extra, safety: MCP_SAFETY });
 }
 
-function makeHandler(uid: number, clientName: string | null, requestId: string) {
+function makeHandler(uid: number, tokenId: number | null, clientName: string | null, requestId: string) {
   return createMcpHandler(
     async (server: McpServer) => {
       const logCall = (tool: string, start: number, postId?: number) => {
@@ -263,6 +279,7 @@ function makeHandler(uid: number, clientName: string | null, requestId: string) 
           .create({
             data: {
               userId: uid,
+              tokenId,
               tool,
               postId,
               clientName,
@@ -950,22 +967,22 @@ function perRequestCtx(req: Request): { clientName: string | null; requestId: st
 export const POST = withMetrics('POST /api/mcp', mcpPost);
 
 async function mcpPost(req: Request): Promise<Response> {
-  const uid = await getUidFromRequest(req);
-  if (!uid) return unauthorizedResponse();
+  const auth = await getAuthContextFromRequest(req);
+  if (!auth) return unauthorizedResponse();
   const { clientName, requestId } = perRequestCtx(req);
-  return makeHandler(uid, clientName, requestId)(req);
+  return makeHandler(auth.uid, auth.tokenId, clientName, requestId)(req);
 }
 
 export async function GET(req: Request): Promise<Response> {
-  const uid = await getUidFromRequest(req);
-  if (!uid) return unauthorizedResponse();
+  const auth = await getAuthContextFromRequest(req);
+  if (!auth) return unauthorizedResponse();
   const { clientName, requestId } = perRequestCtx(req);
-  return makeHandler(uid, clientName, requestId)(req);
+  return makeHandler(auth.uid, auth.tokenId, clientName, requestId)(req);
 }
 
 export async function DELETE(req: Request): Promise<Response> {
-  const uid = await getUidFromRequest(req);
-  if (!uid) return unauthorizedResponse();
+  const auth = await getAuthContextFromRequest(req);
+  if (!auth) return unauthorizedResponse();
   const { clientName, requestId } = perRequestCtx(req);
-  return makeHandler(uid, clientName, requestId)(req);
+  return makeHandler(auth.uid, auth.tokenId, clientName, requestId)(req);
 }
