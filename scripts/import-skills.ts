@@ -7,7 +7,8 @@
  *
  * 用法（在 repo 根目录）：
  *   1. git clone --depth 1 https://github.com/anthropics/financial-services.git /tmp/fs-skills
- *   2. npx tsx scripts/import-skills.ts
+ *   2. npx tsx scripts/import-skills.ts /tmp/fs-skills          # 仅预览
+ *   3. npx tsx scripts/import-skills.ts /tmp/fs-skills --apply  # 确认后写入
  *
  * 幂等：按 sourceRepo + skillName 去重，重复运行不会重复灌。
  */
@@ -15,9 +16,9 @@
 import { PrismaClient } from '@prisma/client';
 import fs from 'fs/promises';
 import path from 'path';
-import { saveBuffer } from '../lib/storage';
 
 const prisma = new PrismaClient();
+const applyChanges = process.argv.includes('--apply');
 
 /** 搬运者账号 —— 所有导入 skill 的作者 */
 const LIBRARY_USER = {
@@ -477,9 +478,22 @@ const SKILLS: SkillMeta[] = [
   },
 ];
 
+function canonicalAnthropicTitle(title: string) {
+  const clean = title.replace(/\s+/g, ' ').trim();
+  if (/^Anthropic(?:\s|[\u3400-\u9fff])/.test(clean)) return clean;
+  return `Anthropic${/^[A-Za-z]/.test(clean) ? ' ' : ''}${clean}`;
+}
+
+function staticCacheKey(skillName: string) {
+  return `anthropic-${skillName}.md`;
+}
+
 async function ensureLibraryUser() {
   const existing = await prisma.user.findUnique({ where: { email: LIBRARY_USER.email } });
   if (existing) return existing;
+  if (!applyChanges) {
+    throw new Error('DRY RUN：Skill 图书馆账号不存在；使用 --apply 后才会创建');
+  }
   return prisma.user.create({
     data: {
       email: LIBRARY_USER.email,
@@ -490,25 +504,74 @@ async function ensureLibraryUser() {
   });
 }
 
-async function importOne(meta: SkillMeta, userId: number, repoRoot: string) {
+async function importOne(
+  meta: SkillMeta,
+  userId: number,
+  repoRoot: string,
+): Promise<'created' | 'updated' | 'unchanged'> {
   const fullPath = path.join(repoRoot, meta.mdPath);
+  const title = canonicalAnthropicTitle(meta.title);
+  const sourceUrl = `https://github.com/anthropics/financial-services/blob/main/${meta.mdPath}`;
 
   // 幂等：按 sourceRepo + skillName 查是否已导入
   const slug = `anthropics-financial-services/${meta.skillName}`;
   const dup = await prisma.post.findFirst({
     where: { body: { contains: slug } },
+    include: { skillAsset: true },
   });
   if (dup) {
-    console.log(`  ⏭️  ${meta.skillName} 已存在 (post #${dup.id})，跳过`);
-    return;
+    const postNeedsUpdate = dup.title !== title;
+    const assetNeedsUpdate =
+      !dup.skillAsset ||
+      dup.skillAsset.sourceUrl !== sourceUrl ||
+      dup.skillAsset.originalAuthor !== 'Anthropic';
+
+    if (!postNeedsUpdate && !assetNeedsUpdate) {
+      console.log(`  ⏭️  ${meta.skillName} 已同步 (post #${dup.id})`);
+      return 'unchanged';
+    }
+
+    console.log(
+      `  ${applyChanges ? '🔄' : '🔎'} ${meta.skillName} ` +
+        `(post #${dup.id})：${dup.title} → ${title}`,
+    );
+    if (!applyChanges) return 'updated';
+
+    await prisma.$transaction(async (tx) => {
+      if (postNeedsUpdate) {
+        await tx.post.update({ where: { id: dup.id }, data: { title } });
+      }
+      await tx.skillAsset.upsert({
+        where: { postId: dup.id },
+        update: { sourceUrl, originalAuthor: 'Anthropic' },
+        create: {
+          postId: dup.id,
+          assetType: meta.assetType,
+          sourceUrl,
+          originalAuthor: 'Anthropic',
+          installHint:
+            '下载 SKILL.md 后，在 Claude Code 里放到 ~/.claude/skills/ 目录即可。命令：/' +
+            meta.skillName,
+        },
+      });
+    });
+    return 'updated';
   }
 
-  // 读 SKILL.md
-  const mdContent = await fs.readFile(fullPath, 'utf-8');
+  console.log(`  ${applyChanges ? '➕' : '🔎'} 新增 ${meta.skillName}（${title}）`);
 
-  // 上传为附件
+  // 官方小型文本随部署进入 public/file-cache，避免生产内容依赖对象存储。
+  const mdContent = await fs.readFile(fullPath, 'utf-8');
   const buf = Buffer.from(mdContent, 'utf-8');
-  const storageKey = await saveBuffer(buf, `${meta.skillName}.md`);
+  const storageKey = staticCacheKey(meta.skillName);
+  const cached = await fs.readFile(
+    path.join(process.cwd(), 'public', 'file-cache', storageKey),
+  );
+  if (!cached.equals(buf)) {
+    throw new Error(`静态缓存与上游不一致：${storageKey}`);
+  }
+  if (!applyChanges) return 'created';
+
   const attachment = await prisma.attachment.create({
     data: {
       postId: null, // 先不绑，发帖后回填
@@ -526,7 +589,7 @@ async function importOne(meta: SkillMeta, userId: number, repoRoot: string) {
   const post = await prisma.post.create({
     data: {
       userId,
-      title: meta.title,
+      title,
       body,
       tagScene: meta.scene,
       tagIndustry: meta.industry ?? null,
@@ -536,7 +599,8 @@ async function importOne(meta: SkillMeta, userId: number, repoRoot: string) {
       skillAsset: {
         create: {
           assetType: meta.assetType,
-          sourceUrl: `https://github.com/anthropics/financial-services/blob/main/${meta.mdPath}`,
+          sourceUrl,
+          originalAuthor: 'Anthropic',
           installHint:
             '下载 SKILL.md 后，在 Claude Code 里放到 ~/.claude/skills/ 目录即可。命令：/' +
             meta.skillName,
@@ -551,12 +615,14 @@ async function importOne(meta: SkillMeta, userId: number, repoRoot: string) {
     data: { postId: post.id },
   });
 
-  console.log(`  ✅ ${meta.skillName} → post #${post.id} （${meta.title}）`);
+  console.log(`  ✅ ${meta.skillName} → post #${post.id}（${title}）`);
+  return 'created';
 }
 
 async function main() {
-  const repoRoot = process.argv[2] || '/tmp/fs-skills';
-  console.log(`📚 导入开源 skill，repo: ${repoRoot}`);
+  const repoRoot = process.argv.slice(2).find((arg) => !arg.startsWith('--')) || '/tmp/fs-skills';
+  console.log(`📚 同步开源 skill，repo: ${repoRoot}`);
+  console.log(`🛡️  模式：${applyChanges ? 'APPLY（写入）' : 'DRY RUN（只读预览）'}`);
 
   // 校验 repo 存在
   try {
@@ -566,21 +632,39 @@ async function main() {
     process.exit(1);
   }
 
+  // 写入前一次性验证全部上游文件，避免同步到一半才发现路径已变化。
+  const missingFiles: string[] = [];
+  for (const meta of SKILLS) {
+    try {
+      await fs.access(path.join(repoRoot, meta.mdPath));
+    } catch {
+      missingFiles.push(meta.mdPath);
+    }
+  }
+  if (missingFiles.length > 0) {
+    throw new Error(`上游缺少 ${missingFiles.length} 个 SKILL.md：\n${missingFiles.join('\n')}`);
+  }
+  console.log(`✅ 上游文件预检通过：${SKILLS.length} / ${SKILLS.length}`);
+
   const user = await ensureLibraryUser();
   console.log(`👤 作者账号：${user.nickname} (#${user.id})`);
 
-  let ok = 0;
-  let skip = 0;
+  const totals = { created: 0, updated: 0, unchanged: 0, failed: 0 };
   for (const meta of SKILLS) {
     try {
-      await importOne(meta, user.id, repoRoot);
-      ok++;
+      const result = await importOne(meta, user.id, repoRoot);
+      totals[result]++;
     } catch (e) {
+      totals.failed++;
       console.error(`  ❌ ${meta.skillName} 导入失败:`, (e as Error).message);
     }
   }
 
-  console.log(`\n🎉 完成：导入 ${ok} 个，跳过 ${skip} 个`);
+  console.log(
+    `\n${applyChanges ? '🎉 同步完成' : '📋 预览完成'}：` +
+      `新增 ${totals.created}，更新 ${totals.updated}，无变化 ${totals.unchanged}，失败 ${totals.failed}`,
+  );
+  if (totals.failed > 0) process.exitCode = 1;
 }
 
 main()
