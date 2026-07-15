@@ -94,7 +94,7 @@ N.E.I. 是 **Next.js 一体化应用**（前后端在同一项目，API 用 Next
 **关键约束**：
 - 本地无 DATABASE_URL。验收用 `npx tsc --noEmit`。
 - **改 `prisma/schema.prisma` 后，必须先 `npx prisma generate` 再 typecheck**，否则新增字段类型不存在导致 tsc 报错。
-- 部署用 `npm run vercel-build`（含 prisma db push），不要手写 SQL migration。
+- 部署用 `npm run vercel-build`（仅 `prisma generate && next build`，**禁止 db push**）。数据库结构变更走受控的 Prisma migration：生成 `prisma/migrations/`，正式环境用 `npm run db:migrate:deploy` 单独执行，不在构建阶段执行。CI 有 `check:release-safety` 门禁防止构建脚本里再出现 `prisma db push`。详见 `docs/DEPLOY.md` §5b。
 - session 自实现于 `lib/session.ts`（HMAC 签名 cookie）；取当前用户用 `getSessionUid()`，取用户对象用 `getCurrentUser()`。
 - 文件存储在 `lib/storage.ts`（R2/本地 fallback），MCP 在 `app/api/mcp/route.ts`。
 - 不要改业务逻辑/UI 除非 story 明确要求；遵循现有代码 patterns。
