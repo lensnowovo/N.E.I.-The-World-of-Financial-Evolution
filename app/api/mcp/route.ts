@@ -12,6 +12,7 @@ import { wrapWithSafetyRules } from '@/lib/mcp-safety';
 import { normalizePublicText } from '@/lib/public-url';
 import { ACTIVITY_EVENT, trackActivity } from '@/lib/activity';
 import { hashMcpAccessToken } from '@/lib/mcp-access-tokens';
+import { readCanonicalSkillContent } from '@/lib/canonical-skill-content';
 import {
   buildConnectorSetupPrompt,
   getConnectorById,
@@ -543,16 +544,23 @@ function makeHandler(uid: number, tokenId: number | null, clientName: string | n
                 deletedAt: true,
                 mcpApproved: true,
                 skillAsset: { select: { assetType: true, sourceUrl: true } },
+                attachments: {
+                  orderBy: { createdAt: 'asc' },
+                  select: { fileName: true, mimeType: true, storageKey: true },
+                },
               },
             });
             if (!post || post.status !== POST_STATUS.PUBLISHED || post.deletedAt || !post.mcpApproved) {
               return toolResultMessage(false, 'Skill not found or not available through MCP.', { id: args.id });
             }
 
-            const text = normalizePublicText(
+            const fallbackText = normalizePublicText(
               post.skillAsset?.assetType === 'agent-discipline'
                 ? extractReadableText(post.body)
                 : extractPlainText(post.body),
+            );
+            const text = normalizePublicText(
+              await readCanonicalSkillContent(post.attachments, fallbackText),
             );
             const placeholders = [
               ...new Set(
@@ -596,13 +604,25 @@ function makeHandler(uid: number, tokenId: number | null, clientName: string | n
           try {
             const post = await prisma.post.findUnique({
               where: { id: args.id },
-              select: { title: true, body: true, status: true, deletedAt: true, mcpApproved: true },
+              select: {
+                title: true,
+                body: true,
+                status: true,
+                deletedAt: true,
+                mcpApproved: true,
+                attachments: {
+                  orderBy: { createdAt: 'asc' },
+                  select: { fileName: true, mimeType: true, storageKey: true },
+                },
+              },
             });
             if (!post || post.status !== POST_STATUS.PUBLISHED || post.deletedAt || !post.mcpApproved) {
               return toolResultMessage(false, 'Skill not found or not available through MCP.', { id: args.id });
             }
 
-            let promptText = normalizePublicText(extractPlainText(post.body));
+            let promptText = normalizePublicText(
+              await readCanonicalSkillContent(post.attachments, extractPlainText(post.body)),
+            );
             for (const [key, value] of Object.entries(args.context || {})) {
               if (!value) continue;
               const escaped = key.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
