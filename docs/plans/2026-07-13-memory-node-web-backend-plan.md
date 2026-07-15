@@ -1,12 +1,24 @@
 # Memory Node Web Backend Implementation Plan
 
-日期：2026-07-13（修订 2026-07-15 → v3）
-状态：待工程评审（v3）
+日期：2026-07-13（修订 2026-07-15 → v3，2026-07-15 → v3.1）
+状态：待工程评审（v3.1）
 前置文档：`docs/contracts/memory-node-web-integration.md`
 
 ---
 
-## v2 → v3 变更记录（Codex 审核闭环）
+## v3 → v3.1 变更记录（Codex 第二轮审核闭环）
+
+| # | v3 问题 | v3.1 修复 |
+|---|---|---|
+| B7 | 同一激活码并发可双成功（激活码在获 Entitlement 锁前读取且无重校验） | 初读码只取 userId；获锁后**重校验 ActivationCode** + **条件原子 `UPDATE ... WHERE consumedAt IS NULL AND expiresAt>now RETURNING`** 消费；0 行回查区分 `CODE_CONSUMED`/`CODE_EXPIRED` |
+| B8 | 高水位在时钟冻结/回拨后不前进（只启动时算一次） | 引入进程单调时钟：`effective_now = max(system_now, startup_effective + monotonic_elapsed)`，每次判定与持久化重算 |
+| B9 | `retry_after` 把 60s 清理缓冲算进等待 | 拆 `bucketEnd`/`expiresAt`/`retryAfter`：`retryAfter = ceil((bucketEnd-now)/1000)`；补窗口中段超限测试 |
+| B10 | 分支落后 main → Vercel Preview 对生产库 `db push` 试图删 `McpAccessToken` | rebase 到最新 main；仓库级 P0（Preview 不对生产 `db push`）独立处理 |
+| 小项 | 依赖 DB 默认隔离级别 | 激活事务显式 `isolationLevel: "ReadCommitted"` |
+
+---
+
+## v2 → v3 变更记录（Codex 第一轮审核闭环）
 
 | 项 | v2 | v3 |
 |---|---|---|
@@ -156,12 +168,14 @@ export function hashActivationCode(code: string): string {
 
 #### `lib/rate-limit.ts`（原子桶）
 ```typescript
+const CLEANUP_BUFFER_MS = 60_000;
 export async function checkAndConsume(
   ip: string, endpoint: string, limit: number, windowMs: number
 ): Promise<{ allowed: boolean; retryAfter: number }> {
   const now = Date.now();
   const windowStart = new Date(Math.floor(now / windowMs) * windowMs);
-  const expiresAt = new Date(windowStart.getTime() + windowMs + 60_000);
+  const bucketEnd = new Date(windowStart.getTime() + windowMs);        // 桶真正结束
+  const expiresAt = new Date(bucketEnd.getTime() + CLEANUP_BUFFER_MS); // 仅清理用
 
   const rows = await prisma.$queryRaw<Array<{ new_count: bigint }>>`
     INSERT INTO "RateLimitBucket"
@@ -173,12 +187,14 @@ export async function checkAndConsume(
   `;
   const newCount = Number(rows[0].new_count);
   if (newCount > limit) {
-    return { allowed: false, retryAfter: Math.ceil((expiresAt.getTime() - now) / 1000) };
+    // retryAfter 基于 bucketEnd，不含清理缓冲（B9）
+    return { allowed: false, retryAfter: Math.ceil((bucketEnd.getTime() - now) / 1000) };
   }
   return { allowed: true, retryAfter: 0 };
 }
 ```
-> 原子性：单语句 `INSERT ON CONFLICT DO UPDATE RETURNING` 由行锁串行化，无 count→create 竞态。Vercel Cron 每 10 分钟清理过期桶。
+> 原子性：单语句 `INSERT ON CONFLICT DO UPDATE RETURNING` 由行锁串行化，无 count→create 竞态。Vercel Cron 每 10 分钟清理过期桶（按 `expiresAt`）。
+> **B9**：`retryAfter` 用 `bucketEnd - now`，不要用 `expiresAt - now`（后者含 60s 清理缓冲，会让客户端多等 60s）。
 
 #### `lib/activation-license.ts`（Ed25519，payload v2）
 ```typescript
@@ -220,16 +236,18 @@ export function verifyLicense(license: string) {
 6. 返回 `{ code, expires_in: 300 }`（明文只一次）
 
 #### `POST /api/activation/activate`（**事务核心**）
-事务外：原子限流 + 输入校验。事务内（伪代码与契约 §5.2.1 一致）：
-1. 查 `ActivationCode(codeHash)` → `INVALID_CODE` / `CODE_EXPIRED` / `CODE_CONSUMED`
-2. **`SELECT Entitlement WHERE userId=? FOR UPDATE`**（`$queryRaw`，参数化）→ 不存在 `NO_ENTITLEMENT`；status/expiry 校验
-3. 版本门
-4. `count(active DeviceActivation, 不含本 did) < 3` → 否则 `DEVICE_LIMIT_EXCEEDED`
-5. 消费码 + upsert 设备
-6. `issueLicense({ uid, did, ent, entitlementExpiresAt, vmin })`（exp=min(iat+30d, ee)）
-7. 返回 `{ license, expires_at, user }`
+事务外：原子限流 + 输入校验。事务内（伪代码与契约 §5.2.1 一致），**显式 `isolationLevel: "ReadCommitted"`**：
+1. 查 `ActivationCode(codeHash)` → 仅取 `userId`（初读**非权威**，存在性快速失败）
+2. **`SELECT Entitlement WHERE userId=? FOR UPDATE`**（`$queryRaw` 参数化）→ 不存在 `NO_ENTITLEMENT`；status/expiry 校验
+3. **重校验 ActivationCode**（获锁后新快照）→ 已消费 `CODE_CONSUMED` / 过期 `CODE_EXPIRED`（B7）
+4. 版本门
+5. `count(active DeviceActivation, 不含本 did) < 3` → 否则 `DEVICE_LIMIT_EXCEEDED`
+6. **条件原子 `UPDATE ActivationCode SET consumedAt=now WHERE id=? AND consumedAt IS NULL AND expiresAt>now RETURNING id`** → 0 行回查区分 `CODE_CONSUMED`/`CODE_EXPIRED`（B7 防御纵深）
+7. upsert 设备
+8. `issueLicense({ uid, did, ent, entitlementExpiresAt, vmin })`（exp=min(iat+30d, ee)）
+9. 返回 `{ license, expires_at, user }`
 
-> **READ COMMITTED 必需**：Prisma `$transaction` 在 Postgres 默认即此级别。锁 Entitlement 行后，并发同用户激活串行化，第二笔事务的设备计数看到第一笔已提交设备。
+> **显式 ReadCommitted**：用 `prisma.$transaction(fn, { isolationLevel: "ReadCommitted" })`，不依赖 DB 默认。锁 Entitlement 行后，并发同用户激活串行化；同码并发的第二笔在步骤 3/6 必然失败。
 
 ### 测试（PR2）
 
@@ -239,6 +257,7 @@ export function verifyLicense(license: string) {
 - `issueLicense`：`ee=0 → exp=iat+30d, ga=true`；`ee=iat+20d → exp=iat+20d, ga=false`；`ee=iat+60d → exp=iat+30d, ga=true`
 - `verifyLicense`：篡改 payload 任一字节 → 失败；错密钥 → 失败
 - `checkAndConsume`：第 limit 个允许、第 limit+1 个拒绝
+- **`retry_after`（B9）**：在窗口中段（如 `windowStart+30s`）超限时，返回 `retryAfter ≈ 30s`（≈ `bucketEnd-now`），**不含 60s 清理缓冲**
 
 **集成**：
 - 生成码 → 激活 → 拿到 `payload.sig`；`openssl` + 公钥验签通过
@@ -247,10 +266,11 @@ export function verifyLicense(license: string) {
 - `ent.status='expired'` 或 `expiresAt` 过去 → `ENTITLEMENT_EXPIRED`
 - **被撤销设备重激活 + 已 3 active → `DEVICE_LIMIT_EXCEEDED`**（T12）
 - `client_version` 过低 → `CLIENT_TOO_OLD`
-- 限流：第 11 次 activate → 429
+- 限流：第 11 次 activate → 429（且 `retry_after` ≤ 60s，不含缓冲）
 
 **并发（关键，见 §"并发测试"）**：
-- 两枚有效激活码并发激活同一用户第 3、4 台设备 → **只有一笔成功**，另一笔 `DEVICE_LIMIT_EXCEEDED`
+- 两枚**不同**有效激活码并发激活同一用户第 3、4 台设备 → **只有一笔成功**，另一笔 `DEVICE_LIMIT_EXCEEDED`（B1）
+- **同一激活码并发 2 笔**激活 → 1 笔成功 + 1 笔 `CODE_CONSUMED`，DB 中该码 `consumedAt` 恰被写一次（B7）
 - 并发 50 次 `/code` → 恰好 3 个 200，其余 429
 
 **安全**：
@@ -362,16 +382,17 @@ export function verifyLicense(license: string) {
 
 ## 并发与互操作测试（新增，跨 PR）
 
-### 并发测试（B1/B2 闭环）
+### 并发测试（B1/B2/B7 闭环）
 
 | 测试 | 步骤 | 期望 |
 |---|---|---|
-| **设备上限并发** | 用户已有 2 active 设备；并发 2 笔 activate（2 枚不同有效激活码，第 3、4 台设备） | **恰好 1 笔成功，另 1 笔 `DEVICE_LIMIT_EXCEEDED`**；最终 active=3 |
-| **同码并发** | 同一激活码并发 2 笔 activate | 1 笔成功，另 1 笔 `CODE_CONSUMED` |
-| **限流并发** | 并发 50 笔 `/code`（同 IP） | 恰好 3 笔 200，其余 429；`RateLimitBucket.count` 最终=50，但放行数=3 |
+| **设备上限并发（B1）** | 用户已有 2 active 设备；并发 2 笔 activate（2 枚**不同**有效激活码，第 3、4 台设备） | **恰好 1 笔成功，另 1 笔 `DEVICE_LIMIT_EXCEEDED`**；最终 active=3 |
+| **同码并发（B7）** | 同一激活码并发 2 笔 activate（不同 device_id） | **1 笔成功，另 1 笔 `CODE_CONSUMED`**；DB 中该码 `consumedAt` 恰被写一次、`deviceId` 只绑定其一 |
+| **限流并发（B2）** | 并发 50 笔 `/code`（同 IP） | 恰好 3 笔 200，其余 429；`RateLimitBucket.count` 最终=50，但放行数=3 |
 | **限流跨窗口** | 窗口边界前后各 10 笔 | 两窗口分别计 3（可接受 fuzziness，记录于测试报告） |
+| **retry_after 准确性（B9）** | 在 `windowStart+30s` 处触发第 4 次 `/code` 超限 | 429 且 `retry_after ≈ 30s`（= `bucketEnd-now`），**不**含 60s 清理缓冲 |
 
-> 并发测试可用 `Promise.all` + 多请求实现；DB 断言 `count(DeviceActivation status=active)` = 3。
+> 并发测试可用 `Promise.all` + 多请求实现；DB 断言：`count(DeviceActivation status=active)` = 3；同码的 `count(ActivationCode WHERE consumedAt IS NOT NULL)` = 1。
 
 ### Ed25519 互操作测试（B5 闭环）
 
@@ -501,15 +522,17 @@ MEMORY_LICENSE_PRIVATE_KEY="<PEM with \n>"
 
 - [ ] `POST /api/activation/code` 需 cookie + 返回 8 位码（5 分钟）；明文不落库
 - [ ] `POST /api/activation/activate` 原子限流 + 输入校验 + 事务（**锁 Entitlement**）+ 返回 Ed25519 许可证
-- [ ] 激活在**单个 `prisma.$transaction`**（READ COMMITTED）内
-- [ ] **两枚有效激活码并发激活同一用户第 3、4 台设备 → 恰好 1 笔成功**
+- [ ] 激活在**单个 `prisma.$transaction({ isolationLevel: "ReadCommitted" })`** 内（显式声明）
+- [ ] **两枚不同有效激活码并发激活同一用户第 3、4 台设备 → 恰好 1 笔成功**（B1）
+- [ ] **同一激活码并发 2 笔 → 1 成功 + 1 `CODE_CONSUMED`，码 `consumedAt` 恰写一次**（B7：获锁后重校验 + 条件原子 UPDATE）
 - [ ] 权益检查含 `status='active'` AND `expiresAt` 未过期
 - [ ] `exp = min(iat+30d, ee)`；payload v2 含 `ee`/`ga`
 - [ ] 权益致到期 `ga=false`，到期即只读无宽限
 - [ ] 被撤销设备重激活仍占名额
 - [ ] `POST /api/activation/refresh` 验签 + 未撤销 + 权益有效 → 新许可证（重算 exp）
 - [ ] `GET /api/activation/devices` / `DELETE` / `GET releases` 正常
-- [ ] 限流**原子**（`RateLimitBucket` `INSERT ON CONFLICT`），并发测试通过
+- [ ] 限流**原子**（`RateLimitBucket` `INSERT ON CONFLICT`）；429 的 `retry_after = ceil((bucketEnd-now)/1000)`，**不含清理缓冲**（B9）
+- [ ] 客户端 `effective_now = max(system_now, startup_effective + monotonic_elapsed)`，进程内单调前进（B8）
 - [ ] IP 只信 Vercel 注入头（x-real-ip / x-forwarded-for 最左）
 - [ ] 日志不含敏感字段
 - [ ] 路由 `/memory/setup`（非 `/connect`）
@@ -548,7 +571,7 @@ MEMORY_LICENSE_PRIVATE_KEY="<PEM with \n>"
 
 | 风险 | 性质 | 接受理由 |
 |---|---|---|
-| 本地管理员可绕过离线时钟（T5/T13） | 纯离线许可不可绝对防本地管理员 | Ed25519 防伪造 + 有界 30+7 天窗口 + 高水位提高成本；产品为本地记忆工具，非 DRM 内容 |
+| 本地管理员可绕过离线时钟（T5/T13） | 纯离线许可不可绝对防本地管理员 | Ed25519 防伪造 + 有界 30+7 天窗口 + **高水位+进程单调时钟**（B8）提高成本；关机期回拨/凭据篡改仍残留；产品为本地记忆工具，非 DRM 内容 |
 | 固定窗口限流边界可短时 ~2×limit | 时间桶固有 | 登录/激活场景可接受；需严格时改滑动窗口 |
 | `RateLimitBucket` 写入压力 | 高并发刷接口时表增长 | Vercel Cron 清理 + `expiresAt` 索引；极端情况迁 Upstash Redis |
-| READ COMMITTED 被改隔离级别 | 部署误操作 | 文档强制要求；Prisma 默认即此级别；上线前校验 DB 隔离级别 |
+| READ COMMITTED 被改隔离级别 | 部署误操作 | **显式** `isolationLevel: "ReadCommitted"`；上线前校验 DB 隔离级别 |
