@@ -54,7 +54,7 @@
 ### 改动文件
 - `prisma/schema.prisma`：`ActivationCode` / `DeviceActivation` / `Entitlement`（`userId @unique`，锁目标）/ `ReleaseManifest` / **`RateLimitBucket`**
 - `User` 新增 3 个 relation（`RateLimitBucket` 无 relation）
-- `prisma db push`（additive）
+- 生成并提交版本化 Prisma migration（`prisma/migrations/<ts>_add_memory_web_entitlements/migration.sql`，纯 additive：CREATE TABLE / CREATE INDEX / ADD FOREIGN KEY）；由受控发布流程在正式环境执行 `prisma migrate deploy`。**PR 内不得修改生产数据库，不得使用 `prisma db push`**（见 `docs/DEPLOY.md` §5b 与 `npm run check:release-safety`）。
 
 ### 模型要点
 
@@ -129,7 +129,8 @@ model RateLimitBucket {
 ```
 
 ### 验收标准
-- `prisma validate` / `prisma generate` / `prisma db push` / `tsc --noEmit` 通过
+- `prisma validate` / `prisma generate` / `prisma format` 通过；版本化 migration 已提交并通过迁移安全测试
+- `tsc --noEmit` 通过
 - 现有功能不受影响
 
 ### 回滚
@@ -450,7 +451,7 @@ fn rejects_tampered_payload() {
 
 ## Migration 与发布顺序
 
-5 张新表 additive；`prisma db push` 即可。`User` relation 字段不改表结构。
+5 张新表 additive；提交版本化 migration（CREATE TABLE / CREATE INDEX / ADD FOREIGN KEY），正式环境由受控流程执行 `prisma migrate deploy`，**不用 `prisma db push`**。`User` relation 字段不改表结构。
 
 ```
 PR1 (schema) ──→ PR2 (activate+事务+限流+Ed25519) ──→ PR3 (devices+refresh)

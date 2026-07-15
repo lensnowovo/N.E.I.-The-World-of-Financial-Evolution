@@ -11,38 +11,43 @@ datasource db {
 
 // ---------- 用户 ----------
 model User {
-  id           Int      @id @default(autoincrement())
-  email        String   @unique
-  nickname     String   @unique
-  role         String   // VC / PE / FA
-  passwordHash String?
-  avatarUrl    String?
-  institution  String?  // 机构（选填）
-  bio          String?  // 个人简介（选填）
-  apiKeyEnc    String?  // Legacy: 站内执行下线前的个人 AI API key 密文字段，保留仅为兼容旧数据
-  mcpTokenHash    String?   // Legacy single MCP token hash; new clients use McpAccessToken
+  id              Int       @id @default(autoincrement())
+  email           String    @unique
+  nickname        String    @unique
+  role            String // VC / PE / FA
+  passwordHash    String?
+  avatarUrl       String?
+  institution     String? // 机构（选填）
+  bio             String? // 个人简介（选填）
+  apiKeyEnc       String? // Legacy: 站内执行下线前的个人 AI API key 密文字段，保留仅为兼容旧数据
+  mcpTokenHash    String? // Legacy single MCP token hash; new clients use McpAccessToken
   tokenCreatedAt  DateTime? // Legacy token creation time
   tokenLastUsedAt DateTime? // Legacy token last successful authentication
-  isAdmin      Boolean  @default(false)  // 管理员
+  isAdmin         Boolean   @default(false) // 管理员
   githubId        String?   @unique
   githubAvatarUrl String?
   githubUsername  String?
-  createdAt    DateTime @default(now())
-  updatedAt    DateTime @updatedAt
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
 
-  posts     Post[]
-  comments  Comment[]
-  stars     PostFavorite[]
-  commentLikes CommentLike[]
-  mcpCallLogs McpCallLog[]
+  posts           Post[]
+  comments        Comment[]
+  stars           PostFavorite[]
+  commentLikes    CommentLike[]
+  mcpCallLogs     McpCallLog[]
   mcpAccessTokens McpAccessToken[]
-  reports   Report[]   // SEC-011: 用户提交的举报（作为举报人）
-  activityEvents ActivityEvent[]
-  consents  UserConsent[] // 协议确认记录
+  reports         Report[] // SEC-011: 用户提交的举报（作为举报人）
+  activityEvents  ActivityEvent[]
+  consents        UserConsent[] // 协议确认记录
+
+  // Memory Node 授权系统（PR1：仅 schema）
+  activationCodes   ActivationCode[]
+  deviceActivations DeviceActivation[]
+  entitlement       Entitlement?
 
   // 关注关系
-  following UserFollow[] @relation("Follower")  // 我关注的人
-  followers UserFollow[] @relation("Followee")  // 关注我的人
+  following UserFollow[] @relation("Follower") // 我关注的人
+  followers UserFollow[] @relation("Followee") // 关注我的人
 }
 
 // ---------- MCP 访问凭证 ----------
@@ -68,8 +73,8 @@ model McpAccessToken {
 // ---------- 关注 ----------
 model UserFollow {
   id         Int      @id @default(autoincrement())
-  followerId Int      // 谁
-  followeeId Int      // 关注谁
+  followerId Int // 谁
+  followeeId Int // 关注谁
   createdAt  DateTime @default(now())
 
   follower User @relation("Follower", fields: [followerId], references: [id])
@@ -82,34 +87,34 @@ model UserFollow {
 
 // ---------- 内容 ----------
 model Post {
-  id           Int      @id @default(autoincrement())
-  userId       Int
-  title        String
-  body         String
-  tagScene     String   // 工作场景，必填
-  tagIndustry  String?  // 行业赛道
-  tagContent   String   // 工作内容，JSON string of array
-  tagSkill     String?  // Skill 类型
-  status       String   @default("published") // draft / pending / published / rejected
-  viewCount    Int      @default(0)
-  commentCount Int      @default(0)
-  deletedAt    DateTime? // 软删除标记；null = 未删除，非 null = 已删除（不公开可见）
-  featured     Boolean  @default(false) // 管理员精选标记；US-012，首页 FeaturedWorkflows 读此字段
-  featuredOrder Int    @default(0)      // 精选排序（管理员拖拽控制首页顺序；0 = 默认按时间）
+  id            Int       @id @default(autoincrement())
+  userId        Int
+  title         String
+  body          String
+  tagScene      String // 工作场景，必填
+  tagIndustry   String? // 行业赛道
+  tagContent    String // 工作内容，JSON string of array
+  tagSkill      String? // Skill 类型
+  status        String    @default("published") // draft / pending / published / rejected
+  viewCount     Int       @default(0)
+  commentCount  Int       @default(0)
+  deletedAt     DateTime? // 软删除标记；null = 未删除，非 null = 已删除（不公开可见）
+  featured      Boolean   @default(false) // 管理员精选标记；US-012，首页 FeaturedWorkflows 读此字段
+  featuredOrder Int       @default(0) // 精选排序（管理员拖拽控制首页顺序；0 = 默认按时间）
   // --- Sprint 1x MCP 安全字段（SEC-001）---
-  mcpApproved   Boolean  @default(false) // 是否允许进 MCP；只有 true 的 skill 才通过 app/api/mcp/route.ts 返回
-  reviewFlag    String?  // 审核标记/原因（GLM 安全扫描或人工标记，管理员可见）
-  securityLevel String   @default("safe") // safe | suspicious | reject（GLM 安全扫描结论）
-  version       Int      @default(1) // skill 版本；编辑触发 +1 且 mcpApproved=false（防 Rug Pull，见 SEC-010）
-  createdAt    DateTime @default(now())
-  updatedAt    DateTime @updatedAt
+  mcpApproved   Boolean   @default(false) // 是否允许进 MCP；只有 true 的 skill 才通过 app/api/mcp/route.ts 返回
+  reviewFlag    String? // 审核标记/原因（GLM 安全扫描或人工标记，管理员可见）
+  securityLevel String    @default("safe") // safe | suspicious | reject（GLM 安全扫描结论）
+  version       Int       @default(1) // skill 版本；编辑触发 +1 且 mcpApproved=false（防 Rug Pull，见 SEC-010）
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
 
-  author       User           @relation(fields: [userId], references: [id])
-  comments     Comment[]
-  attachments  Attachment[]
-  stars        PostFavorite[]
-  skillAsset   SkillAsset?
-  reports      Report[]   // SEC-011: 针对此帖的举报
+  author      User           @relation(fields: [userId], references: [id])
+  comments    Comment[]
+  attachments Attachment[]
+  stars       PostFavorite[]
+  skillAsset  SkillAsset?
+  reports     Report[] // SEC-011: 针对此帖的举报
 
   @@index([createdAt])
   @@index([tagScene])
@@ -120,9 +125,9 @@ model Post {
 // ---------- 举报（SEC-011）----------
 model Report {
   id         Int      @id @default(autoincrement())
-  reporterId Int      // 谁举报
-  postId     Int      // 举报哪篇 post
-  reason     String   // 举报理由（用户填写）
+  reporterId Int // 谁举报
+  postId     Int // 举报哪篇 post
+  reason     String // 举报理由（用户填写）
   status     String   @default("open") // open / closed / dismissed
   createdAt  DateTime @default(now())
 
@@ -139,7 +144,7 @@ model SkillAsset {
   postId         Int      @unique
   assetType      String
   sourceUrl      String?
-  originalAuthor String?  // 原作者（搬运帖填，如 Anthropic；普通帖空=作者即发布者）
+  originalAuthor String? // 原作者（搬运帖填，如 Anthropic；普通帖空=作者即发布者）
   installHint    String?
   usageNotes     String?
   createdAt      DateTime @default(now())
@@ -153,10 +158,10 @@ model SkillAsset {
 // ---------- 附件 ----------
 model Attachment {
   id            Int      @id @default(autoincrement())
-  postId        Int?     // 上传时尚未关联帖子 → null，发帖成功后回填
+  postId        Int? // 上传时尚未关联帖子 → null，发帖成功后回填
   uploaderId    Int
   fileName      String
-  storageKey    String   // 本地路径 / OSS key
+  storageKey    String // 本地路径 / OSS key
   fileSize      Int
   mimeType      String
   downloadCount Int      @default(0)
@@ -187,11 +192,11 @@ model Comment {
   likeCount Int      @default(0)
   createdAt DateTime @default(now())
 
-  post     Post          @relation(fields: [postId], references: [id], onDelete: Cascade)
-  parent   Comment?      @relation("CommentReplies", fields: [parentId], references: [id])
-  replies  Comment[]     @relation("CommentReplies")
-  author   User          @relation(fields: [userId], references: [id])
-  likes    CommentLike[]
+  post    Post          @relation(fields: [postId], references: [id], onDelete: Cascade)
+  parent  Comment?      @relation("CommentReplies", fields: [parentId], references: [id])
+  replies Comment[]     @relation("CommentReplies")
+  author  User          @relation(fields: [userId], references: [id])
+  likes   CommentLike[]
 
   @@index([postId])
   @@index([parentId])
@@ -237,7 +242,7 @@ model McpCallLog {
   latencyMs  Int? // SEC-009: tool 执行耗时（毫秒）
   requestId  String? // SEC-009: 同请求多 tool 共享的随机 id（crypto.randomUUID）
 
-  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  user  User            @relation(fields: [userId], references: [id], onDelete: Cascade)
   token McpAccessToken? @relation(fields: [tokenId], references: [id], onDelete: SetNull)
 
   @@index([userId])
@@ -249,9 +254,9 @@ model McpCallLog {
 // 由 lib/metrics.ts withMetrics 采样写入：路由 / 状态码 / 耗时 / 是否出错。
 model MetricSample {
   id         Int      @id @default(autoincrement())
-  route      String   // 归一化路由，如 "GET /api/mcp"
-  status     Int      // HTTP 状态码
-  durationMs Int      // 本次请求耗时（毫秒）
+  route      String // 归一化路由，如 "GET /api/mcp"
+  status     Int // HTTP 状态码
+  durationMs Int // 本次请求耗时（毫秒）
   error      Boolean  @default(false) // status >= 500 视为错误
   createdAt  DateTime @default(now())
 
@@ -297,14 +302,102 @@ model VerificationCode {
 model UserConsent {
   id          Int      @id @default(autoincrement())
   userId      Int
-  consentType String   // terms | privacy | mcp_security | contribution
-  version     String   // 协议版本，如 "2026-06"
+  consentType String // terms | privacy | mcp_security | contribution
+  version     String // 协议版本，如 "2026-06"
   acceptedAt  DateTime @default(now())
-  ipAddress   String?  // 可选，如能获取则记录
-  userAgent   String?  // 可选
+  ipAddress   String? // 可选，如能获取则记录
+  userAgent   String? // 可选
 
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@index([userId])
   @@index([userId, consentType])
+}
+
+// ===========================================================================
+// Memory Node 网站端授权系统（PR1：仅 schema + migration，不含 API/逻辑）
+// 依据：docs/contracts/memory-node-web-integration.md §4
+// 所有表均为 additive。RateLimitBucket 替代旧的 ActivationAttempt。
+// ===========================================================================
+
+// ---------- 激活码（一次性，5 分钟有效，仅存哈希）----------
+model ActivationCode {
+  id         Int       @id @default(autoincrement())
+  codeHash   String    @unique // SHA-256(code)，不存明文
+  userId     Int
+  createdAt  DateTime  @default(now())
+  expiresAt  DateTime // createdAt + 5min
+  consumedAt DateTime? // 激活时间；null = 未使用
+  deviceId   String?
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([codeHash])
+}
+
+// ---------- 设备激活记录 ----------
+model DeviceActivation {
+  id            Int       @id @default(autoincrement())
+  userId        Int
+  deviceId      String
+  deviceName    String
+  platform      String
+  clientVersion String
+  status        String    @default("active") // active | revoked
+  activatedAt   DateTime  @default(now())
+  lastSeenAt    DateTime  @default(now())
+  revokedAt     DateTime?
+  revokeReason  String?
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, deviceId])
+  @@index([userId])
+}
+
+// ---------- 订阅权益（解锁设备上限的 per-user 锁行）----------
+// userId @unique：作为激活事务中 per-user FOR UPDATE 锁目标（见契约 §5.2）
+model Entitlement {
+  id        Int       @id @default(autoincrement())
+  userId    Int       @unique // 唯一：per-user 锁目标
+  plan      String    @default("free")
+  status    String    @default("active")
+  startedAt DateTime  @default(now())
+  expiresAt DateTime? // null = 无到期；决定 license.exp 上限
+  source    String?
+  metadata  String?
+  updatedAt DateTime  @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+// ---------- 客户端发布清单 ----------
+model ReleaseManifest {
+  id           Int      @id @default(autoincrement())
+  product      String
+  version      String
+  platform     String
+  downloadUrl  String
+  sha256       String
+  minVersion   String?
+  releaseNotes String?
+  isLatest     Boolean  @default(false)
+  publishedAt  DateTime @default(now())
+
+  @@index([product, platform, isLatest])
+}
+
+// ---------- 原子时间桶限流（替代 v2 的 ActivationAttempt）----------
+// 与 User 无 relation（匿名限流）。唯一键支撑原子 upsert，expiresAt 索引支撑清理。
+model RateLimitBucket {
+  id          BigInt   @id @default(autoincrement())
+  ip          String
+  endpoint    String // "code" | "activate" | "refresh"
+  windowStart DateTime // 对齐到窗口边界
+  count       Int      @default(0)
+  expiresAt   DateTime // windowStart + window + 清理缓冲
+  createdAt   DateTime @default(now())
+
+  @@unique([ip, endpoint, windowStart]) // 原子 upsert 的冲突键
+  @@index([expiresAt]) // 支撑定期清理
 }
