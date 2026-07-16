@@ -22,6 +22,14 @@ import {
   searchConnectors,
   type McpLibraryCategoryKey,
 } from '@/lib/mcp-library';
+import {
+  MCP_RECOMMENDED_SEQUENCES,
+  interpretMcpTask,
+  rankMcpCandidates,
+  recommendationReason,
+  recommendationRole,
+  resolveMcpScenes,
+} from '@/lib/mcp-search-intelligence';
 
 export const dynamic = 'force-dynamic';
 export const maxDuration = 60;
@@ -34,40 +42,6 @@ const MCP_SAFETY = {
 };
 
 const DEFAULT_DISCIPLINE_SLUG = 'nei-discipline/fiduciary-research-v1';
-
-const STAGE_SCENES = {
-  'pre-deal': ['sourcing', 'screening', 'industry-research', 'business-dd'],
-  deal: ['financial', 'legal', 'ic'],
-  'post-deal': ['post-investment', 'fundraising', 'fund-ops', 'knowledge'],
-} as const;
-
-const TASK_SCENE_ALIASES: Array<{ scene: string; terms: string[] }> = [
-  { scene: 'sourcing', terms: ['项目发现', '找项目', 'deal sourcing', 'sourcing'] },
-  { scene: 'screening', terms: ['bp', 'BP', '初筛', '拆BP', '拆 BP', 'screening'] },
-  { scene: 'industry-research', terms: ['行研', '行业研究', '产业研究', '市场研究', 'research'] },
-  { scene: 'business-dd', terms: ['尽调', '商业尽调', '客户访谈', '专家访谈', 'dd', 'diligence'] },
-  { scene: 'financial', terms: ['财务', '财务分析', '估值', '模型', '现金流', 'financial'] },
-  { scene: 'legal', terms: ['法务', '合规', '条款', 'legal'] },
-  { scene: 'ic', terms: ['ic', 'IC', 'memo', 'Memo', '投委会', '投资备忘录'] },
-  { scene: 'post-investment', terms: ['投后', '月报', '经营跟踪', '风险预警', 'post investment'] },
-  { scene: 'fundraising', terms: ['募资', 'lp', 'LP', 'LP汇报', '季报', 'ir'] },
-  { scene: 'fund-ops', terms: ['基金运营', '运营', 'fund ops'] },
-  { scene: 'knowledge', terms: ['知识管理', '文档', '沉淀', 'knowledge'] },
-];
-
-const RECOMMENDED_SEQUENCES: Record<string, string[]> = {
-  sourcing: ['Clarify mandate and target thesis', 'Collect comparable companies', 'Prepare outreach / tracking notes'],
-  screening: ['Extract company facts', 'Identify highlights and red flags', 'Generate follow-up questions'],
-  'industry-research': ['Map value chain', 'Estimate market size and growth', 'Compare competitors and investment logic'],
-  'business-dd': ['Prepare customer / supplier questions', 'Structure expert interview outline', 'Summarize diligence findings'],
-  financial: ['Normalize financial data', 'Check margin / cash flow / working capital', 'Review forecast assumptions'],
-  legal: ['Extract key terms', 'Flag compliance and structure issues', 'Prepare counsel follow-up list'],
-  ic: ['Draft investment logic', 'Summarize key risks and valuation view', 'Prepare IC Q&A'],
-  'post-investment': ['Review operating updates', 'Identify abnormal signals', 'Draft monthly portfolio note'],
-  fundraising: ['Summarize fund performance', 'Prepare portfolio progress update', 'Draft LP reporting narrative'],
-  'fund-ops': ['Structure fund operation checklist', 'Track recurring reporting work', 'Prepare internal operating notes'],
-  knowledge: ['Clean source material', 'Extract reusable knowledge blocks', 'Build searchable team notes'],
-};
 
 type JsonValue = Record<string, unknown> | Array<unknown> | string | number | boolean | null;
 
@@ -151,15 +125,6 @@ function jsonContent(payload: JsonValue) {
   };
 }
 
-function inferScenesFromText(text?: string | null) {
-  if (!text) return [];
-  const normalized = normalizeSearchText(text);
-  const scenes = TASK_SCENE_ALIASES.filter((entry) =>
-    entry.terms.some((term) => normalized.includes(normalizeSearchText(term))),
-  ).map((entry) => entry.scene);
-  return Array.from(new Set(scenes));
-}
-
 function resolveScenes({
   scene,
   task,
@@ -167,24 +132,15 @@ function resolveScenes({
 }: {
   scene?: string;
   task?: string;
-  stage?: keyof typeof STAGE_SCENES;
+  stage?: 'pre-deal' | 'deal' | 'post-deal';
 }) {
-  const explicit = scene ? [scene] : [];
-  const inferred = inferScenesFromText(task);
-  const staged = stage ? [...STAGE_SCENES[stage]] : [];
-  const groups = [explicit, inferred, staged].filter((group) => group.length > 0);
-  if (groups.length === 0) return [];
-
-  const intersection = groups.reduce((current, group) =>
-    current.filter((sceneValue) => group.includes(sceneValue)),
-  );
-  return intersection.length > 0 ? Array.from(new Set(intersection)) : Array.from(new Set(groups.flat()));
+  return resolveMcpScenes({ scene, text: task, stage });
 }
 
 function buildMcpWhere(args: {
   scene?: string;
   task?: string;
-  stage?: keyof typeof STAGE_SCENES;
+  stage?: 'pre-deal' | 'deal' | 'post-deal';
   skillType?: string;
   industry?: string;
   author?: string;
@@ -246,27 +202,6 @@ function postToMcpItem(post: any, query = '') {
   };
 }
 
-function scoreForRecommendation(post: any, task: string, industry?: string) {
-  const terms = tokenizeQuery(`${task} ${industry ?? ''}`);
-  const searchable = normalizeSearchText(
-    [
-      post.title,
-      post.tagScene,
-      post.tagIndustry,
-      post.tagSkill,
-      post.skillAsset?.assetType,
-      safeJsonArray(post.tagContent).join(' '),
-      stripHtml(normalizePublicText(post.body)),
-    ]
-      .filter(Boolean)
-      .join(' '),
-  );
-  const textScore = terms.reduce((sum, term) => sum + (searchable.includes(term) ? 20 : 0), 0);
-  const hotScore = (post.viewCount || 0) * 0.2 + (post._count?.stars || 0) * 3 + (post._count?.comments || 0);
-  const featuredScore = post.featured ? 15 : 0;
-  return textScore + hotScore + featuredScore;
-}
-
 function toolResultMessage(ok: boolean, message: string, extra: Record<string, unknown> = {}) {
   return jsonContent({ ok, message, ...extra, safety: MCP_SAFETY });
 }
@@ -325,6 +260,7 @@ function makeHandler(uid: number, tokenId: number | null, clientName: string | n
             const cap = Math.min(Math.max(args.limit || 10, 1), 30);
             const { where, scenes } = buildMcpWhere(args);
             const query = [args.query, args.task].filter(Boolean).join(' ');
+            const interpretation = interpretMcpTask(query);
 
             let posts = await prisma.post.findMany({
               where,
@@ -340,15 +276,32 @@ function makeHandler(uid: number, tokenId: number | null, clientName: string | n
             if (args.tags?.length) posts = filterByContent(posts, args.tags);
 
             const sort = normalizeSort(args.sort, Boolean(query));
-            const sorted = sortPosts(posts, sort, query);
-            const pageItems = sorted.slice(0, cap);
+            const ranked = sort === 'relevance' && query
+              ? rankMcpCandidates(posts, {
+                  text: query,
+                  explicitScene: args.scene,
+                  explicitIndustry: args.industry,
+                  interpretation,
+                })
+              : sortPosts(posts, sort, query).map((post) => ({
+                  post,
+                  score: 0,
+                  semanticScore: 0,
+                  matchedSignals: [] as string[],
+                }));
+            const pageItems = ranked.slice(0, cap);
 
             return jsonContent({
               summary: pageItems.length
                 ? `Found ${pageItems.length} MCP-ready N.E.I. Skills.`
                 : 'No MCP-ready Skill matched this request.',
               count: pageItems.length,
-              nextCursor: sorted.length > cap ? pageItems[pageItems.length - 1]?.id ?? null : null,
+              nextCursor: ranked.length > cap ? pageItems[pageItems.length - 1]?.post.id ?? null : null,
+              interpretedIntent: interpretation.interpretedIntent,
+              inferredScenes: interpretation.inferredScenes,
+              inferredIndustries: interpretation.inferredIndustries,
+              inferredContentTags: interpretation.inferredContentTags,
+              matchedSignals: interpretation.matchedSignals,
               appliedFilters: {
                 query: args.query ?? null,
                 task: args.task ?? null,
@@ -359,7 +312,11 @@ function makeHandler(uid: number, tokenId: number | null, clientName: string | n
                 tags: args.tags ?? [],
                 sort,
               },
-              items: pageItems.map((post) => postToMcpItem(post, query)),
+              items: pageItems.map(({ post, score, matchedSignals }) => ({
+                ...postToMcpItem(post, query),
+                relevanceScore: sort === 'relevance' ? score : null,
+                matchedSignals,
+              })),
               safety: MCP_SAFETY,
             });
           } finally {
@@ -381,10 +338,11 @@ function makeHandler(uid: number, tokenId: number | null, clientName: string | n
           const start = Date.now();
           try {
             const cap = Math.min(Math.max(args.limit || 6, 1), 10);
+            const interpretation = interpretMcpTask(`${args.task} ${args.industry ?? ''}`);
             const scenes = resolveScenes({ task: args.task, stage: args.stage });
+            const inferredIndustry = args.industry ?? interpretation.inferredIndustries[0];
             const where = buildFeedWhere({
               scene: scenes.length === 1 ? scenes[0] : undefined,
-              industry: args.industry,
               mcp: 'ready',
             });
             if (scenes.length > 1) where.tagScene = { in: scenes };
@@ -400,9 +358,8 @@ function makeHandler(uid: number, tokenId: number | null, clientName: string | n
               take: 200,
             });
 
-            if (posts.length === 0 && args.industry) {
-              const fallbackWhere = buildFeedWhere({ scene: scenes.length === 1 ? scenes[0] : undefined, mcp: 'ready' });
-              if (scenes.length > 1) fallbackWhere.tagScene = { in: scenes };
+            if (posts.length === 0 && scenes.length > 0) {
+              const fallbackWhere = buildFeedWhere({ mcp: 'ready' });
               posts = await prisma.post.findMany({
                 where: fallbackWhere,
                 include: {
@@ -415,25 +372,39 @@ function makeHandler(uid: number, tokenId: number | null, clientName: string | n
               });
             }
 
-            const ranked = posts
-              .map((post) => ({ post, score: scoreForRecommendation(post, args.task, args.industry) }))
-              .sort((a, b) => b.score - a.score)
+            const ranked = rankMcpCandidates(posts, {
+              text: `${args.task} ${args.industry ?? ''}`,
+              explicitIndustry: args.industry,
+              interpretation,
+              includeZeroScore: true,
+            })
               .slice(0, cap)
-              .map(({ post }) => postToMcpItem(post, args.task));
+              .map((entry, index, entries) => ({
+                ...postToMcpItem(entry.post, args.task),
+                role: recommendationRole(index, entries.length),
+                recommendedOrder: index + 1,
+                reason: recommendationReason(entry),
+                relevanceScore: entry.score,
+                matchedSignals: entry.matchedSignals,
+              }));
 
             const primaryScene = scenes[0] ?? 'industry-research';
-            const suggestedConnectors = recommendConnectorsForTask(args.task, args.industry, scenes);
+            const suggestedConnectors = recommendConnectorsForTask(args.task, inferredIndustry, scenes);
             return jsonContent({
               summary: ranked.length
                 ? `Recommended ${ranked.length} Skills for: ${args.task}.`
                 : `No MCP-ready Skill is currently available for: ${args.task}.`,
               task: args.task,
               industry: args.industry ?? null,
+              interpretedIntent: interpretation.interpretedIntent,
               inferredScenes: scenes,
-              suggestedSequence: RECOMMENDED_SEQUENCES[primaryScene] ?? [
-                'Clarify the task and source material',
-                'Run the closest matching Skill',
-                'Review output and adapt to the investment context',
+              inferredIndustries: interpretation.inferredIndustries,
+              inferredContentTags: interpretation.inferredContentTags,
+              matchedSignals: interpretation.matchedSignals,
+              suggestedSequence: MCP_RECOMMENDED_SEQUENCES[primaryScene] ?? [
+                '明确任务、材料和交付要求',
+                '调用最接近的 Skill',
+                '复核结果并结合投资语境调整',
               ],
               items: ranked,
               suggestedConnectors:
