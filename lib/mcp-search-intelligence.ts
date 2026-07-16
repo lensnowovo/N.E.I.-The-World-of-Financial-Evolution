@@ -216,6 +216,15 @@ export function interpretMcpTask(text?: string | null): McpTaskInterpretation {
     : intentMatches;
   const intentLabels = unique(effectiveIntentMatches.map(({ rule }) => rule.label));
   const industryLabels = unique(industryMatches.map(({ rule }) => rule.label));
+  const intentCodes = unique(effectiveIntentMatches.map(({ rule }) => rule.code));
+  let inferredScenes = unique(effectiveIntentMatches.flatMap(({ rule }) => rule.scenes ?? []));
+  const hasDirectDiligenceIntent = intentCodes.some((code) => code === 'commercial-dd' || code === 'interview');
+  const hasResearchIntent = intentCodes.some((code) =>
+    code === 'industry-research' || code === 'market-sizing' || code === 'competitive-research',
+  );
+  if (hasResearchIntent && !hasDirectDiligenceIntent) {
+    inferredScenes = inferredScenes.filter((scene) => scene !== 'business-dd');
+  }
   const matchedSignals = unique([
     ...effectiveIntentMatches.flatMap(({ matchedTerms }) => matchedTerms),
     ...industryMatches.flatMap(({ matchedTerms }) => matchedTerms),
@@ -224,8 +233,8 @@ export function interpretMcpTask(text?: string | null): McpTaskInterpretation {
 
   return {
     interpretedIntent: [...intentLabels, ...industryLabels].join(' · ') || '通用 Skill 检索',
-    intentCodes: unique(effectiveIntentMatches.map(({ rule }) => rule.code)),
-    inferredScenes: unique(effectiveIntentMatches.flatMap(({ rule }) => rule.scenes ?? [])),
+    intentCodes,
+    inferredScenes,
     inferredIndustries: unique(industryMatches.flatMap(({ rule }) => rule.industries ?? [])),
     inferredContentTags: unique(effectiveIntentMatches.flatMap(({ rule }) => rule.contentTags ?? [])),
     matchedSignals,
