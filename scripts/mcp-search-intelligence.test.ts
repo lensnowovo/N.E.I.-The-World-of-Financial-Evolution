@@ -146,6 +146,16 @@ test('CGT research ranks a sector framework before unrelated popular content', (
   assert.ok(ranked[0].matchedSignals.includes('行业：biotech'));
 });
 
+test('research subtopics do not widen a research task into commercial diligence', () => {
+  const result = interpretMcpTask('做细胞与基因产业研究，覆盖市场空间和竞争格局');
+  assert.deepEqual(result.inferredScenes, ['industry-research']);
+});
+
+test('an explicit diligence or interview task can still include commercial diligence', () => {
+  const result = interpretMcpTask('商业尽调中准备客户访谈并验证竞争格局');
+  assert.ok(result.inferredScenes.includes('business-dd'));
+});
+
 test('CGT founder interview remains diligence rather than industry research', () => {
   const interview = candidate({
     id: 20,
