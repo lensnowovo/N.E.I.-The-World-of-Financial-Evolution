@@ -57,6 +57,9 @@ jobs:
       - name: Memory web schema migration safety
         run: npm run test:memory-schema
 
+      - name: Skill request board schema safety
+        run: npm run test:request-schema
+
       - name: MCP search intelligence
         run: npm run test:mcp-search-intelligence
 
