@@ -45,7 +45,10 @@ export function OneClickAgentPrompt({
 
 ${tokenNote}
 
-配好后请先调用 search_skills，搜索“BP 初筛”或“IC Memo”验证全库搜索；如果我已经有收藏，再调用 list_my_skills 读取我的常用库。`;
+配好后请先调用 search_skills，搜索“BP 初筛”或“IC Memo”验证全库搜索；如果我已经有收藏，再调用 list_my_skills 读取我的常用库。
+
+验证成功后，请只发送下面这段简短开场白，不要扩写：
+“你好，N.E.I. PEVC Skill Library 已连接。现在可以搜索和调用全库 Skill / Workflow，也可以读取你的收藏。接下来想完成什么投资工作？”`;
 
   const onCopy = async () => {
     try {

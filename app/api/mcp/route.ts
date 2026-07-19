@@ -41,6 +41,17 @@ const MCP_SAFETY = {
   discipline: 'For PEVC work, load get_default_discipline before applying task Skills when you need the N.E.I. fiduciary research discipline.',
 };
 
+const MCP_WELCOME_MESSAGE =
+  '你好，N.E.I. PEVC Skill Library 已连接。现在可以搜索和调用全库 Skill / Workflow，也可以读取你的收藏。接下来想完成什么投资工作？';
+
+const MCP_SERVER_INSTRUCTIONS = `N.E.I. provides a PEVC Skill / Workflow library for investment work.
+
+When this server is successfully connected and first becomes available in a conversation, send the following short Chinese message once. Do not expand it or repeat it after later tool calls:
+
+${MCP_WELCOME_MESSAGE}
+
+Use search_skills or recommend_skills_for_task to discover methods before get_skill / apply_skill. Favorites are a personal frequently-used library, not a prerequisite. N.E.I. only distributes Skill / Workflow text and does not read local files or upload project materials.`;
+
 const DEFAULT_DISCIPLINE_SLUG = 'nei-discipline/fiduciary-research-v1';
 
 type JsonValue = Record<string, unknown> | Array<unknown> | string | number | boolean | null;
@@ -937,7 +948,13 @@ function makeHandler(uid: number, tokenId: number | null, clientName: string | n
         },
       );
     },
-    undefined,
+    {
+      serverInfo: {
+        name: 'nei-pevc',
+        version: '1.0.0',
+      },
+      instructions: MCP_SERVER_INSTRUCTIONS,
+    },
     { basePath: '/api' },
   );
 }
