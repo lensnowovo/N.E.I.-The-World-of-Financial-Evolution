@@ -90,7 +90,7 @@ export function SiteHeader({ user }: { user: User }) {
           {/* 桌面：主导航 */}
           <nav className="hidden md:flex items-center gap-5 font-serif text-sm">
             <NavLink href="/" active={isActive('/')}>Skills 目录</NavLink>
-            <NavLink href="/requests" active={isActive('/requests')}>需求与解法</NavLink>
+            <NavLink href="/requests" active={isActive('/requests')}>提出需求</NavLink>
             <NavLink href="/mcp-library" active={isActive('/mcp-library')}>MCP 库</NavLink>
             <NavLink href="/memory" active={isActive('/memory')}>Memory Node</NavLink>
             {user && (
@@ -225,7 +225,7 @@ export function SiteHeader({ user }: { user: User }) {
             <nav className="space-y-3">
               <DrawerLink href="/" active={isActive('/')}>Skills 目录</DrawerLink>
               <DrawerLink href="/requests" active={isActive('/requests')}>
-                需求与解法
+                提出需求
               </DrawerLink>
               <DrawerLink href="/mcp-library" active={isActive('/mcp-library')}>
                 MCP 库

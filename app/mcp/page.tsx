@@ -186,7 +186,7 @@ export default async function McpGuidePage() {
             <li><strong>unfavorite_skill</strong>：从收藏库移除 Skill，需要 <code>confirm=true</code> 二次确认</li>
           </ul>
 
-          <h3 className="font-serif text-lg text-ink-brown mt-4">需求与解法</h3>
+          <h3 className="font-serif text-lg text-ink-brown mt-4">提出需求</h3>
           <ul>
             <li><strong>list_skill_requests</strong>：浏览社区公开的 Skill 需求，按关键词、场景和状态筛选</li>
             <li><strong>create_skill_request</strong>：经用户明确确认后发布公开需求；不得包含项目名称、BP 正文、财务数据或其他敏感材料</li>

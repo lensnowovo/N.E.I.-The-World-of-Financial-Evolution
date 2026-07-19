@@ -12,7 +12,7 @@ export function HomeRequestFeature() {
       </div>
       <div className="mt-4 flex gap-2 sm:mt-0">
         <Link href="/requests" className="rounded-md bg-ink-brown px-4 py-2.5 font-serif text-sm text-vellum hover:bg-wax-red">
-          查看需求与解法 →
+          提出需求 →
         </Link>
         <Link href="/requests?publish=1" className="rounded-md border border-ink-brown px-4 py-2.5 font-serif text-sm text-ink-brown hover:bg-linen">
           发布需求

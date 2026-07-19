@@ -8,7 +8,7 @@ import { SkillRequestBoard } from './SkillRequestBoard';
 export const dynamic = 'force-dynamic';
 
 export const metadata: Metadata = {
-  title: '需求与解法',
+  title: '提出需求',
   description: '发布你缺少的 PEVC Skill，认领真实工作需求，并用站内 Skill 提交解决方案。',
 };
 

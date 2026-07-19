@@ -32,7 +32,7 @@ N.E.I. 是 New Era Investor 的缩写，由 jammyssy 发起并组织，是一个
 - 公开 Skill / Prompt / Workflow 内容库
 - 按任务、行业、内容类型筛选
 - Skill 详情页、复制、收藏、评论与举报
-- Skill 需求与解法：发布缺口、认领需求、提交并采纳站内 Skill
+- 提出 Skill 需求：发布缺口、认领需求、提交并采纳站内 Skill
 - MCP 连接与 Token 管理
 - MCP 全库搜索 + 收藏库读取
 - MCP / API 外部信息连接器库

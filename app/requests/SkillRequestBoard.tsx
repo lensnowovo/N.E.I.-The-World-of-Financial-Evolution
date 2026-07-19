@@ -128,7 +128,7 @@ export function SkillRequestBoard({ initialRequests, currentUser, mySkills, init
       <section className="mb-7 grid gap-7 border-b border-paper-edge pb-7 lg:grid-cols-[1fr_auto] lg:items-end">
         <div>
           <p className="font-display text-[10px] uppercase tracking-[0.22em] text-gilded">Skill Request Board</p>
-          <h1 className="mt-2 font-serif text-4xl font-normal text-ink-brown sm:text-5xl">需求与解法</h1>
+          <h1 className="mt-2 font-serif text-4xl font-normal text-ink-brown sm:text-5xl">提出需求</h1>
           <p className="mt-3 max-w-3xl font-sans text-sm leading-7 text-leather">
             没找到合适的 Skill，就把真实工作需求留在这里。其他贡献者可以认领，并用已经公开的 Skill 提交解决方案。
           </p>
