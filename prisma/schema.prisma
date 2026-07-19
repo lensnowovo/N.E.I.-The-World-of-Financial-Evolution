@@ -40,6 +40,12 @@ model User {
   activityEvents  ActivityEvent[]
   consents        UserConsent[] // 协议确认记录
 
+  // Skill 需求与解法
+  skillRequests         SkillRequest[]         @relation("SkillRequestAuthor")
+  claimedSkillRequests  SkillRequest[]         @relation("SkillRequestClaimant")
+  skillRequestSupports  SkillRequestSupport[]
+  skillRequestSolutions SkillRequestSolution[]
+
   // Memory Node 授权系统（PR1：仅 schema）
   activationCodes   ActivationCode[]
   deviceActivations DeviceActivation[]
@@ -109,12 +115,13 @@ model Post {
   createdAt     DateTime  @default(now())
   updatedAt     DateTime  @updatedAt
 
-  author      User           @relation(fields: [userId], references: [id])
-  comments    Comment[]
-  attachments Attachment[]
-  stars       PostFavorite[]
-  skillAsset  SkillAsset?
-  reports     Report[] // SEC-011: 针对此帖的举报
+  author           User                   @relation(fields: [userId], references: [id])
+  comments         Comment[]
+  attachments      Attachment[]
+  stars            PostFavorite[]
+  skillAsset       SkillAsset?
+  reports          Report[] // SEC-011: 针对此帖的举报
+  requestSolutions SkillRequestSolution[]
 
   @@index([createdAt])
   @@index([tagScene])
@@ -228,6 +235,66 @@ model PostFavorite {
 
   @@unique([userId, postId])
   @@index([userId])
+}
+
+// ---------- Skill 需求与解法 ----------
+// 需求正文只允许简短的、非敏感的工作方法描述；真实项目材料不得写入。
+model SkillRequest {
+  id                 Int       @id @default(autoincrement())
+  requesterId        Int
+  claimedById        Int?
+  title              String
+  description        String
+  scene              String
+  acceptanceCriteria String    @default("[]") // JSON string of string[]
+  source             String    @default("web") // web | mcp
+  status             String    @default("open") // open | claimed | solved | closed
+  claimedAt          DateTime?
+  solvedAt           DateTime?
+  createdAt          DateTime  @default(now())
+  updatedAt          DateTime  @updatedAt
+
+  requester User                   @relation("SkillRequestAuthor", fields: [requesterId], references: [id], onDelete: Cascade)
+  claimedBy User?                  @relation("SkillRequestClaimant", fields: [claimedById], references: [id], onDelete: SetNull)
+  supports  SkillRequestSupport[]
+  solutions SkillRequestSolution[]
+
+  @@index([status, createdAt])
+  @@index([scene, status])
+  @@index([requesterId, createdAt])
+  @@index([claimedById])
+}
+
+model SkillRequestSupport {
+  id        Int      @id @default(autoincrement())
+  requestId Int
+  userId    Int
+  createdAt DateTime @default(now())
+
+  request SkillRequest @relation(fields: [requestId], references: [id], onDelete: Cascade)
+  user    User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([requestId, userId])
+  @@index([userId, createdAt])
+}
+
+model SkillRequestSolution {
+  id        Int      @id @default(autoincrement())
+  requestId Int
+  userId    Int
+  postId    Int
+  note      String?
+  status    String   @default("proposed") // proposed | accepted | rejected
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  request SkillRequest @relation(fields: [requestId], references: [id], onDelete: Cascade)
+  author  User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  post    Post         @relation(fields: [postId], references: [id], onDelete: Cascade)
+
+  @@unique([requestId, postId])
+  @@index([requestId, status])
+  @@index([userId, createdAt])
 }
 
 // ---------- MCP 调用日志 ----------

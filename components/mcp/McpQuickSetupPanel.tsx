@@ -287,6 +287,8 @@ function buildSetupPrompt({
   - list_my_skills：列出我在 N.E.I. 收藏且已准入 MCP 的 Skill（收藏是常用库，不是使用前置条件）
   - apply_skill：把上下文填入 Prompt 模板，返回可执行 Prompt
   - favorite_skill / unfavorite_skill：把搜索到的好用 Skill 收藏或取消收藏
+  - list_skill_requests：查看社区正在等待的 Skill 需求
+  - create_skill_request：经你明确确认后，把缺少的方法发布到公开需求板
 
 ${tokenNote}
 

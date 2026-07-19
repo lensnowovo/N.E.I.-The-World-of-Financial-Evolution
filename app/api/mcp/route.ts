@@ -10,6 +10,13 @@ import { extractPlainText, extractReadableText } from '@/lib/skill-text';
 import { withMetrics } from '@/lib/metrics';
 import { wrapWithSafetyRules } from '@/lib/mcp-safety';
 import { normalizePublicText } from '@/lib/public-url';
+import {
+  createSkillRequest,
+  listSkillRequests,
+  SKILL_REQUEST_STATUSES,
+  SkillRequestError,
+  type SkillRequestStatus,
+} from '@/lib/skill-requests';
 import { ACTIVITY_EVENT, trackActivity } from '@/lib/activity';
 import { hashMcpAccessToken } from '@/lib/mcp-access-tokens';
 import { readCanonicalSkillContent } from '@/lib/canonical-skill-content';
@@ -762,6 +769,90 @@ function makeHandler(uid: number, tokenId: number | null, clientName: string | n
             });
           } finally {
             logCall('unfavorite_skill', start, args.id);
+          }
+        },
+      );
+
+      server.tool(
+        'list_skill_requests',
+        'Browse public Skill requests from the N.E.I. request board. Use this to see what PEVC practitioners need before proposing or publishing a new Skill.',
+        {
+          query: z.string().optional().describe('Optional keyword'),
+          scene: z.string().optional().describe('Optional PEVC scene code, e.g. business-dd / industry-research'),
+          status: z.enum(SKILL_REQUEST_STATUSES).optional().describe('Request status'),
+          sort: z.enum(['popular', 'latest']).optional().default('popular'),
+          limit: z.number().optional().default(20).describe('Max 50'),
+        },
+        async (args) => {
+          const start = Date.now();
+          try {
+            const items = await listSkillRequests({
+              userId: uid,
+              q: args.query,
+              scene: args.scene,
+              status: args.status as SkillRequestStatus | undefined,
+              sort: args.sort,
+              limit: Math.min(args.limit || 20, 50),
+            });
+            return jsonContent({
+              summary: items.length ? `Found ${items.length} Skill request(s).` : 'No Skill request matched.',
+              count: items.length,
+              items,
+              nextStep: 'If the user wants to publish a missing need, call create_skill_request with confirmed=false first.',
+              safety: MCP_SAFETY,
+            });
+          } finally {
+            logCall('list_skill_requests', start);
+          }
+        },
+      );
+
+      server.tool(
+        'create_skill_request',
+        'Publish a Skill request to the N.E.I. public request board. This is a public write action and requires confirmed=true. Never include company names, BP text, financial data, interview notes, or other confidential project material.',
+        {
+          title: z.string().describe('Short method need, 5-80 characters'),
+          description: z.string().describe('What work needs help and the expected method, 12-1200 characters; no confidential project details'),
+          scene: z.string().describe('PEVC scene code, e.g. screening / industry-research / business-dd / ic'),
+          acceptance_criteria: z.array(z.string()).optional().describe('Up to 5 reusable acceptance criteria'),
+          confirmed: z.boolean().optional().default(false).describe('Must be true after the user confirms public posting'),
+        },
+        async (args) => {
+          const start = Date.now();
+          try {
+            if (!args.confirmed) {
+              return toolResultMessage(false, 'Public confirmation required. Show the preview and ask the user before publishing.', {
+                confirmationRequired: true,
+                preview: {
+                  title: args.title,
+                  description: args.description,
+                  scene: args.scene,
+                  acceptanceCriteria: args.acceptance_criteria ?? [],
+                },
+                privacyNotice: 'Do not publish real company names, BP text, financial data, interview notes, LP information, or other confidential material.',
+              });
+            }
+            const created = await createSkillRequest(
+              uid,
+              {
+                title: args.title,
+                description: args.description,
+                scene: args.scene,
+                acceptanceCriteria: args.acceptance_criteria,
+              },
+              'mcp',
+            );
+            return toolResultMessage(true, 'Skill request published to the N.E.I. request board.', {
+              request: created,
+              url: `https://nei-pevc.com/requests#request-${created.id}`,
+            });
+          } catch (error) {
+            if (error instanceof SkillRequestError) {
+              return toolResultMessage(false, error.message, { code: error.code });
+            }
+            throw error;
+          } finally {
+            logCall('create_skill_request', start);
           }
         },
       );

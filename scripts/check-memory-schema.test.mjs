@@ -34,7 +34,9 @@ const migration = readFileSync(MIGRATION_PATH, "utf8");
 // (e.g. "无 DROP / TRUNCATE") don't trip the destructive-op scan.
 const migrationNoComments = migration
   .split("\n")
-  .map((l) => l.replace(/--.*$/, ""))
+  // `.` does not consume a trailing CR, so the old expression failed on
+  // Windows CRLF checkouts and scanned words that only appeared in comments.
+  .map((l) => l.replace(/--[^\r\n]*\r?$/, ""))
   .join("\n");
 
 const TARGET_TABLES = [

@@ -8,6 +8,7 @@ import { HomeTaskGrid } from '@/components/home/HomeTaskGrid';
 import { HomeMcpFeature } from '@/components/home/HomeMcpFeature';
 import { HomeMemoryFeature } from '@/components/home/HomeMemoryFeature';
 import { HomeSkillShelves } from '@/components/home/HomeSkillShelves';
+import { HomeRequestFeature } from '@/components/home/HomeRequestFeature';
 import { HomeSideDock, type HomeSideDockData } from '@/components/home/HomeSideDock';
 import { SkillFeed } from '@/components/SkillFeed';
 import { fetchHomeSkillShelves } from '@/lib/home-shelves';
@@ -50,6 +51,7 @@ export default async function HomePage({ searchParams }: { searchParams: Promise
         }}
       />
       <HomeMemoryFeature />
+      <HomeRequestFeature />
 
       <section id="skill-library" className="scroll-mt-24 pt-8">
         <div className="flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between mb-5">
