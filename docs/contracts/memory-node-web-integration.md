@@ -477,6 +477,10 @@ return Response.json({
 
 > **备选方案**：per-user 串行化也可用 `pg_advisory_xact_lock(hashtext('ent:' || userId))` 咨询锁，效果相同且不依赖某张具体表。本契约首选 Entitlement 行锁（语义清晰、与已有查询复用）。
 
+> **P1-1 重复 deviceId**：激活码与设备绑定后，若 `userId + deviceId` 已 `active`，新激活码返回 `DEVICE_ALREADY_ACTIVE` 且**不消费激活码**——防止多台机器共用同一 `deviceId` 只占一个名额。已撤销设备允许重新激活，并正常占用一个 active 名额（计数只算 `status='active'`）。
+
+> **⚠️ v1 设备限制是服务端软限制（诚实声明）**：`deviceId` 是客户端生成的随机 UUID，**不是硬件可信身份**。完全控制本机的用户可复制本地身份（复制凭据存储里的许可证 + 同一 `deviceId`）或修改客户端以绕过。本设计阻止的是「正常多账户/多设备滥用」与「并发竞态突破上限」，**无法**对抗有动机的本地绕过。正式商业化前应考虑「设备密钥对 + 公钥绑定 + proof-of-possesion」，使每台物理设备持有独立私钥。本 PR 不实现完整设备密钥体系。
+
 ---
 
 ### 5.3 `POST /api/activation/refresh`
@@ -610,6 +614,7 @@ const license = payloadBytes.toString('base64url') + '.' + signature.toString('b
 | `CODE_EXPIRED` | 400 | 超 5 分钟 | 重新生成 |
 | `CODE_CONSUMED` | 400 | 已使用 | 重新生成 |
 | `DEVICE_LIMIT_EXCEEDED` | 403 | active 设备达 3（并发安全） | 在网站撤销旧设备 |
+| `DEVICE_ALREADY_ACTIVE` | 403 | 该 `deviceId` 已 active，不允许凭新激活码覆盖/重激活 | 用新 deviceId 或先撤销旧设备 |
 | `NO_ENTITLEMENT` | 403 | 无权益 / Entitlement 不存在 | 引导购买/联系管理员 |
 | `ENTITLEMENT_EXPIRED` | 403 | 权益 status≠active 或 expiresAt≤now | 引导续费 |
 | `CLIENT_TOO_OLD` | 403 | 版本过低 | 强制升级 |
@@ -747,7 +752,9 @@ Ed25519 能**防止伪造许可证**，但**无法强制客户端"尊重" `exp`*
 
 ### 模型与原子消费
 
-`RateLimitBucket`（见 §4），唯一键 `(ip, endpoint, windowStart)`。
+`RateLimitBucket`（见 §4），唯一键 `(subject, endpoint, windowStart)`。
+
+> **P2-3 subject 列**：冲突键由 `ip` 改为语义中立的 `subject`——既装合法 IP，也装 `"user:<id>"`（发码的用户维度限流），避免把 userId 伪造成 IP。`ip` 保留为可选观测列。
 
 ```typescript
 // 单语句原子自增：INSERT 新桶(count=1) 或 ON CONFLICT 自增，RETURNING 自增后的 count。
@@ -788,7 +795,7 @@ async function checkAndConsume(
 
 **固定窗口边界 fuzziness**：窗口切换瞬间可能短时间内进入 ~2×limit 请求（跨两个相邻窗口）。对登录/激活场景可接受；若需更严格可改滑动窗口（成本更高，暂不引入）。
 
-**清理**：Vercel Cron 每 10 分钟：`DELETE FROM "RateLimitBucket" WHERE "expiresAt" < NOW();`（`expiresAt` 索引支撑）。
+**清理**：Vercel Cron 每日 03:00 UTC：`DELETE FROM "RateLimitBucket" WHERE "expiresAt" < NOW();`（`expiresAt` 索引支撑，兼容 Vercel Hobby 每日 Cron 限制）。
 
 ### 限流配置
 
@@ -801,19 +808,31 @@ async function checkAndConsume(
 ### 客户端 IP 读取顺序（Vercel）
 
 ```typescript
+// 实现：lib/client-ip.ts。只信任 Vercel 注入/覆写的代理头，且只接受合法
+// IPv4/IPv6 单值（net.isIP 校验，长度 ≤ 45）。多段拼接/超长/非 IP → 'unknown'。
 function getClientIp(req: Request | NextRequest): string {
-  // 只信任 Vercel 在边缘注入/覆写的代理头。Vercel 会用真实 TCP 连接覆写
-  // 客户端自带的 XFF，因此最左一项 = 真实客户端。禁止拼接或信任中间跳。
-  const xrip = req.headers.get("x-real-ip");        // Vercel：连接端 IP（单值）
-  if (xrip) return xrip.trim();
-  const xff = req.headers.get("x-forwarded-for");   // Vercel：最左 = 真实客户端
-  if (xff) return xff.split(",")[0].trim();
-  const vff = req.headers.get("x-vercel-forwarded-for");
-  if (vff) return vff.split(",")[0].trim();
-  // 仅 dev / 无可信代理时的兜底
-  return "127.0.0.1";
+  // 1. x-real-ip：Vercel 单值，最可信。
+  // 2. x-forwarded-for：仅作受控兜底，取最左一项。
+  // 3. x-vercel-forwarded-for：同上。
+  // 4. 'unknown'（作为「IP 未知」的共享限流桶，比完全不限安全）。
 }
 ```
+
+读取顺序与校验（**P1-2 加固**）：
+- **优先 `x-real-ip`**（Vercel 连接端单值），`x-forwarded-for` 仅作受控兜底（取最左一项）。
+- 每个候选值用 `net.isIP` 校验为合法 IPv4/IPv6，且长度 ≤ 45；带端口/协议/多段伪造一律拒绝。
+- 全部非法时回退 `unknown`，**不**把未校验的原始头值写入 `RateLimitBucket.ip`。
+
+> **⚠️ 代理头信任边界（残留风险）**：上述头之所以可信，依赖 Vercel 边缘用真实 TCP 连接**覆写**客户端自带的同名头。若部署在非 Vercel、或经未受控代理直连，**禁止**直接信任 `X-Forwarded-For`（客户端可伪造）。本设计的 IP 限流是**反滥用**手段，不是强身份边界；用户维度限流（`subject="user:<uid>"`，P2-3）才是抗「换 IP」的主防线。
+
+### 清理 Cron（P1-2 + P2-4）
+
+Vercel Cron 每日 03:00 UTC 调用 `POST/GET /api/cron/cleanup-rate-limits`（`vercel.json` crons），由 Project Settings → Environment Variables 中的 `CRON_SECRET` 保护；Vercel 自动以 `Authorization: Bearer` 注入，未授权 → 401。删除：
+
+- `RateLimitBucket.expiresAt < now`（过期限流桶）；
+- `ActivationCode.expiresAt < now − 保留期`（默认 7 天；仍有效/未过保留期的一律保留）。
+
+返回 `{ rate_limit_buckets_deleted, activation_codes_deleted }`，不暴露数据库错误。
 
 > **信任边界**：上述头之所以可信，是因为 Vercel 边缘**覆写**了客户端自带的同名头。若部署在非 Vercel 或未经可信代理直连，**禁止**直接信任 `X-Forwarded-For`（客户端可伪造），应改用 socket 对端地址或配置可信代理计数。
 
@@ -887,7 +906,7 @@ Memory Node 激活**不放在 `/connect`**。独立路由：
 | # | 问题 | 当前倾向 |
 |---|---|---|
 | Q1 | `kid` 格式？ | `key-{year}-{month}` |
-| Q2 | `RateLimitBucket` 清理方式？ | Vercel Cron（每 10 分钟） |
+| Q2 | `RateLimitBucket` 清理方式？ | Vercel Cron（每日 03:00 UTC） |
 | Q3 | device_id 卸载重装后保留？ | 不保留；重装即新设备 |
 | Q4 | `/memory` 是否需功能介绍？ | 需要 |
 | Q5 | Admin 操作日志载体？ | 先写 `Entitlement.metadata` JSON，量大再建表 |

@@ -194,7 +194,7 @@ export async function checkAndConsume(
   return { allowed: true, retryAfter: 0 };
 }
 ```
-> 原子性：单语句 `INSERT ON CONFLICT DO UPDATE RETURNING` 由行锁串行化，无 count→create 竞态。Vercel Cron 每 10 分钟清理过期桶（按 `expiresAt`）。
+> 原子性：单语句 `INSERT ON CONFLICT DO UPDATE RETURNING` 由行锁串行化，无 count→create 竞态。Vercel Cron 每日 03:00 UTC 清理过期桶（按 `expiresAt`，兼容 Hobby 计划）。
 > **B9**：`retryAfter` 用 `bucketEnd - now`，不要用 `expiresAt - now`（后者含 60s 清理缓冲，会让客户端多等 60s）。
 
 #### `lib/activation-license.ts`（Ed25519，payload v2）
@@ -463,7 +463,7 @@ PR1 (schema) ──→ PR2 (activate+事务+限流+Ed25519) ──→ PR3 (devic
 PR1 先合并；PR2/PR4/PR5 并行；PR3 依赖 PR2；PR6 依赖 PR2+PR3。PR1 合并后先在 Neon 验证建表，再合并后续。
 
 ### Vercel Cron（PR2 上线时配置）
-- 每 10 分钟：`DELETE FROM "RateLimitBucket" WHERE "expiresAt" < NOW();`
+- 每日 03:00 UTC：`DELETE FROM "RateLimitBucket" WHERE "expiresAt" < NOW();`
 
 ### 环境变量（PR2 前）
 ```bash
@@ -558,7 +558,7 @@ MEMORY_LICENSE_PRIVATE_KEY="<PEM with \n>"
 | # | 问题 | 倾向 |
 |---|---|---|
 | Q1 | kid 格式？ | `key-{year}-{month}` |
-| Q2 | RateLimitBucket 清理？ | Vercel Cron 10min |
+| Q2 | RateLimitBucket 清理？ | Vercel Cron 每日 03:00 UTC |
 | Q3 | device_id 卸载重装？ | 不保留 |
 | Q4 | `/memory` 介绍页？ | 需要 |
 | Q5 | Admin 日志载体？ | 先 `Entitlement.metadata` JSON |

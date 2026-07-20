@@ -389,15 +389,18 @@ model ReleaseManifest {
 
 // ---------- 原子时间桶限流（替代 v2 的 ActivationAttempt）----------
 // 与 User 无 relation（匿名限流）。唯一键支撑原子 upsert，expiresAt 索引支撑清理。
+// P2-3：冲突键由 `ip` 改为语义中立的 `subject`——既可装合法 IP，也可装 "user:<id>"，
+// 避免把 userId 伪造成 IP 写入造成混淆。`ip` 仅作可选观测列。
 model RateLimitBucket {
   id          BigInt   @id @default(autoincrement())
-  ip          String
-  endpoint    String // "code" | "activate" | "refresh"
+  subject     String // 限流主体：合法 IP 或 "user:<id>"（冲突键，语义清晰）
+  ip          String? // 可选：原始 IP，仅观测/日志
+  endpoint    String // "code" | "activate" | "refresh" | "code:user"
   windowStart DateTime // 对齐到窗口边界
   count       Int      @default(0)
   expiresAt   DateTime // windowStart + window + 清理缓冲
   createdAt   DateTime @default(now())
 
-  @@unique([ip, endpoint, windowStart]) // 原子 upsert 的冲突键
+  @@unique([subject, endpoint, windowStart]) // 原子 upsert 的冲突键
   @@index([expiresAt]) // 支撑定期清理
 }

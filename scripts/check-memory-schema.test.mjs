@@ -1,4 +1,4 @@
-// Migration safety test for Memory Node web authorization PR1.
+// Migration safety tests for Memory Node web authorization migrations.
 // Run: npm run test:memory-schema   (node --test scripts/check-memory-schema.test.mjs)
 //
 // Zero-dependency. Reads prisma/schema.prisma and the new migration.sql from
@@ -18,24 +18,33 @@ const SCHEMA_PATH = join(root, "prisma", "schema.prisma");
 const MIGRATIONS_DIR = join(root, "prisma", "migrations");
 const schema = readFileSync(SCHEMA_PATH, "utf8");
 
-// Locate the PR1 migration directory (name starts with a timestamp).
-function findMemoryMigration() {
+function findMigration(suffix) {
   const dirs = readdirSync(MIGRATIONS_DIR).filter(
-    (d) => /^\d+_add_memory_web_entitlements$/.test(d)
+    (d) => new RegExp(`^\\d+_${suffix}$`).test(d)
   );
-  assert.ok(dirs.length === 1, `expected exactly one add_memory_web_entitlements migration dir, got ${dirs.join(", ") || "none"}`);
+  assert.ok(dirs.length === 1, `expected exactly one ${suffix} migration dir, got ${dirs.join(", ") || "none"}`);
   return join(MIGRATIONS_DIR, dirs[0], "migration.sql");
 }
 
-const MIGRATION_PATH = findMemoryMigration();
+const MIGRATION_PATH = findMigration("add_memory_web_entitlements");
+const SUBJECT_MIGRATION_PATH = findMigration("add_ratelimitbucket_subject");
 const migration = readFileSync(MIGRATION_PATH, "utf8");
+const subjectMigration = readFileSync(SUBJECT_MIGRATION_PATH, "utf8");
 
 // Strip SQL line comments (-- to end of line) so documentation comments
 // (e.g. "无 DROP / TRUNCATE") don't trip the destructive-op scan.
-const migrationNoComments = migration
-  .split("\n")
-  .map((l) => l.replace(/--.*$/, ""))
-  .join("\n");
+// Split on \r?\n so CRLF checkouts (Windows) are handled: a trailing \r would
+// otherwise make /--.*$/ fail to match (JS `.` does not cross \r), leaving the
+// comment — and its "TRUNCATE" wording — intact.
+function stripSqlLineComments(sql) {
+  return sql
+    .split(/\r?\n/)
+    .map((l) => l.replace(/--.*$/, ""))
+    .join("\n");
+}
+
+const migrationNoComments = stripSqlLineComments(migration);
+const subjectMigrationNoComments = stripSqlLineComments(subjectMigration);
 
 const TARGET_TABLES = [
   "ActivationCode",
@@ -51,6 +60,7 @@ const TARGET_TABLES = [
 
 test("migration file exists", () => {
   assert.ok(existsSync(MIGRATION_PATH), `missing ${MIGRATION_PATH}`);
+  assert.ok(existsSync(SUBJECT_MIGRATION_PATH), `missing ${SUBJECT_MIGRATION_PATH}`);
 });
 
 test("migration creates all five target tables", () => {
@@ -99,6 +109,33 @@ test("migration does not reference legacy ActivationAttempt table", () => {
   );
 });
 
+test("subject upgrade migration is transactional and preserves old rows", () => {
+  assert.match(subjectMigration, /\bBEGIN\s*;/i, "subject migration must begin a transaction");
+  assert.match(subjectMigration, /\bCOMMIT\s*;/i, "subject migration must commit the transaction");
+  assert.doesNotMatch(subjectMigrationNoComments, /\b(?:DROP\s+TABLE|DROP\s+COLUMN|TRUNCATE|DELETE\s+FROM)\b/i);
+});
+
+test("subject upgrade adds nullable, backfills, then sets NOT NULL", () => {
+  const addAt = subjectMigration.search(/ADD COLUMN\s+"subject"\s+TEXT\s*;/i);
+  const backfillAt = subjectMigration.search(/UPDATE\s+"RateLimitBucket"[\s\S]*SET\s+"subject"/i);
+  const notNullAt = subjectMigration.search(/ALTER COLUMN\s+"subject"\s+SET NOT NULL/i);
+  assert.ok(addAt >= 0, "subject must initially be added nullable");
+  assert.ok(backfillAt > addAt, "existing rows must be backfilled after adding subject");
+  assert.ok(notNullAt > backfillAt, "NOT NULL must be applied only after backfill");
+  assert.match(
+    subjectMigration,
+    /COALESCE\(NULLIF\(BTRIM\("ip"\),\s*''\),\s*'unknown'\)/i,
+    "subject backfill must preserve valid old IPs and normalize blank values"
+  );
+});
+
+test("subject upgrade creates the new unique index before dropping the old one", () => {
+  const createAt = subjectMigration.indexOf('CREATE UNIQUE INDEX "RateLimitBucket_subject_endpoint_windowStart_key"');
+  const dropAt = subjectMigration.indexOf('DROP INDEX "RateLimitBucket_ip_endpoint_windowStart_key"');
+  assert.ok(createAt >= 0, "missing new subject unique index");
+  assert.ok(dropAt > createAt, "old index must be dropped only after the new index succeeds");
+});
+
 // ---------------------------------------------------------------------------
 // Schema-level invariants (contract §4)
 // ---------------------------------------------------------------------------
@@ -115,9 +152,15 @@ test("schema does not contain ActivationAttempt model", () => {
   assert.ok(!/\bmodel ActivationAttempt\b/.test(schema), "ActivationAttempt must not exist");
 });
 
-test("RateLimitBucket has unique(ip,endpoint,windowStart) and index(expiresAt)", () => {
+test("RateLimitBucket has unique(subject,endpoint,windowStart), subject key + ip optional, and index(expiresAt)", () => {
   const block = modelBlock("RateLimitBucket");
-  assert.ok(/@@unique\(\[ip,\s*endpoint,\s*windowStart\]\)/.test(block), "missing unique(ip,endpoint,windowStart)");
+  // P2-3: 冲突键由 ip 改为 subject；ip 降为可选观测列。
+  assert.ok(
+    /@@unique\(\[subject,\s*endpoint,\s*windowStart\]\)/.test(block),
+    "missing unique(subject,endpoint,windowStart)"
+  );
+  assert.ok(/subject\s+String\b/.test(block), "missing subject String column");
+  assert.ok(/ip\s+String\?/.test(block), "ip must be optional (String?)");
   assert.ok(/@@index\(\[expiresAt\]\)/.test(block), "missing index([expiresAt])");
 });
 
