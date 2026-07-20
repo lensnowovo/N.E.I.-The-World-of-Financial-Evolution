@@ -254,6 +254,17 @@ prisma generate && next build
 | --- | --- |
 | `ANTHROPIC_API_KEY` | AI 相关能力 |
 | `GLM_API_KEY` | AI 相关能力 |
+| `MEMORY_LICENSE_PRIVATE_KEY` | Memory Node 授权：Ed25519 许可证签发私钥（PEM）。`openssl genpkey -algorithm ED25519` 生成。激活签发依赖此变量；未配置则 `/api/activation/activate` 在签发阶段失败。对应**公钥由 Memory Node 客户端编译内置（另一仓库 nei-memory-node）**。 |
+| `CRON_SECRET` | Vercel Cron 鉴权密钥，保护 `/api/cron/cleanup-rate-limits`。在 Vercel → Settings → Cron Jobs 配置同名 `CRON_SECRET`，Vercel 会以 `Authorization: Bearer <CRON_SECRET>` 调用；未配置则该端点一律 401。 |
+
+### Vercel Cron（限流清理）
+
+`vercel.json` 配置每 10 分钟调用 `/api/cron/cleanup-rate-limits`，删除：
+
+- `RateLimitBucket.expiresAt < now`（过期限流桶）；
+- `ActivationCode.expiresAt < now − 7 天`（过期并超过保留期的激活码；仍有效/未过保留期的一律保留）。
+
+部署 Memory Node 激活前，请在 Vercel 配置 `CRON_SECRET` 并在 Cron Jobs 处填入相同值；否则清理不会执行（限流表会持续增长），且端点对任何调用返回 401。
 
 GitHub OAuth callback URL：
 

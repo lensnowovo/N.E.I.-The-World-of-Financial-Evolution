@@ -118,9 +118,15 @@ test("schema does not contain ActivationAttempt model", () => {
   assert.ok(!/\bmodel ActivationAttempt\b/.test(schema), "ActivationAttempt must not exist");
 });
 
-test("RateLimitBucket has unique(ip,endpoint,windowStart) and index(expiresAt)", () => {
+test("RateLimitBucket has unique(subject,endpoint,windowStart), subject key + ip optional, and index(expiresAt)", () => {
   const block = modelBlock("RateLimitBucket");
-  assert.ok(/@@unique\(\[ip,\s*endpoint,\s*windowStart\]\)/.test(block), "missing unique(ip,endpoint,windowStart)");
+  // P2-3: 冲突键由 ip 改为 subject；ip 降为可选观测列。
+  assert.ok(
+    /@@unique\(\[subject,\s*endpoint,\s*windowStart\]\)/.test(block),
+    "missing unique(subject,endpoint,windowStart)"
+  );
+  assert.ok(/subject\s+String\b/.test(block), "missing subject String column");
+  assert.ok(/ip\s+String\?/.test(block), "ip must be optional (String?)");
   assert.ok(/@@index\(\[expiresAt\]\)/.test(block), "missing index([expiresAt])");
 });
 

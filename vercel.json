@@ -1,4 +1,10 @@
 {
   "buildCommand": "npm run vercel-build",
-  "regions": ["sin1"]
+  "regions": ["sin1"],
+  "crons": [
+    {
+      "path": "/api/cron/cleanup-rate-limits",
+      "schedule": "*/10 * * * *"
+    }
+  ]
 }

@@ -59,6 +59,7 @@ export interface PerformActivationResult {
   exp: number; // epoch 秒
   userId: number;
   plan: string;
+  nickname: string; // P1-3：事务内读取，避免事务后查询失败导致「已激活却 500」
 }
 
 /**
@@ -99,14 +100,30 @@ export async function performActivation(
         throw new ActivationError(400, 'CODE_EXPIRED');
       if (codeFresh.consumedAt) throw new ActivationError(400, 'CODE_CONSUMED');
 
-      // (c) 版本门
+      // (c) 版本门。P2-2：findFirst 加确定性 orderBy，避免多条 isLatest 时随机选。
+      //     （多 latest 的唯一性治理见契约/DEPLOY；读取先保证确定。）
       const release = await tx.releaseManifest.findFirst({
         where: { product: 'memory-node', platform: input.platform, isLatest: true },
+        orderBy: [{ publishedAt: 'desc' }, { id: 'desc' }],
       });
       if (release?.minVersion && semverLt(input.clientVersion, release.minVersion))
         throw new ActivationError(403, 'CLIENT_TOO_OLD');
 
-      // (d) 设备计数：持锁后执行。不含本 deviceId；被撤销设备 status≠active 自然不计入。
+      // (c2) P1-1：若该 deviceId 已处于 active，不允许凭新激活码覆盖/重激活。
+      //      防止多台机器共用同一 device_id 只占一个名额。不消费激活码。
+      //      已撤销(revoked)设备允许重新激活，走下面的名额检查。
+      const existing = await tx.deviceActivation.findUnique({
+        where: {
+          userId_deviceId: { userId: codeRow.userId, deviceId: input.deviceId },
+        },
+        select: { status: true },
+      });
+      if (existing?.status === 'active') {
+        throw new ActivationError(403, 'DEVICE_ALREADY_ACTIVE');
+      }
+
+      // (d) 设备计数：持锁后执行。不含本 deviceId；被撤销设备 status≠active 自然不计入，
+      //     故重新激活被撤销设备会正常占用一个 active 名额（P1-1）。
       const activeCount = await tx.deviceActivation.count({
         where: {
           userId: codeRow.userId,
@@ -167,7 +184,15 @@ export async function performActivation(
         entitlementExpiresAt: ent.expiresAt,
         vmin: release?.minVersion ?? '0.0.1',
       });
-      return { ...r, userId: codeRow.userId, plan: ent.plan };
+
+      // (f2) P1-3：昵称在事务内读取并随结果返回（找不到则空串，绝不抛错），
+      //      避免事务外单独查询失败导致「激活码已消费/设备已激活/许可证已签发却 500」。
+      const user = await tx.user.findUnique({
+        where: { id: codeRow.userId },
+        select: { nickname: true },
+      });
+
+      return { ...r, userId: codeRow.userId, plan: ent.plan, nickname: user?.nickname ?? '' };
     },
     { isolationLevel: 'ReadCommitted' }
   );

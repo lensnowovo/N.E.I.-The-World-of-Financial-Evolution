@@ -1,36 +1,25 @@
 import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/db';
 import { checkAndConsume, getClientIp } from '@/lib/rate-limit';
-import { isValidCodeFormat } from '@/lib/activation-code';
 import { ActivationError, performActivation } from '@/lib/activation';
-
-const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
-const SEMVER_RE = /^\d+\.\d+\.\d+$/;
-const PLATFORMS = new Set(['windows', 'macos']);
-
-interface ActivateBody {
-  code?: unknown;
-  device_id?: unknown;
-  device_name?: unknown;
-  platform?: unknown;
-  client_version?: unknown;
-}
+import { validateActivationInput } from '@/lib/activation-input';
 
 /**
  * POST /api/activation/activate
  * 用激活码换 Ed25519 签名许可证。**不需要 cookie session**（契约 §5.2）。
  */
 export async function POST(req: Request) {
-  let body: ActivateBody;
+  let body: unknown;
   try {
-    body = (await req.json()) as ActivateBody;
+    body = await req.json();
   } catch {
     return NextResponse.json({ error: 'INVALID_REQUEST' }, { status: 400 });
   }
 
-  // 限流优先（原子桶）。契约 §5.2：activate 10 次 / 60s。
+  // 限流优先（原子桶，subject=合法 IP）。契约 §5.2：activate 10 次 / 60s。
   const ip = getClientIp(req);
   const rl = await checkAndConsume({
+    subject: ip,
     ip,
     endpoint: 'activate',
     limit: 10,
@@ -43,28 +32,16 @@ export async function POST(req: Request) {
     );
   }
 
-  // 输入校验。
-  const code = typeof body.code === 'string' ? body.code : '';
-  const deviceId = typeof body.device_id === 'string' ? body.device_id : '';
-  const deviceName = typeof body.device_name === 'string' ? body.device_name : '';
-  const platform = typeof body.platform === 'string' ? body.platform : '';
-  const clientVersion =
-    typeof body.client_version === 'string' ? body.client_version : '';
-
-  if (!isValidCodeFormat(code)) {
-    return NextResponse.json({ error: 'INVALID_CODE' }, { status: 400 });
-  }
-  if (!UUID_RE.test(deviceId) || !deviceName || !PLATFORMS.has(platform) || !SEMVER_RE.test(clientVersion)) {
+  // 输入校验 + 长度/控制字符限制（P2-1）。
+  const input = validateActivationInput(body);
+  if (!input) {
     return NextResponse.json({ error: 'INVALID_REQUEST' }, { status: 400 });
   }
 
   // 激活事务（契约 §5.2.1）。
   let result;
   try {
-    result = await performActivation(
-      { code, deviceId, deviceName, platform, clientVersion },
-      prisma
-    );
+    result = await performActivation(input, prisma);
   } catch (err) {
     if (err instanceof ActivationError) {
       return NextResponse.json({ error: err.code }, { status: err.status });
@@ -74,14 +51,10 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: 'ACTIVATION_UNAVAILABLE' }, { status: 500 });
   }
 
-  const user = await prisma.user.findUnique({
-    where: { id: result.userId },
-    select: { nickname: true },
-  });
-
+  // P1-3：nickname 已在事务内读取，随结果返回；无事务后查询，杜绝「已激活却 500」。
   return NextResponse.json({
     license: result.license,
     expires_at: new Date(result.exp * 1000).toISOString(),
-    user: { nickname: user?.nickname ?? '', plan: result.plan },
+    user: { nickname: result.nickname, plan: result.plan },
   });
 }

@@ -19,7 +19,7 @@
     "test:release-safety": "node --test scripts/check-release-safety.test.mjs",
     "test:memory-schema": "node --test scripts/check-memory-schema.test.mjs",
     "test:mcp-search-intelligence": "node --import tsx --test scripts/mcp-search-intelligence.test.ts",
-    "test:activation": "node --import tsx --test scripts/check-activation-license.test.ts",
+    "test:activation": "node --import tsx --test scripts/check-activation-license.test.ts scripts/check-activation-input.test.ts",
     "test:activation:integration": "node --import tsx --test scripts/check-activation-concurrency.test.ts",
     "smoke:public-posts": "tsx scripts/smoke-public-posts.ts",
     "smoke:public-downloads": "tsx scripts/smoke-public-downloads.ts",

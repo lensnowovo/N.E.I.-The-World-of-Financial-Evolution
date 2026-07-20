@@ -21,6 +21,7 @@
 import { Prisma, PrismaClient } from '@prisma/client';
 import { prisma } from '@/lib/db';
 import { computeRateWindow, retryAfterSeconds } from '@/lib/rate-window';
+import { getClientIp as resolveClientIp } from '@/lib/client-ip';
 
 interface Bucket {
   count: number;
@@ -86,21 +87,12 @@ export function checkRateLimit(
 }
 
 /**
- * 从 Request headers 解析客户端 IP（仅用 web 标准 headers，框架无关）。
- *
- * 生产环境（Vercel / 反代后）`x-forwarded-for` 由 CDN 设置，取第一个非空项；
- * `x-real-ip` 作为兜底。两者都缺失时返回 'unknown'（调用方仍可用其作为限流 key，
- * 相当于一个「IP 未知」的共享桶 —— 比「完全不限」安全）。
+ * 从 Request headers 解析客户端 IP。委托给 lib/client-ip（仅信任 Vercel 注入头，
+ * 只接受合法 IPv4/IPv6 单值；非法/超长/多段伪造值一律回退 'unknown'）。
+ * 保留 `getClientIp(req)` 签名以兼容既有调用方（verify-email 等）。
  */
 export function getClientIp(req: Request): string {
-  const xff = req.headers.get('x-forwarded-for');
-  if (xff) {
-    const first = xff.split(',')[0]?.trim();
-    if (first) return first;
-  }
-  const realIp = req.headers.get('x-real-ip');
-  if (realIp) return realIp.trim();
-  return 'unknown';
+  return resolveClientIp(req.headers);
 }
 
 // ---------------------------------------------------------------------------
@@ -108,8 +100,11 @@ export function getClientIp(req: Request): string {
 // ---------------------------------------------------------------------------
 
 export interface CheckAndConsumeArgs {
-  ip: string;
-  endpoint: string; // "code" | "activate" | "refresh"
+  /** 限流主体：合法 IP 或 "user:<id>"。作为原子桶冲突键的一部分。 */
+  subject: string;
+  /** 可选：原始 IP，仅写入 ip 列用于观测/日志（不影响计数）。 */
+  ip?: string;
+  endpoint: string; // "code" | "activate" | "refresh" | "code:user"
   limit: number;
   windowMs: number;
 }
@@ -133,12 +128,13 @@ export async function checkAndConsume(
 ): Promise<CheckAndConsumeResult> {
   const now = Date.now();
   const { windowStart, bucketEnd, expiresAt } = computeRateWindow(now, args.windowMs);
+  const obsIp = args.ip ?? null;
 
   const rows = await client.$queryRaw<Array<{ new_count: bigint }>>`
     INSERT INTO "RateLimitBucket"
-      ("ip", "endpoint", "windowStart", "count", "expiresAt", "createdAt")
-    VALUES (${args.ip}, ${args.endpoint}, ${windowStart}, 1, ${expiresAt}, ${new Date(now)})
-    ON CONFLICT ("ip", "endpoint", "windowStart")
+      ("subject", "ip", "endpoint", "windowStart", "count", "expiresAt", "createdAt")
+    VALUES (${args.subject}, ${obsIp}, ${args.endpoint}, ${windowStart}, 1, ${expiresAt}, ${new Date(now)})
+    ON CONFLICT ("subject", "endpoint", "windowStart")
     DO UPDATE SET "count" = "RateLimitBucket"."count" + 1
     RETURNING "count" AS new_count
   `;
