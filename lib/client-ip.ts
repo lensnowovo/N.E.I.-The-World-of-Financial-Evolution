@@ -10,7 +10,8 @@
  *   3. x-vercel-forwarded-for（同上）
  *   4. 'unknown'
  *
- * 拒绝：多段拼接、超长值、非 IP 字符串、带端口/协议等异常 → 一律回退 'unknown'。
+ * 对代理头只验证最左一项；最左项非法时不会跳过它去信任后续值。
+ * 拒绝：超长值、非 IP 字符串、带端口/协议等异常 → 回退下一可信头或 'unknown'。
  *
  * 纯函数模块（仅依赖 node:net），不引入 Prisma，便于离线单测。
  */
@@ -29,14 +30,11 @@ export function isValidIp(value: string | null | undefined): boolean {
   return isIP(v) !== 0;
 }
 
-/** 从逗号分隔的代理头中取首个合法 IP；无则 null。 */
-function firstValidFromCsv(headerVal: string | null): string | null {
+/** 只验证代理头最左一项；无值或最左项非法则返回 null。 */
+function leftmostValidIp(headerVal: string | null): string | null {
   if (!headerVal) return null;
-  for (const part of headerVal.split(',')) {
-    const cand = part.trim();
-    if (isValidIp(cand)) return cand;
-  }
-  return null;
+  const candidate = headerVal.split(',', 1)[0]?.trim() ?? '';
+  return isValidIp(candidate) ? candidate : null;
 }
 
 export interface HeadersLike {
@@ -49,15 +47,15 @@ export interface HeadersLike {
  */
 export function getClientIp(headers: HeadersLike): string {
   // 1. x-real-ip：Vercel 注入的单值。
-  const xrip = firstValidFromCsv(headers.get('x-real-ip'));
+  const xrip = leftmostValidIp(headers.get('x-real-ip'));
   if (xrip) return xrip;
 
-  // 2. x-forwarded-for：仅作受控兜底，取最左合法项。
-  const xff = firstValidFromCsv(headers.get('x-forwarded-for'));
+  // 2. x-forwarded-for：仅作受控兜底，只验证最左项。
+  const xff = leftmostValidIp(headers.get('x-forwarded-for'));
   if (xff) return xff;
 
   // 3. x-vercel-forwarded-for：同上。
-  const xvff = firstValidFromCsv(headers.get('x-vercel-forwarded-for'));
+  const xvff = leftmostValidIp(headers.get('x-vercel-forwarded-for'));
   if (xvff) return xvff;
 
   return 'unknown';

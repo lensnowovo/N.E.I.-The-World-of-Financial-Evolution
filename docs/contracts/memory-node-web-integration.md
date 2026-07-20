@@ -795,7 +795,7 @@ async function checkAndConsume(
 
 **固定窗口边界 fuzziness**：窗口切换瞬间可能短时间内进入 ~2×limit 请求（跨两个相邻窗口）。对登录/激活场景可接受；若需更严格可改滑动窗口（成本更高，暂不引入）。
 
-**清理**：Vercel Cron 每 10 分钟：`DELETE FROM "RateLimitBucket" WHERE "expiresAt" < NOW();`（`expiresAt` 索引支撑）。
+**清理**：Vercel Cron 每日 03:00 UTC：`DELETE FROM "RateLimitBucket" WHERE "expiresAt" < NOW();`（`expiresAt` 索引支撑，兼容 Vercel Hobby 每日 Cron 限制）。
 
 ### 限流配置
 
@@ -827,7 +827,7 @@ function getClientIp(req: Request | NextRequest): string {
 
 ### 清理 Cron（P1-2 + P2-4）
 
-Vercel Cron 每 10 分钟调用 `POST/GET /api/cron/cleanup-rate-limits`（`vercel.json` crons），由 `CRON_SECRET`（Vercel 以 `Authorization: Bearer` 注入）保护；未授权 → 401。删除：
+Vercel Cron 每日 03:00 UTC 调用 `POST/GET /api/cron/cleanup-rate-limits`（`vercel.json` crons），由 Project Settings → Environment Variables 中的 `CRON_SECRET` 保护；Vercel 自动以 `Authorization: Bearer` 注入，未授权 → 401。删除：
 
 - `RateLimitBucket.expiresAt < now`（过期限流桶）；
 - `ActivationCode.expiresAt < now − 保留期`（默认 7 天；仍有效/未过保留期的一律保留）。
@@ -906,7 +906,7 @@ Memory Node 激活**不放在 `/connect`**。独立路由：
 | # | 问题 | 当前倾向 |
 |---|---|---|
 | Q1 | `kid` 格式？ | `key-{year}-{month}` |
-| Q2 | `RateLimitBucket` 清理方式？ | Vercel Cron（每 10 分钟） |
+| Q2 | `RateLimitBucket` 清理方式？ | Vercel Cron（每日 03:00 UTC） |
 | Q3 | device_id 卸载重装后保留？ | 不保留；重装即新设备 |
 | Q4 | `/memory` 是否需功能介绍？ | 需要 |
 | Q5 | Admin 操作日志载体？ | 先写 `Entitlement.metadata` JSON，量大再建表 |

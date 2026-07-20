@@ -40,20 +40,29 @@ test('getClientIp prefers x-real-ip', () => {
   assert.equal(ip, '203.0.113.7');
 });
 
-test('getClientIp falls back to x-forwarded-for leftmost valid', () => {
+test('getClientIp falls back to the leftmost x-forwarded-for value', () => {
   const ip = getClientIp(
     headers({ 'x-forwarded-for': '203.0.113.7, 10.0.0.1' })
   );
   assert.equal(ip, '203.0.113.7');
 });
 
-test('getClientIp takes first VALID entry in XFF (skips spoofed junk)', () => {
-  // A client cannot inject a leading junk value to confuse us; we pick the first
-  // syntactically-valid IP.
+test('getClientIp never skips an invalid leftmost XFF value', () => {
+  // Do not let an attacker choose a later value by placing junk first.
   const ip = getClientIp(
     headers({ 'x-forwarded-for': 'spoofed, 203.0.113.9' })
   );
-  assert.equal(ip, '203.0.113.9');
+  assert.equal(ip, 'unknown');
+});
+
+test('getClientIp falls through to x-vercel-forwarded-for when XFF leftmost is invalid', () => {
+  const ip = getClientIp(
+    headers({
+      'x-forwarded-for': 'spoofed, 203.0.113.9',
+      'x-vercel-forwarded-for': '198.51.100.8, 10.0.0.1',
+    })
+  );
+  assert.equal(ip, '198.51.100.8');
 });
 
 test('getClientIp returns unknown when all headers invalid', () => {
