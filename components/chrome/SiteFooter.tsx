@@ -14,6 +14,16 @@ export function SiteFooter() {
         <p className="mt-2 text-center text-xs">
           © {new Date().getFullYear()} N.E.I. · The World of Financial Evolution
         </p>
+        <p className="mt-2 text-center font-sans text-xs">
+          <a
+            href="https://beian.miit.gov.cn/"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="transition-colors hover:text-ink-brown"
+          >
+            粤ICP备2026087653号-1
+          </a>
+        </p>
         <nav className="mt-4 flex flex-wrap justify-center gap-x-4 gap-y-2 font-sans text-xs">
           <Link href="/legal" className="hover:text-ink-brown transition-colors">
             信任与使用规则
