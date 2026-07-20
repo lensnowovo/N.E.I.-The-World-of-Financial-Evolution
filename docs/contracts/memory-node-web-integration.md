@@ -1,7 +1,9 @@
 # Memory Node ↔ Web Integration Contract
 
-日期：2026-07-13（修订 2026-07-15 → v3，2026-07-15 → v3.1）
-状态：待工程评审（v3.1，闭环 Codex 第二轮 4 项审核）
+> `nei-memory-node` 客户端开发请先阅读精简执行版：[memory-node-client-handoff.md](./memory-node-client-handoff.md)。本文保留完整的安全、并发与后端设计依据。
+
+日期：2026-07-13（修订 2026-07-15 → v3.1，2026-07-20 → 激活 v1 上线）
+状态：激活码、激活事务和 Ed25519 签发已上线；刷新、设备管理与 Release API 待实现
 作者：GLM-5.2（架构分析）
 
 ---
