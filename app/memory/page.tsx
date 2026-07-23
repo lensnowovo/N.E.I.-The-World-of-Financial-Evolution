@@ -62,15 +62,18 @@ export default async function MemoryPage() {
 
               <div className="mt-9 flex flex-wrap items-center gap-3">
                 {signedIn ? (
-                  <span className="inline-flex min-h-11 items-center rounded-sm bg-gilded px-5 font-serif text-sm text-ink-brown">
-                    已登录 · 内测登记即将开放
-                  </span>
-                ) : (
                   <Link
-                    href="/login?next=/memory"
+                    href="/memory/setup"
                     className="inline-flex min-h-11 items-center rounded-sm bg-gilded px-5 font-serif text-sm text-ink-brown transition-colors hover:bg-vellum"
                   >
-                    登录后申请内部测试 →
+                    连接 Memory Node →
+                  </Link>
+                ) : (
+                  <Link
+                    href="/login?next=/memory/setup"
+                    className="inline-flex min-h-11 items-center rounded-sm bg-gilded px-5 font-serif text-sm text-ink-brown transition-colors hover:bg-vellum"
+                  >
+                    登录并连接 Memory Node →
                   </Link>
                 )}
                 <a
@@ -205,7 +208,9 @@ export default async function MemoryPage() {
             <p className="mt-2 font-sans text-sm leading-7 text-leather">
               保存并调用个人、机构、基金和项目记忆。服务运行在本机，首版面向 Windows 内部测试。
             </p>
-            <span className="mt-5 inline-flex font-serif text-sm italic text-sepia">内测登记即将开放</span>
+            <Link href={signedIn ? '/memory/setup' : '/login?next=/memory/setup'} className="mt-5 inline-flex font-serif text-sm italic text-wax-red hover:underline">
+              使用 N.E.I. 账号连接 →
+            </Link>
           </div>
         </div>
       </section>
