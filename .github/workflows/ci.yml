@@ -82,6 +82,9 @@ jobs:
       - name: Activation license / Ed25519 interop tests
         run: npm run test:activation
 
+      - name: Memory Node browser activation UI tests
+        run: npm run test:memory-setup
+
       - name: Lint
         run: npm run lint
 
