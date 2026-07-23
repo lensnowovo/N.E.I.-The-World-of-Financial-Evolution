@@ -3,6 +3,7 @@ import { prisma } from '@/lib/db';
 import { checkAndConsume, getClientIp } from '@/lib/rate-limit';
 import { ActivationError, performActivation } from '@/lib/activation';
 import { validateActivationInput } from '@/lib/activation-input';
+import { SECRET_RESPONSE_HEADERS } from '@/lib/http-security';
 
 /**
  * POST /api/activation/activate
@@ -52,9 +53,12 @@ export async function POST(req: Request) {
   }
 
   // P1-3：nickname 已在事务内读取，随结果返回；无事务后查询，杜绝「已激活却 500」。
-  return NextResponse.json({
-    license: result.license,
-    expires_at: new Date(result.exp * 1000).toISOString(),
-    user: { nickname: result.nickname, plan: result.plan },
-  });
+  return NextResponse.json(
+    {
+      license: result.license,
+      expires_at: new Date(result.exp * 1000).toISOString(),
+      user: { nickname: result.nickname, plan: result.plan },
+    },
+    { headers: SECRET_RESPONSE_HEADERS },
+  );
 }

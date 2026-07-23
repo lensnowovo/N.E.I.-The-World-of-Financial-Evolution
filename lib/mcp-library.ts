@@ -181,7 +181,7 @@ export const mcpLibraryItems: McpLibraryItem[] = [
     pevcUseCases: [
       '按任务推荐 Skill 组合',
       '在客户端加载 Agent 工作纪律',
-      '把 Skill 模板填上下文生成可执行 Prompt',
+      '在本地 Agent 内填充 Skill 模板',
     ],
     safetyNote:
       'N.E.I. 只分发 Skill 文本，不读取本地文件，不上传项目材料；Token 可随时在 /connect 重置。',

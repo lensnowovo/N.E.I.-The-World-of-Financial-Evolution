@@ -34,6 +34,12 @@ export function SiteFooter() {
           <Link href="/privacy" className="hover:text-ink-brown transition-colors">
             隐私政策
           </Link>
+          <Link href="/community-rules" className="hover:text-ink-brown transition-colors">
+            社区规则
+          </Link>
+          <Link href="/copyright" className="hover:text-ink-brown transition-colors">
+            版权与下架
+          </Link>
           <Link href="/disclaimer" className="hover:text-ink-brown transition-colors">
             免责声明
           </Link>

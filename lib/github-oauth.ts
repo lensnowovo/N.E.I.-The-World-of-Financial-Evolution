@@ -88,11 +88,9 @@ export async function fetchGitHubPrimaryEmail(accessToken: string): Promise<stri
     verified: boolean;
   }>;
 
-  // 优先：已验证的主邮箱；其次：任意已验证邮箱；最后：任意主邮箱
+  // 只接受 GitHub 明确标记为 verified 的邮箱。未验证邮箱不能用于自动绑定本地账号。
   const verifiedPrimary = emails.find((e) => e.primary && e.verified);
   if (verifiedPrimary) return verifiedPrimary.email;
   const anyVerified = emails.find((e) => e.verified);
-  if (anyVerified) return anyVerified.email;
-  const anyPrimary = emails.find((e) => e.primary);
-  return anyPrimary?.email ?? null;
+  return anyVerified?.email ?? null;
 }

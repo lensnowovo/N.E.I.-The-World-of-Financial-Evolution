@@ -17,6 +17,9 @@ import { prisma } from '@/lib/db';
 
 /** 过期激活码的保留期（审计/排障），超过后才清理。 */
 const ACTIVATION_CODE_RETENTION_MS = 7 * 24 * 60 * 60 * 1000;
+const VERIFICATION_CODE_RETENTION_MS = 30 * 24 * 60 * 60 * 1000;
+const SECURITY_LOG_RETENTION_MS = 180 * 24 * 60 * 60 * 1000;
+const RAW_METRIC_RETENTION_MS = 90 * 24 * 60 * 60 * 1000;
 
 function unauthorized() {
   return NextResponse.json({ error: 'UNAUTHORIZED' }, { status: 401 });
@@ -25,15 +28,26 @@ function unauthorized() {
 async function runCleanup() {
   const now = new Date();
   const codeCutoff = new Date(now.getTime() - ACTIVATION_CODE_RETENTION_MS);
+  const verificationCutoff = new Date(now.getTime() - VERIFICATION_CODE_RETENTION_MS);
+  const logCutoff = new Date(now.getTime() - SECURITY_LOG_RETENTION_MS);
+  const metricCutoff = new Date(now.getTime() - RAW_METRIC_RETENTION_MS);
 
-  const [buckets, codes] = await Promise.all([
+  const [buckets, codes, verificationCodes, mcpLogs, activityEvents, metricSamples] = await Promise.all([
     prisma.rateLimitBucket.deleteMany({ where: { expiresAt: { lt: now } } }),
     prisma.activationCode.deleteMany({ where: { expiresAt: { lt: codeCutoff } } }),
+    prisma.verificationCode.deleteMany({ where: { createdAt: { lt: verificationCutoff } } }),
+    prisma.mcpCallLog.deleteMany({ where: { createdAt: { lt: logCutoff } } }),
+    prisma.activityEvent.deleteMany({ where: { createdAt: { lt: logCutoff } } }),
+    prisma.metricSample.deleteMany({ where: { createdAt: { lt: metricCutoff } } }),
   ]);
 
   return NextResponse.json({
     rate_limit_buckets_deleted: buckets.count,
     activation_codes_deleted: codes.count,
+    verification_codes_deleted: verificationCodes.count,
+    mcp_call_logs_deleted: mcpLogs.count,
+    activity_events_deleted: activityEvents.count,
+    metric_samples_deleted: metricSamples.count,
   });
 }
 

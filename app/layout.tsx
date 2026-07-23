@@ -10,6 +10,7 @@ import { ActivityTracker } from '@/components/ActivityTracker';
 import { WechatShareInit } from '@/components/WechatShareInit';
 import { Analytics } from '@vercel/analytics/next';
 import { getPublicBaseUrl } from '@/lib/public-url';
+import { serializeJsonLd } from '@/lib/json-ld';
 
 const cormorant = Cormorant_Garamond({
   subsets: ['latin'],
@@ -134,7 +135,7 @@ export default async function RootLayout({
         <script
           id="site-json-ld"
           type="application/ld+json"
-          dangerouslySetInnerHTML={{ __html: JSON.stringify(siteJsonLd) }}
+          dangerouslySetInnerHTML={{ __html: serializeJsonLd(siteJsonLd) }}
         />
         <Suspense fallback={null}>
           <ActivityTracker />

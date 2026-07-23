@@ -6,6 +6,7 @@ import { getPublicBaseUrl } from '@/lib/public-url';
 import { prisma } from '@/lib/db';
 import { POST_STATUS } from '@/lib/status';
 import { extractReadableText } from '@/lib/skill-text';
+import { serializeJsonLd } from '@/lib/json-ld';
 
 export const metadata: Metadata = {
   title: 'N.E.I. MCP Server 说明与排障',
@@ -72,7 +73,7 @@ export default async function McpGuidePage() {
     <div className="mx-auto max-w-page px-4 sm:px-6 py-8">
       <script
         type="application/ld+json"
-        dangerouslySetInnerHTML={{ __html: JSON.stringify(mcpJsonLd) }}
+        dangerouslySetInnerHTML={{ __html: serializeJsonLd(mcpJsonLd) }}
       />
       <div className="mb-6 pb-5 border-b border-paper-edge">
         <Link href="/" className="inline-flex items-center gap-1.5 font-serif italic text-sm text-sepia hover:text-ink-brown mb-3">
@@ -181,7 +182,7 @@ export default async function McpGuidePage() {
             <li><strong>get_default_discipline</strong>：获取默认工作纪律原文，建议在执行 PEVC Skill 前加载</li>
             <li><strong>get_skill</strong>：获取某个 Skill 的完整 Prompt / Workflow 原文</li>
             <li><strong>list_my_skills</strong>：列出你收藏且已准入 MCP 的 Skill；收藏库是常用 Skill 的个人 shortlist，不是使用 MCP 的前置条件</li>
-            <li><strong>apply_skill</strong>：把上下文填入 Prompt 模板，返回可执行 Prompt</li>
+            <li><strong>apply_skill</strong>：返回待在本地 Agent 中填充的 Prompt 模板；项目上下文不会发送给 N.E.I.</li>
             <li><strong>favorite_skill</strong>：从客户端把公开 Skill 加入收藏库</li>
             <li><strong>unfavorite_skill</strong>：从收藏库移除 Skill，需要 <code>confirm=true</code> 二次确认</li>
           </ul>

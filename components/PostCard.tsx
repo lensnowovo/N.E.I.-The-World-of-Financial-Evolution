@@ -124,10 +124,6 @@ function DefaultPostCard({
         <CardAction onClick={toggleStar} active={starred} icon={<StarIcon filled={starred} />}>
           {formatCount(stars)}
         </CardAction>
-        <span className="inline-flex items-center gap-1.5 text-sepia" title="评论数">
-          <CommentIcon />
-          {formatCount(post.counts.comments)}
-        </span>
       </div>
     </article>
   );
@@ -231,10 +227,6 @@ function SkillFeedPostCard({
             <span className="inline-flex items-center gap-1" title="浏览">
               <EyeIcon />
               {formatCount(post.viewCount)}
-            </span>
-            <span className="inline-flex items-center gap-1" title="评论">
-              <CommentIcon />
-              {formatCount(post.counts.comments)}
             </span>
             {post.counts.attachments > 0 && (
               <span className="inline-flex items-center gap-1" title="附件">
@@ -343,14 +335,6 @@ function StarIcon({ filled }: { filled?: boolean }) {
   return (
     <svg width="13" height="13" viewBox="0 0 16 16" fill={filled ? 'currentColor' : 'none'} stroke="currentColor" strokeWidth="1.2" aria-hidden="true">
       <path d="M8 1.5 L10.2 5.5 L14.5 6.3 L11.5 9.5 L12.2 14 L8 11.8 L3.8 14 L4.5 9.5 L1.5 6.3 L5.8 5.5 Z" strokeLinejoin="round" />
-    </svg>
-  );
-}
-
-function CommentIcon() {
-  return (
-    <svg width="13" height="13" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.2" aria-hidden="true">
-      <path d="M2.5 4 H13.5 V11 H8.5 L5.5 13.5 V11 H2.5 Z" strokeLinejoin="round" />
     </svg>
   );
 }

@@ -15,6 +15,11 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     { url: `${baseUrl}/connect`, lastModified: now, changeFrequency: 'weekly', priority: 0.7 },
     { url: `${baseUrl}/security`, lastModified: now, changeFrequency: 'monthly', priority: 0.7 },
     { url: `${baseUrl}/legal`, lastModified: now, changeFrequency: 'monthly', priority: 0.5 },
+    { url: `${baseUrl}/terms`, lastModified: now, changeFrequency: 'monthly', priority: 0.5 },
+    { url: `${baseUrl}/privacy`, lastModified: now, changeFrequency: 'monthly', priority: 0.5 },
+    { url: `${baseUrl}/community-rules`, lastModified: now, changeFrequency: 'monthly', priority: 0.45 },
+    { url: `${baseUrl}/copyright`, lastModified: now, changeFrequency: 'monthly', priority: 0.45 },
+    { url: `${baseUrl}/contribution-guidelines`, lastModified: now, changeFrequency: 'monthly', priority: 0.45 },
     { url: `${baseUrl}/skills-map`, lastModified: now, changeFrequency: 'weekly', priority: 0.6 },
   ];
 

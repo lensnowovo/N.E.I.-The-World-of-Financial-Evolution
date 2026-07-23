@@ -2,8 +2,12 @@ import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/db';
 import { getSessionUid } from '@/lib/session';
 import { ACTIVITY_EVENT, trackActivity } from '@/lib/activity';
+import { PUBLIC_SOCIAL_INTERACTIONS_ENABLED, SOCIAL_INTERACTIONS_DISABLED_MESSAGE } from '@/lib/community-features';
 
 export async function GET(_req: Request, { params }: { params: Promise<{ id: string }> }) {
+  if (!PUBLIC_SOCIAL_INTERACTIONS_ENABLED) {
+    return NextResponse.json({ items: [], disabled: true, message: SOCIAL_INTERACTIONS_DISABLED_MESSAGE });
+  }
   const postId = parseInt((await params).id, 10);
   const uid = await getSessionUid();
 
@@ -43,6 +47,9 @@ export async function GET(_req: Request, { params }: { params: Promise<{ id: str
 }
 
 export async function POST(req: Request, { params }: { params: Promise<{ id: string }> }) {
+  if (!PUBLIC_SOCIAL_INTERACTIONS_ENABLED) {
+    return NextResponse.json({ error: SOCIAL_INTERACTIONS_DISABLED_MESSAGE }, { status: 410 });
+  }
   const uid = await getSessionUid();
   if (!uid) return NextResponse.json({ error: '请先登录' }, { status: 401 });
   const postId = parseInt((await params).id, 10);

@@ -39,7 +39,7 @@ const SECTIONS = [
     title: '账号与内容删除',
     body: [
       '用户可以编辑个人资料、删除自己发布的内容，或通过站内联系方式请求删除账号与相关内容。',
-      'Beta 阶段的管理能力会保持轻量，后续会补充更完整的账号删除、数据导出和内容申诉流程。',
+      '账号删除、数据复制、内容申诉和版权下架请求可通过隐私政策与版权页面列明的渠道提出；平台会核验身份后处理。',
     ],
   },
 ] as const;
@@ -59,7 +59,7 @@ export default function LegalPage() {
         </p>
         <h1 className="font-serif text-3xl text-ink-brown">信任与使用规则</h1>
         <p className="mt-2 font-sans text-sm leading-6 text-leather">
-          Public Beta 阶段的轻量说明：帮助你理解 N.E.I. 的边界、责任和 MCP 使用方式。
+          从账号、内容、隐私、版权到 MCP 的公开规则与处理边界。
         </p>
       </header>
 
@@ -78,11 +78,12 @@ export default function LegalPage() {
         ))}
       </div>
 
-      <footer className="mt-8 rounded-md border border-gilded/40 bg-gilded/5 px-4 py-4">
-        <p className="font-serif text-sm text-ink-brown">上线前仍建议人工复核</p>
-        <p className="mt-1 font-sans text-xs leading-5 text-leather">
-          这是一版 Beta 可用的基础文本，不替代正式法律文件。正式上线、商业化或开放大规模外部贡献前，建议补充律师审阅版 Privacy Policy、Terms of Use 和内容审核规则。
-        </p>
+      <footer className="mt-8 flex flex-wrap gap-x-5 gap-y-2 border-t border-paper-edge pt-5 font-sans text-xs text-sepia">
+        <Link href="/terms" className="hover:text-ink-brown">用户协议</Link>
+        <Link href="/privacy" className="hover:text-ink-brown">隐私政策</Link>
+        <Link href="/community-rules" className="hover:text-ink-brown">社区规则</Link>
+        <Link href="/copyright" className="hover:text-ink-brown">版权与下架</Link>
+        <Link href="/security" className="hover:text-ink-brown">MCP 安全</Link>
       </footer>
     </div>
   );
