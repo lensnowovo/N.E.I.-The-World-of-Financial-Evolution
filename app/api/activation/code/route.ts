@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/db';
 import { getSessionUid } from '@/lib/session';
+import { SECRET_RESPONSE_HEADERS } from '@/lib/http-security';
 import { checkAndConsume, getClientIp } from '@/lib/rate-limit';
 import { generateActivationCode, hashActivationCode, isValidCodeFormat } from '@/lib/activation-code';
 
@@ -79,5 +80,5 @@ export async function POST(req: Request) {
     },
   });
 
-  return NextResponse.json({ code, expires_in: 300 });
+  return NextResponse.json({ code, expires_in: 300 }, { headers: SECRET_RESPONSE_HEADERS });
 }

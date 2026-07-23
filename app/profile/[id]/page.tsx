@@ -9,7 +9,6 @@ import { industryLabel, sceneLabel } from '@/lib/tags';
 import { roleFullName as investorRoleFullName } from '@/lib/roles';
 import { PostCard } from '@/components/PostCard';
 import { RoleBadge } from '@/components/icons/RoleBadge';
-import { FollowButton } from '@/components/FollowButton';
 
 type SP = { tab?: string };
 type Tab = 'posts' | 'favorites';
@@ -45,13 +44,10 @@ export default async function ProfilePage({
     postCount,
     favCount,
     receivedFavoritesCount,
-    followersCount,
-    followingCount,
     workflowCount,
     mcpReadyCount,
     featuredCount,
     focusRows,
-    myFollowRow,
   ] =
     await Promise.all([
       prisma.post.count({ where: { userId: id, status: 'published', deletedAt: null } }),
@@ -60,10 +56,6 @@ export default async function ProfilePage({
       prisma.postFavorite.count({
         where: { post: { userId: id, status: 'published', deletedAt: null } },
       }),
-      // 粉丝数
-      prisma.userFollow.count({ where: { followeeId: id } }),
-      // 该用户关注的人数
-      prisma.userFollow.count({ where: { followerId: id } }),
       prisma.post.count({
         where: {
           userId: id,
@@ -92,14 +84,7 @@ export default async function ProfilePage({
         orderBy: { createdAt: 'desc' },
         take: 80,
       }),
-      // 当前登录用户是否已关注此人
-      me && !isOwner
-        ? prisma.userFollow.findUnique({
-            where: { followerId_followeeId: { followerId: me.id, followeeId: id } },
-          })
-        : Promise.resolve(null),
     ]);
-  const isFollowing = !!myFollowRow;
   const profileBadges = getProfileBadges({
     postCount,
     workflowCount,
@@ -208,9 +193,7 @@ export default async function ProfilePage({
                   <Link href="/dashboard" className="inline-flex h-9 items-center border border-paper-edge bg-vellum px-4 font-serif text-sm text-leather transition-colors hover:border-ink-brown hover:text-ink-brown">我的工作台</Link>
                   <span className="ml-1 font-sans text-xs text-sepia">私有收藏 {favCount}</span>
                 </>
-              ) : (
-                <FollowButton userId={user.id} initialFollowing={isFollowing} isAuthed={!!me} />
-              )}
+              ) : null}
             </div>
 
             {(focusScenes.length > 0 || focusIndustries.length > 0) && (
@@ -230,7 +213,7 @@ export default async function ProfilePage({
               <ProfileMetric n={postCount} label="公开发布" />
               <ProfileMetric n={workflowCount} label="工作流" />
               <ProfileMetric n={receivedFavoritesCount} label="被收藏" />
-              <ProfileMetric n={followersCount} label="关注者" />
+              <ProfileMetric n={mcpReadyCount} label="MCP Ready" />
             </dl>
             <div className="space-y-2">
               {profileBadges.map((badge) => (
@@ -240,7 +223,7 @@ export default async function ProfilePage({
                 </div>
               ))}
             </div>
-            <p className="mt-5 font-serif text-xs italic text-sepia">加入于 {formatTime(user.createdAt)} · 关注 {followingCount}</p>
+            <p className="mt-5 font-serif text-xs italic text-sepia">加入于 {formatTime(user.createdAt)}</p>
           </aside>
         </div>
       </header>

@@ -49,6 +49,10 @@ export default function SecurityPage() {
             <code>apply_skill</code> 和 <code>favorite_skill</code>。
           </p>
           <p>
+            <code>apply_skill</code> 只返回模板和待填写项，不接收项目上下文。BP、财务数据和访谈材料应由你的
+            Agent 在本地填入，不会随该工具调用发送给 N.E.I.。
+          </p>
+          <p>
             平台会记录调用时间、工具名、客户端类型、耗时等运维日志，但不记录你的 BP、财务模型、
             投委会材料正文，也不记录客户端执行后的敏感结论。
           </p>
@@ -63,8 +67,8 @@ export default function SecurityPage() {
 
           <h2>Skill 准入 MCP 的规则</h2>
           <ol>
-            <li>用户投稿会先经过基础校验和安全扫描。</li>
-            <li>可疑内容会进入管理员待审队列，不直接进入 MCP。</li>
+            <li>普通用户投稿统一进入管理员待审队列，不会直接公开。</li>
+            <li>基础校验和安全扫描只提供审核线索，不能替代人工审核。</li>
             <li>只有 <code>mcpApproved = true</code> 的内容才会被 MCP 返回。</li>
             <li>已准入内容被作者编辑后，会撤回 MCP 准入并等待复审，防止 Rug Pull。</li>
           </ol>
@@ -92,6 +96,14 @@ export default function SecurityPage() {
             <Link href="/mcp" className="block font-serif text-sm text-leather hover:text-ink-brown mb-2">
               → MCP 配置指南
             </Link>
+            <a
+              href="https://github.com/lensnowovo/N.E.I.-The-World-of-Financial-Evolution/security/advisories/new"
+              target="_blank"
+              rel="noreferrer"
+              className="block font-serif text-sm text-leather hover:text-ink-brown mb-2"
+            >
+              → 私密报告安全问题
+            </a>
             <Link href="/" className="block font-serif text-sm text-leather hover:text-ink-brown">
               → 浏览 Skill
             </Link>

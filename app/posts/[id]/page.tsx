@@ -18,7 +18,6 @@ import { POST_STATUS } from '@/lib/status';
 import { RoleBadge } from '@/components/icons/RoleBadge';
 import { SkillIcon } from '@/components/icons/SkillIcon';
 import { AttachmentList } from '@/components/AttachmentList';
-import { CommentSection } from '@/components/CommentSection';
 import { PostActions, PostStarButton } from './PostActions';
 import { DetailActions } from './DetailActions';
 import { LazySkillPreview } from './LazySkillPreview';
@@ -32,6 +31,7 @@ import { buildSkillDisplay } from '@/lib/skill-display';
 import { SkillQualityPanel } from '@/components/SkillQualityPanel';
 import { getPublicBaseUrl, normalizePublicText, normalizePublicUrl } from '@/lib/public-url';
 import { ACTIVITY_EVENT, trackActivity } from '@/lib/activity';
+import { serializeJsonLd } from '@/lib/json-ld';
 
 export async function generateMetadata({
   params,
@@ -236,11 +236,6 @@ export default async function PostDetailPage({
         interactionType: 'https://schema.org/LikeAction',
         userInteractionCount: post._count.stars,
       },
-      {
-        '@type': 'InteractionCounter',
-        interactionType: 'https://schema.org/CommentAction',
-        userInteractionCount: post._count.comments,
-      },
     ],
   };
 
@@ -258,7 +253,7 @@ export default async function PostDetailPage({
     <article className="mx-auto max-w-page px-4 sm:px-6">
       <script
         type="application/ld+json"
-        dangerouslySetInnerHTML={{ __html: JSON.stringify(postJsonLd) }}
+        dangerouslySetInnerHTML={{ __html: serializeJsonLd(postJsonLd) }}
       />
       {/* 返回 */}
       <div className="pt-6 mb-4">
@@ -327,7 +322,6 @@ export default async function PostDetailPage({
           bodyHtml={safeBody}
           viewCount={post.viewCount}
           stars={post._count.stars}
-          commentsCount={post._count.comments}
           shareTitle={post.title}
           shareDescription={excerpt}
           shareUrl={`${baseUrl}/posts/${post.id}`}
@@ -426,13 +420,6 @@ export default async function PostDetailPage({
             />
           )}
 
-          {/* 评论区在左栏下方 */}
-          <CommentSection
-            postId={id}
-            postAuthorId={post.author.id}
-            assetType={assetType}
-            currentUser={me ? { id: me.id, nickname: me.nickname, role: me.role } : null}
-          />
         </div>
 
         {/* 右：sticky 元信息栏 */}

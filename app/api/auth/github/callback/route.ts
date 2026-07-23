@@ -7,7 +7,6 @@ import {
 import { prisma } from '@/lib/db';
 import { setSession } from '@/lib/session';
 import { verifyOAuthState } from '@/lib/oauth-state';
-import { shouldBootstrapAdmin } from '@/lib/admin';
 
 /**
  * GET /api/auth/github/callback?code=xxx&state=yyy
@@ -41,10 +40,9 @@ export async function GET(req: NextRequest) {
 
     // 公开 profile 的 email 多数为 null —— 用 /user/emails 兜底拿真实主邮箱，
     // 避免存假邮箱导致该用户日后无法用邮箱验证码登录。
-    let githubEmail = ghProfile.email;
-    if (!githubEmail) {
-      githubEmail = await fetchGitHubPrimaryEmail(accessToken);
-    }
+    // 仅使用 /user/emails 返回的 verified 邮箱进行自动绑定。
+    // 公开 profile.email 不具备足够的验证语义，不能作为账号归属凭据。
+    const githubEmail = await fetchGitHubPrimaryEmail(accessToken);
 
     // 3. Try to find existing user by githubId
     let user = await prisma.user.findUnique({ where: { githubId } });
@@ -68,27 +66,9 @@ export async function GET(req: NextRequest) {
           data: { githubId, githubAvatarUrl, githubUsername },
         });
       } else {
-        // 5. Create a brand-new user via GitHub
-        const nickname = await generateUniqueNickname(githubUsername);
-
-        // 极少数情况：用户连 /user/emails 都没返回可用邮箱。
-        // 用带 githubId 的占位邮箱满足 @unique 约束；这类用户只能走 GitHub 登录。
-        const fallbackEmail = `${githubUsername}-${githubId}@github.placeholder`;
-        const createUserEmail = githubEmail || fallbackEmail;
-
-        user = await prisma.user.create({
-          data: {
-            email: createUserEmail,
-            nickname,
-            role: 'VC',
-            passwordHash: null,
-            isAdmin: shouldBootstrapAdmin(createUserEmail),
-            githubId,
-            githubAvatarUrl,
-            githubUsername,
-            avatarUrl: githubAvatarUrl,
-          },
-        });
+        // 新用户必须先走带显式协议确认和同意留痕的邮箱注册流程。
+        // 注册完成后，再次使用同一 verified GitHub 邮箱登录即可安全绑定。
+        return NextResponse.redirect(new URL('/register?error=github_registration_requires_consent', req.url));
       }
     }
 
@@ -107,19 +87,3 @@ export async function GET(req: NextRequest) {
  * Generate a unique nickname based on the GitHub username.
  * If the base name is taken, append incrementing numbers.
  */
-async function generateUniqueNickname(base: string): Promise<string> {
-  // Sanitize: keep only alphanumeric, dash, underscore, and CJK characters
-  let candidate = base.replace(/[^\w一-鿿-]/g, '').slice(0, 18);
-  if (!candidate) candidate = 'github_user';
-
-  let nickname = candidate;
-
-  for (let i = 1; i <= 100; i++) {
-    const existing = await prisma.user.findUnique({ where: { nickname } });
-    if (!existing) return nickname;
-    nickname = `${candidate}${i}`;
-  }
-
-  // Fallback with a random suffix
-  return `${candidate}_${Date.now()}`;
-}

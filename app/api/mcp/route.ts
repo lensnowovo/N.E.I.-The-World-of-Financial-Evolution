@@ -573,13 +573,9 @@ function makeHandler(uid: number, tokenId: number | null, clientName: string | n
 
       server.tool(
         'apply_skill',
-        'Fill a Skill Prompt template with provided context and return the completed prompt for the trusted AI client to execute.',
+        'Prepare a Skill Prompt template for the trusted AI client. Project context must be filled locally by the client and is never sent to N.E.I.',
         {
           id: z.number().describe('Skill ID'),
-          context: z
-            .record(z.string(), z.string())
-            .optional()
-            .describe('Mapping from placeholders to values, for example {"[行业]":"半导体","[阶段]":"Pre-A"}'),
         },
         async (args) => {
           const start = Date.now();
@@ -602,32 +598,26 @@ function makeHandler(uid: number, tokenId: number | null, clientName: string | n
               return toolResultMessage(false, 'Skill not found or not available through MCP.', { id: args.id });
             }
 
-            let promptText = normalizePublicText(
+            const promptText = normalizePublicText(
               await readCanonicalSkillContent(post.attachments, extractPlainText(post.body)),
             );
-            for (const [key, value] of Object.entries(args.context || {})) {
-              if (!value) continue;
-              const escaped = key.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-              promptText = promptText.replace(new RegExp(escaped, 'g'), value);
-            }
-
             const unfilled = [...promptText.matchAll(/\[([^\]]{2,30})\]/g)]
               .map((m) => m[1])
               .filter((s) => !/^\s*$/.test(s));
             const hint =
               unfilled.length > 0
-                ? `\n\nNote: ${unfilled.length} placeholders are still unfilled: ${[...new Set(unfilled)]
+                ? `\n\nFill these placeholders locally in this Agent client: ${[...new Set(unfilled)]
                     .slice(0, 8)
                     .map((s) => `[${s}]`)
                     .join(' ')}.`
-                : '';
+                : '\n\nNo explicit placeholders were detected. Add the minimum necessary project context locally before execution.';
 
             return {
               content: [
                 {
                   type: 'text' as const,
                   text: wrapWithSafetyRules(
-                    `# ${post.title}\n\nCompleted prompt for your trusted AI client:\n\n---\n\n${promptText}${hint}`,
+                    `# ${post.title}\n\nPrompt template for local preparation:\n\n---\n\n${promptText}${hint}\n\nPrivacy boundary: do not send project names, documents, financial data, interview records, or other confidential context back to N.E.I. Fill them only inside your trusted Agent client.`,
                   ),
                 },
               ],

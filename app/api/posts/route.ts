@@ -8,6 +8,8 @@ import { fetchFeedPage, normalizeSort } from '@/lib/feed';
 import { withMetrics } from '@/lib/metrics';
 import { reviewPostSafety } from '@/lib/ai';
 import { ACTIVITY_EVENT, trackActivity } from '@/lib/activity';
+import { CONTRIBUTION_RULES_VERSION } from '@/lib/legal';
+import { getClientIpFromRequest } from '@/lib/client-ip';
 
 // Used by POST handler for validation
 const sceneVals: string[] = SCENE_TAGS.map((t) => t.value);
@@ -72,6 +74,8 @@ export const POST = withMetrics('POST /api/posts', createPost);
 async function createPost(req: Request) {
   const uid = await getSessionUid();
   if (!uid) return NextResponse.json({ error: '请先登录' }, { status: 401 });
+  const actor = await prisma.user.findUnique({ where: { id: uid }, select: { isAdmin: true } });
+  if (!actor) return NextResponse.json({ error: '用户不存在' }, { status: 404 });
 
   const data = await req.json();
   const title = String(data.title || '').trim();
@@ -86,6 +90,9 @@ async function createPost(req: Request) {
   const sourceUrl = data.sourceUrl ? String(data.sourceUrl).trim() : null;
   const installHint = data.installHint ? String(data.installHint).trim() : null;
   const usageNotes = data.usageNotes ? String(data.usageNotes).trim() : null;
+  if (data.rightsAttested !== true || data.contributionVersion !== CONTRIBUTION_RULES_VERSION) {
+    return NextResponse.json({ error: '请确认当前版本的内容权利、来源和脱敏声明' }, { status: 400 });
+  }
   const originalAuthor = data.originalAuthor ? String(data.originalAuthor).trim().slice(0, 100) : null;
 
   if (title.length < 5 || title.length > 100) {
@@ -121,11 +128,8 @@ async function createPost(req: Request) {
 
   const safeBody = sanitizeHtml(body);
 
-  // SEC-006：投稿 GLM 安全扫描。GLM 未配置或调用失败时 graceful 降级（默认 safe），
-  // 绝不阻塞发帖主流程。verdict 决定 status / reviewFlag / securityLevel：
-  //   safe       → status=published，无 reviewFlag
-  //   suspicious → status=published（仍公开），reviewFlag=reason 管理员可见，securityLevel=suspicious
-  //   reject     → status=pending（不公开），reviewFlag=reason，securityLevel=reject
+  // 投稿扫描只提供审核线索，不能代替人工审核。普通用户投稿统一进入 pending；
+  // 管理员内容仅在扫描明确 safe 时直接发布。扫描失败时 fail-closed。
   let verdict: 'safe' | 'suspicious' | 'reject' = 'safe';
   let reason = '';
   try {
@@ -133,13 +137,15 @@ async function createPost(req: Request) {
     verdict = review.verdict;
     reason = review.reason;
   } catch (e) {
-    // GLM 未配置 / 超时 / 限流 / 解析失败等：默认 safe，仅 console.error
-    console.error('[SEC-006] reviewPostSafety failed, fallback to safe:', e);
+    verdict = 'suspicious';
+    reason = 'automatic review unavailable: manual review required';
+    console.error('[SEC-006] reviewPostSafety failed, fallback to pending:', e);
   }
 
-  const initialStatus =
-    verdict === 'reject' ? POST_STATUS.PENDING : POST_STATUS.PUBLISHED;
-  const reviewFlag = verdict === 'safe' ? null : reason;
+  const initialStatus = actor.isAdmin && verdict === 'safe' ? POST_STATUS.PUBLISHED : POST_STATUS.PENDING;
+  const reviewFlag = initialStatus === POST_STATUS.PENDING
+    ? (reason || 'awaiting manual review')
+    : null;
   const securityLevel = verdict; // safe | suspicious | reject
 
   // Wrap Post + SkillAsset creation in a transaction
@@ -156,6 +162,17 @@ async function createPost(req: Request) {
         status: initialStatus,
         reviewFlag,
         securityLevel,
+      },
+    });
+
+    const ip = getClientIpFromRequest(req);
+    await tx.userConsent.create({
+      data: {
+        userId: uid,
+        consentType: 'contribution',
+        version: CONTRIBUTION_RULES_VERSION,
+        ipAddress: ip === 'unknown' ? null : ip,
+        userAgent: req.headers.get('user-agent')?.slice(0, 512) || null,
       },
     });
 
@@ -193,5 +210,5 @@ async function createPost(req: Request) {
     },
   });
 
-  return NextResponse.json({ id: post.id });
+  return NextResponse.json({ id: post.id, status: initialStatus });
 }

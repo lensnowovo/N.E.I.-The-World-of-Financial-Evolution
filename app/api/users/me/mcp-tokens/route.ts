@@ -8,6 +8,7 @@ import {
   normalizeMcpTokenName,
 } from '@/lib/mcp-access-tokens';
 import { ACTIVITY_EVENT, trackActivity } from '@/lib/activity';
+import { SECRET_RESPONSE_HEADERS } from '@/lib/http-security';
 
 export const dynamic = 'force-dynamic';
 
@@ -145,7 +146,7 @@ export async function POST(req: Request) {
       token: issued.plain,
       item: serializeToken({ ...token, callLogs: [] }),
     },
-    { status: 201 },
+    { status: 201, headers: SECRET_RESPONSE_HEADERS },
   );
 }
 

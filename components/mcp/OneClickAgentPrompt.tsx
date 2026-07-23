@@ -40,7 +40,7 @@ export function OneClickAgentPrompt({
   - recommend_skills_for_task：按 BP 初筛、行研、IC Memo、LP 汇报等任务从全库推荐 Skill 组合
   - get_skill：获取某个 Skill 的完整 Prompt 原文
   - list_my_skills：列出我在 N.E.I. 收藏的 Skill（收藏是常用库，不是使用前置条件）
-  - apply_skill：把上下文填入 Prompt 模板，返回可执行 Prompt
+  - apply_skill：返回 Prompt 模板和占位符；项目上下文只在当前 Agent 客户端内填入
   - favorite_skill / unfavorite_skill：把搜索到的好用 Skill 收藏或取消收藏（取消收藏需要 confirm=true）
 
 ${tokenNote}

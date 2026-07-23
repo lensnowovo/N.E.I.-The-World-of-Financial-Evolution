@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { useRouter } from 'next/navigation';
+import { useRouter, useSearchParams } from 'next/navigation';
 import Link from 'next/link';
 import { AuthFrame } from '@/components/auth/AuthFrame';
 import { Button } from '@/components/ui/Button';
@@ -9,19 +9,29 @@ import { Input } from '@/components/ui/Input';
 import { RoleBadge } from '@/components/icons/RoleBadge';
 import { cn } from '@/lib/cn';
 import { INVESTOR_ROLES, type InvestorRole } from '@/lib/roles';
+import { PRIVACY_VERSION, TERMS_VERSION } from '@/lib/legal';
 
 const STEPS = ['验证邮箱', '选择身份', '设定资料'];
 
 export default function RegisterPage() {
   const router = useRouter();
+  const params = useSearchParams();
   const [stepIdx, setStepIdx] = useState(1); // 1 / 2 / 3
   const [email, setEmail] = useState('');
   const [code, setCode] = useState('');
   const [role, setRole] = useState<InvestorRole | ''>('');
   const [nickname, setNickname] = useState('');
   const [password, setPassword] = useState('');
+  const [termsAccepted, setTermsAccepted] = useState(false);
+  const [privacyAccepted, setPrivacyAccepted] = useState(false);
+  const [adultConfirmed, setAdultConfirmed] = useState(false);
+  const [crossBorderAccepted, setCrossBorderAccepted] = useState(false);
 
-  const [err, setErr] = useState<string | null>(null);
+  const [err, setErr] = useState<string | null>(() =>
+    params.get('error') === 'github_registration_requires_consent'
+      ? '新账号请先完成邮箱验证和协议确认；注册后可使用同一 GitHub 邮箱登录。'
+      : null,
+  );
   const [devCode, setDevCode] = useState<string | null>(null);
   const [sending, setSending] = useState(false);
   const [codeCooldown, setCodeCooldown] = useState(0);
@@ -113,11 +123,27 @@ export default function RegisterPage() {
       setErr('密码需 8-20 位，含字母与数字');
       return;
     }
+    if (!termsAccepted || !privacyAccepted || !adultConfirmed || !crossBorderAccepted) {
+      setErr('请完成协议、隐私政策和年龄确认');
+      return;
+    }
     setSubmitting(true);
     const res = await fetch('/api/auth/register', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ email, code, role, nickname, password }),
+      body: JSON.stringify({
+        email,
+        code,
+        role,
+        nickname,
+        password,
+        termsAccepted,
+        privacyAccepted,
+        adultConfirmed,
+        crossBorderAccepted,
+        termsVersion: TERMS_VERSION,
+        privacyVersion: PRIVACY_VERSION,
+      }),
     });
     const data = await res.json();
     setSubmitting(false);
@@ -152,24 +178,6 @@ export default function RegisterPage() {
       {/* ============ 屏 1：手机 + 验证码 ============ */}
       {stepIdx === 1 && (
         <div className="space-y-6">
-          {/* —— GitHub 注册 —— */}
-          <a
-            href="/api/auth/github"
-            className="flex items-center justify-center gap-2 w-full rounded-sm border border-paper-edge bg-vellum px-4 py-3 font-sans text-sm text-ink-brown hover:bg-parchment transition-colors"
-          >
-            <svg className="h-5 w-5" viewBox="0 0 24 24" fill="currentColor">
-              <path d="M12 0C5.37 0 0 5.37 0 12c0 5.31 3.435 9.795 8.205 11.385.6.105.825-.255.825-.57 0-.285-.015-1.23-.015-2.235-3.015.555-3.795-.735-4.035-1.41-.135-.345-.72-1.41-1.23-1.695-.42-.225-1.02-.78-.015-.795.945-.015 1.62.87 1.845 1.23 1.08 1.815 2.805 1.305 3.495.99.105-.78.42-1.305.765-1.605-2.67-.3-5.46-1.335-5.46-5.925 0-1.305.465-2.385 1.23-3.225-.12-.3-.54-1.53.12-3.18 0 0 1.005-.315 3.3 1.23.96-.27 1.98-.405 3-.405s2.04.135 3 .405c2.295-1.56 3.3-1.23 3.3-1.23.66 1.65.24 2.88.12 3.18.765.84 1.23 1.905 1.23 3.225 0 4.605-2.805 5.625-5.475 5.925.435.375.81 1.095.81 2.22 0 1.605-.015 2.895-.015 3.3 0 .315.225.69.825.57A12.02 12.02 0 0024 12c0-6.63-5.37-12-12-12z"/>
-            </svg>
-            通过 GitHub 注册
-          </a>
-
-          {/* —— 分隔线 —— */}
-          <div className="flex items-center gap-3">
-            <div className="flex-1 h-px bg-paper-edge" />
-            <span className="font-serif italic text-xs text-sepia">或</span>
-            <div className="flex-1 h-px bg-paper-edge" />
-          </div>
-
         <form onSubmit={goStep2} className="space-y-6">
           <Input
             label="邮箱"
@@ -331,6 +339,25 @@ export default function RegisterPage() {
             onChange={(e) => setPassword(e.target.value)}
           />
 
+          <fieldset className="space-y-3 border-t border-paper-edge pt-4">
+            <legend className="sr-only">注册确认</legend>
+            <ConsentCheckbox checked={termsAccepted} onChange={setTermsAccepted}>
+              我已阅读并同意 <Link href="/terms" target="_blank" className="underline underline-offset-4">《用户协议》</Link>
+            </ConsentCheckbox>
+            <ConsentCheckbox checked={privacyAccepted} onChange={setPrivacyAccepted}>
+              我已阅读并同意 <Link href="/privacy" target="_blank" className="underline underline-offset-4">《隐私政策》</Link>
+            </ConsentCheckbox>
+            <ConsentCheckbox checked={adultConfirmed} onChange={setAdultConfirmed}>
+              我已年满 18 周岁
+            </ConsentCheckbox>
+            <ConsentCheckbox checked={crossBorderAccepted} onChange={setCrossBorderAccepted}>
+              我单独同意为提供账号、邮件和网站服务，将必要数据提供给隐私政策列明的境外服务商
+            </ConsentCheckbox>
+            <p className="font-sans text-[11px] leading-5 text-sepia">
+              协议不会默认勾选。注册时间、协议版本和必要的安全元数据会作为同意记录保存。
+            </p>
+          </fieldset>
+
           {err && (
             <p className="text-sm font-sans text-wax-red border-l border-wax-red pl-3">
               {err}
@@ -341,12 +368,34 @@ export default function RegisterPage() {
             <Button variant="secondary" type="button" onClick={() => setStepIdx(2)} className="flex-1">
               ← 返回
             </Button>
-            <Button type="submit" size="lg" className="flex-1" disabled={submitting}>
+            <Button type="submit" size="lg" className="flex-1" disabled={submitting || !termsAccepted || !privacyAccepted || !adultConfirmed || !crossBorderAccepted}>
               {submitting ? '提交中…' : '完成注册'}
             </Button>
           </div>
         </form>
       )}
     </AuthFrame>
+  );
+}
+
+function ConsentCheckbox({
+  checked,
+  onChange,
+  children,
+}: {
+  checked: boolean;
+  onChange: (checked: boolean) => void;
+  children: React.ReactNode;
+}) {
+  return (
+    <label className="flex cursor-pointer items-start gap-3 font-sans text-xs leading-5 text-leather">
+      <input
+        type="checkbox"
+        checked={checked}
+        onChange={(event) => onChange(event.target.checked)}
+        className="mt-0.5 h-4 w-4 accent-ink-brown"
+      />
+      <span>{children}</span>
+    </label>
   );
 }

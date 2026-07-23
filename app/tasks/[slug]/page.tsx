@@ -5,6 +5,7 @@ import { getTaskMap, taskMaps } from '@/lib/task-maps';
 import { fetchTaskMapData } from '@/lib/task-map-posts';
 import { HomeTaskMap } from '@/components/home/HomeTaskMap';
 import { getPublicBaseUrl } from '@/lib/public-url';
+import { serializeJsonLd } from '@/lib/json-ld';
 
 export const dynamic = 'force-dynamic';
 
@@ -66,7 +67,7 @@ export default async function TaskMapPage({ params }: { params: Promise<{ slug: 
 
   return (
     <div className="py-8">
-      <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }} />
+      <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: serializeJsonLd(jsonLd) }} />
       <HomeTaskMap task={task} data={data} currentUserId={uid} />
     </div>
   );

@@ -2,6 +2,7 @@
 
 import { useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
+import Link from 'next/link';
 import { cn } from '@/lib/cn';
 import { RichEditor } from '@/components/RichEditor';
 import { AiAssistPanel } from '@/components/publish/AiAssistPanel';
@@ -20,6 +21,7 @@ import {
   FILE_TYPE_OPTIONS,
   METHOD_TYPE_OPTIONS,
 } from '@/lib/tags';
+import { CONTRIBUTION_RULES_VERSION } from '@/lib/legal';
 
 type CurrentUser = { id: number; role: string; nickname: string };
 
@@ -55,6 +57,7 @@ export function PublishForm({ currentUser }: { currentUser: CurrentUser }) {
   const [originalAuthor, setOriginalAuthor] = useState('');
   const [installHint, setInstallHint] = useState('');
   const [usageNotes, setUsageNotes] = useState('');
+  const [rightsAttested, setRightsAttested] = useState(false);
 
   const [err, setErr] = useState('');
   const [submitting, setSubmitting] = useState(false);
@@ -314,6 +317,7 @@ export function PublishForm({ currentUser }: { currentUser: CurrentUser }) {
 
     if (sourceUrl.trim() && !/^https?:\/\/.+/.test(sourceUrl.trim()))
       return setErr('链接须以 http:// 或 https:// 开头');
+    if (!rightsAttested) return setErr('请确认内容权利、来源和脱敏声明');
 
     setSubmitting(true);
     const res = await fetch('/api/posts', {
@@ -331,6 +335,8 @@ export function PublishForm({ currentUser }: { currentUser: CurrentUser }) {
         originalAuthor: originalAuthor.trim() || null,
         installHint: installHint.trim() || null,
         usageNotes: usageNotes.trim() || null,
+        rightsAttested,
+        contributionVersion: CONTRIBUTION_RULES_VERSION,
       }),
     });
     const data = await res.json();
@@ -339,7 +345,7 @@ export function PublishForm({ currentUser }: { currentUser: CurrentUser }) {
       setErr(data.error || '发布失败');
       return;
     }
-    router.push(`/posts/${data.id}`);
+    router.push(data.status === 'pending' ? '/dashboard?submitted=review' : `/posts/${data.id}`);
     router.refresh();
   };
 
@@ -733,16 +739,21 @@ export function PublishForm({ currentUser }: { currentUser: CurrentUser }) {
         </p>
       )}
 
+      <label className="flex items-start gap-3 border-t border-paper-edge pt-5 font-sans text-xs leading-6 text-leather">
+        <input type="checkbox" checked={rightsAttested} onChange={(event) => setRightsAttested(event.target.checked)} className="mt-1 h-4 w-4 accent-ink-brown" />
+        <span>我确认拥有发布和分发该内容的权利，已如实标注来源与许可证，且已移除项目机密和个人敏感信息；我同意 <Link href="/community-rules" target="_blank" className="underline underline-offset-4">社区与内容规则</Link>。</span>
+      </label>
+
       <div className="border-t border-paper-edge pt-6 flex items-center justify-between gap-3">
         <p className="font-serif italic text-xs text-sepia hidden sm:block">
-          发布后大家就能看到
+          提交后进入人工审核
         </p>
         <div className="flex gap-3 ml-auto">
           <Button type="button" variant="secondary" onClick={() => router.back()}>
             取消
           </Button>
-          <Button type="submit" size="lg" disabled={submitting || !!validationMessage}>
-            {submitting ? '正在发布…' : '发布'}
+          <Button type="submit" size="lg" disabled={submitting || !!validationMessage || !rightsAttested}>
+            {submitting ? '正在提交…' : '提交审核'}
           </Button>
         </div>
       </div>

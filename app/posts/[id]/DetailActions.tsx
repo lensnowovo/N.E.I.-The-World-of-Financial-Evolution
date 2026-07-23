@@ -16,7 +16,7 @@ type PrimaryAttachment = {
  * - 提示词帖（assetType=prompt，无附件）：显示 CopyPromptButton
  * - 都没有：不渲染主操作，只显示热度数字
  *
- * 右侧常驻 3 个热度数字（浏览/赞/评论），font-mono 小字。
+ * 右侧常驻浏览与收藏数字，font-mono 小字。
  */
 export function DetailActions({
   postId,
@@ -26,7 +26,6 @@ export function DetailActions({
   bodyHtml,
   viewCount,
   stars,
-  commentsCount,
   shareTitle,
   shareDescription,
   shareUrl,
@@ -40,7 +39,6 @@ export function DetailActions({
   bodyHtml: string;
   viewCount: number;
   stars: number;
-  commentsCount: number;
   shareTitle: string;
   shareDescription?: string | null;
   shareUrl: string;
@@ -67,8 +65,7 @@ export function DetailActions({
       {/* 热度数字 */}
       <div className="flex items-center gap-3 font-mono text-[11px] text-sepia">
         <Stat icon={<EyeIcon />} value={formatCount(viewCount)} label="浏览" />
-        <Stat icon={<HeartIcon />} value={formatCount(stars)} label="赞" />
-        <Stat icon={<CommentIcon />} value={formatCount(commentsCount)} label="评论" />
+        <Stat icon={<HeartIcon />} value={formatCount(stars)} label="收藏" />
       </div>
     </div>
   );
@@ -139,13 +136,6 @@ function HeartIcon() {
   return (
     <svg width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.2" aria-hidden="true">
       <path d="M8 14 C4 11, 1.5 8.5, 1.5 6 C1.5 4, 3 2.5, 5 2.5 C6.5 2.5, 7.5 3.3, 8 4.5 C8.5 3.3, 9.5 2.5, 11 2.5 C13 2.5, 14.5 4, 14.5 6 C14.5 8.5, 12 11, 8 14 Z" />
-    </svg>
-  );
-}
-function CommentIcon() {
-  return (
-    <svg width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.2" aria-hidden="true">
-      <path d="M2.5 4 H13.5 V11 H8.5 L5.5 13.5 V11 H2.5 Z" strokeLinejoin="round" />
     </svg>
   );
 }

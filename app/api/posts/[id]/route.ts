@@ -6,6 +6,7 @@ import { SCENE_TAGS, INDUSTRY_TAGS, CONTENT_TAGS, SKILL_TAGS } from '@/lib/tags'
 import { canEditPost } from '@/lib/post-auth';
 import { withMetrics } from '@/lib/metrics';
 import { ACTIVITY_EVENT, trackActivity } from '@/lib/activity';
+import { POST_STATUS } from '@/lib/status';
 
 const sceneVals: string[] = SCENE_TAGS.map((t) => t.value);
 const industryVals: string[] = INDUSTRY_TAGS.map((t) => t.value);
@@ -46,8 +47,16 @@ async function getPost(_req: Request, { params }: { params: Promise<{ id: string
     starred = !!star;
   }
 
+  const { attachments, ...publicPost } = post;
   return NextResponse.json({
-    ...post,
+    ...publicPost,
+    attachments: attachments.map(({ id: attachmentId, fileName, fileSize, mimeType, createdAt }) => ({
+      id: attachmentId,
+      fileName,
+      fileSize,
+      mimeType,
+      createdAt,
+    })),
     tagContent: JSON.parse(post.tagContent || '[]'),
     starred,
   });
@@ -102,9 +111,8 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
   }
   const cleanContent = tagContentArr.filter((c) => contentVals.includes(c));
 
-  // 仅更新可编辑字段；userId / status 不从请求体读取，防篡改
-  // SEC-010: 编辑触发重审 —— version+1 + mcpApproved=false + reviewFlag 标记，
-  // 防止「初版安全、更新偷偷加恶意指令」的 Rug Pull 攻击；status 保持不变（published 仍可见）
+  // 普通用户编辑公开内容后重新进入人工待审，防止已发布内容被替换为泄密、侵权或恶意指令。
+  // 管理员编辑可保持原状态，但 MCP 准入始终撤销并重新审核。
   await prisma.post.update({
     where: { id },
     data: {
@@ -114,6 +122,7 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
       tagIndustry,
       tagContent: JSON.stringify(cleanContent),
       tagSkill,
+      status: user.isAdmin ? post.status : POST_STATUS.PENDING,
       version: { increment: 1 },
       mcpApproved: false,
       reviewFlag: 'edited: pending re-review',
