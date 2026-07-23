@@ -19,7 +19,7 @@
     "test:release-safety": "node --test scripts/check-release-safety.test.mjs",
     "test:memory-schema": "node --test scripts/check-memory-schema.test.mjs",
     "test:memory-migration-upgrade": "node --test scripts/check-memory-migration-upgrade.test.mjs",
-    "test:mcp-search-intelligence": "node --import tsx --test scripts/mcp-search-intelligence.test.ts",
+    "test:mcp-search-intelligence": "node --import tsx --test scripts/mcp-search-intelligence.test.ts scripts/mcp-user-facing-contract.test.ts",
     "test:activation": "node --import tsx --test scripts/check-activation-license.test.ts scripts/check-activation-input.test.ts",
     "test:memory-setup": "node --import tsx --test scripts/check-memory-setup.test.ts",
     "test:compliance": "node --import tsx --test scripts/check-compliance-baseline.test.ts",
