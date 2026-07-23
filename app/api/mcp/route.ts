@@ -50,7 +50,7 @@ When this server is successfully connected and first becomes available in a conv
 
 ${MCP_WELCOME_MESSAGE}
 
-Use search_skills or recommend_skills_for_task to discover methods before get_skill / apply_skill. Favorites are a personal frequently-used library, not a prerequisite. N.E.I. only distributes Skill / Workflow text and does not read local files or upload project materials.`;
+Use search_skills or recommend_skills_for_task to discover methods before get_skill / apply_skill. Pass the exact Skill title returned by search into downstream tools. Do not expose internal ranking signals or database identifiers to the user. Favorites are a personal frequently-used library, not a prerequisite. N.E.I. only distributes Skill / Workflow text and does not read local files or upload project materials.`;
 
 const DEFAULT_DISCIPLINE_SLUG = 'nei-discipline/fiduciary-research-v1';
 
@@ -155,7 +155,6 @@ function buildMcpWhere(args: {
   skillType?: string;
   industry?: string;
   author?: string;
-  cursor?: number;
 }) {
   const scenes = resolveScenes({ scene: args.scene, task: args.task, stage: args.stage });
   const where = buildFeedWhere({
@@ -167,7 +166,6 @@ function buildMcpWhere(args: {
 
   if (scenes.length > 1) where.tagScene = { in: scenes };
   if (args.author) where.author = { ...(where.author || {}), nickname: { contains: args.author } };
-  if (args.cursor) where.id = { lt: args.cursor };
 
   return { where, scenes };
 }
@@ -195,7 +193,6 @@ async function findDefaultDiscipline() {
 function postToMcpItem(post: any, query = '') {
   const body = normalizePublicText(post.body);
   return {
-    id: post.id,
     title: post.title,
     scene: post.tagScene,
     industry: post.tagIndustry ?? null,
@@ -204,13 +201,25 @@ function postToMcpItem(post: any, query = '') {
     excerpt: stripHtml(body).slice(0, 180),
     snippet: query ? makeSnippet(body, query) : null,
     tags: safeJsonArray(post.tagContent),
-    viewCount: post.viewCount ?? 0,
-    stars: post._count?.stars ?? 0,
-    comments: post._count?.comments ?? 0,
-    attachments: post._count?.attachments ?? 0,
     featured: Boolean(post.featured),
     updatedAt: post.updatedAt.toISOString(),
   };
+}
+
+async function findMcpSkillIdByTitle(title: string): Promise<number | null> {
+  const normalizedTitle = title.trim();
+  if (!normalizedTitle) return null;
+  const post = await prisma.post.findFirst({
+    where: {
+      title: normalizedTitle,
+      status: POST_STATUS.PUBLISHED,
+      deletedAt: null,
+      mcpApproved: true,
+    },
+    select: { id: true },
+    orderBy: { updatedAt: 'desc' },
+  });
+  return post?.id ?? null;
 }
 
 function toolResultMessage(ok: boolean, message: string, extra: Record<string, unknown> = {}) {
@@ -263,13 +272,12 @@ function makeHandler(uid: number, tokenId: number | null, clientName: string | n
           author: z.string().optional().describe('Fuzzy author nickname search'),
           sort: z.enum(['relevance', 'latest', 'popular']).optional().describe('Default is relevance when query exists, otherwise popular'),
           limit: z.number().optional().default(10).describe('Max 30'),
-          cursor: z.number().optional().describe('Pagination cursor: pass the last returned id'),
         },
         async (args) => {
           const start = Date.now();
           try {
             const cap = Math.min(Math.max(args.limit || 10, 1), 30);
-            const { where, scenes } = buildMcpWhere(args);
+            const { where } = buildMcpWhere(args);
             const query = [args.query, args.task].filter(Boolean).join(' ');
             const interpretation = interpretMcpTask(query);
 
@@ -307,27 +315,8 @@ function makeHandler(uid: number, tokenId: number | null, clientName: string | n
                 ? `Found ${pageItems.length} MCP-ready N.E.I. Skills.`
                 : 'No MCP-ready Skill matched this request.',
               count: pageItems.length,
-              nextCursor: ranked.length > cap ? pageItems[pageItems.length - 1]?.post.id ?? null : null,
-              interpretedIntent: interpretation.interpretedIntent,
-              inferredScenes: interpretation.inferredScenes,
-              inferredIndustries: interpretation.inferredIndustries,
-              inferredContentTags: interpretation.inferredContentTags,
-              matchedSignals: interpretation.matchedSignals,
-              appliedFilters: {
-                query: args.query ?? null,
-                task: args.task ?? null,
-                stage: args.stage ?? null,
-                scenes,
-                skillType: args.skillType ?? null,
-                industry: args.industry ?? null,
-                tags: args.tags ?? [],
-                sort,
-              },
-              items: pageItems.map(({ post, score, matchedSignals }) => ({
-                ...postToMcpItem(post, query),
-                relevanceScore: sort === 'relevance' ? score : null,
-                matchedSignals,
-              })),
+              hasMore: ranked.length > cap,
+              items: pageItems.map(({ post }) => postToMcpItem(post, query)),
               safety: MCP_SAFETY,
             });
           } finally {
@@ -395,8 +384,6 @@ function makeHandler(uid: number, tokenId: number | null, clientName: string | n
                 role: recommendationRole(index, entries.length),
                 recommendedOrder: index + 1,
                 reason: recommendationReason(entry),
-                relevanceScore: entry.score,
-                matchedSignals: entry.matchedSignals,
               }));
 
             const primaryScene = scenes[0] ?? 'industry-research';
@@ -407,11 +394,6 @@ function makeHandler(uid: number, tokenId: number | null, clientName: string | n
                 : `No MCP-ready Skill is currently available for: ${args.task}.`,
               task: args.task,
               industry: args.industry ?? null,
-              interpretedIntent: interpretation.interpretedIntent,
-              inferredScenes: scenes,
-              inferredIndustries: interpretation.inferredIndustries,
-              inferredContentTags: interpretation.inferredContentTags,
-              matchedSignals: interpretation.matchedSignals,
               suggestedSequence: MCP_RECOMMENDED_SEQUENCES[primaryScene] ?? [
                 '明确任务、材料和交付要求',
                 '调用最接近的 Skill',
@@ -498,7 +480,7 @@ function makeHandler(uid: number, tokenId: number | null, clientName: string | n
                 {
                   type: 'text' as const,
                   text: wrapWithSafetyRules(
-                    `# ${post.title}\nScene: ${post.tagScene}\nType: ${post.skillAsset?.assetType ?? 'agent-discipline'}\nDefault Discipline: true\nPost ID: ${post.id}\n\nLoading instruction:\nLoad and follow this discipline before executing PEVC Skills / Workflows unless the user explicitly overrides it.\n\n---\n\n${text}`,
+                    `# ${post.title}\nScene: ${post.tagScene}\nType: ${post.skillAsset?.assetType ?? 'agent-discipline'}\nDefault Discipline: true\n\nLoading instruction:\nLoad and follow this discipline before executing PEVC Skills / Workflows unless the user explicitly overrides it.\n\n---\n\n${text}`,
                   ),
                 },
               ],
@@ -511,13 +493,21 @@ function makeHandler(uid: number, tokenId: number | null, clientName: string | n
 
       server.tool(
         'get_skill',
-        'Get the full Prompt / content of a single MCP-ready Skill.',
-        { id: z.number().describe('Skill ID') },
+        'Get the full Prompt / content of a single MCP-ready Skill by its exact title from search results.',
+        { title: z.string().describe('Exact Skill title returned by search_skills or recommend_skills_for_task') },
         async (args) => {
           const start = Date.now();
+          let skillId: number | undefined;
           try {
+            const resolvedId = await findMcpSkillIdByTitle(args.title);
+            if (!resolvedId) {
+              return toolResultMessage(false, 'Skill not found or not available through MCP.', {
+                title: args.title,
+              });
+            }
+            skillId = resolvedId;
             const post = await prisma.post.findUnique({
-              where: { id: args.id },
+              where: { id: resolvedId },
               select: {
                 title: true,
                 body: true,
@@ -533,7 +523,9 @@ function makeHandler(uid: number, tokenId: number | null, clientName: string | n
               },
             });
             if (!post || post.status !== POST_STATUS.PUBLISHED || post.deletedAt || !post.mcpApproved) {
-              return toolResultMessage(false, 'Skill not found or not available through MCP.', { id: args.id });
+              return toolResultMessage(false, 'Skill not found or not available through MCP.', {
+                title: args.title,
+              });
             }
 
             const fallbackText = normalizePublicText(
@@ -566,7 +558,7 @@ function makeHandler(uid: number, tokenId: number | null, clientName: string | n
               ],
             };
           } finally {
-            logCall('get_skill', start, args.id);
+            logCall('get_skill', start, skillId);
           }
         },
       );
@@ -575,13 +567,21 @@ function makeHandler(uid: number, tokenId: number | null, clientName: string | n
         'apply_skill',
         'Prepare a Skill Prompt template for the trusted AI client. Project context must be filled locally by the client and is never sent to N.E.I.',
         {
-          id: z.number().describe('Skill ID'),
+          title: z.string().describe('Exact Skill title returned by search_skills or recommend_skills_for_task'),
         },
         async (args) => {
           const start = Date.now();
+          let skillId: number | undefined;
           try {
+            const resolvedId = await findMcpSkillIdByTitle(args.title);
+            if (!resolvedId) {
+              return toolResultMessage(false, 'Skill not found or not available through MCP.', {
+                title: args.title,
+              });
+            }
+            skillId = resolvedId;
             const post = await prisma.post.findUnique({
-              where: { id: args.id },
+              where: { id: resolvedId },
               select: {
                 title: true,
                 body: true,
@@ -595,7 +595,9 @@ function makeHandler(uid: number, tokenId: number | null, clientName: string | n
               },
             });
             if (!post || post.status !== POST_STATUS.PUBLISHED || post.deletedAt || !post.mcpApproved) {
-              return toolResultMessage(false, 'Skill not found or not available through MCP.', { id: args.id });
+              return toolResultMessage(false, 'Skill not found or not available through MCP.', {
+                title: args.title,
+              });
             }
 
             const promptText = normalizePublicText(
@@ -623,7 +625,7 @@ function makeHandler(uid: number, tokenId: number | null, clientName: string | n
               ],
             };
           } finally {
-            logCall('apply_skill', start, args.id);
+            logCall('apply_skill', start, skillId);
           }
         },
       );
@@ -666,14 +668,10 @@ function makeHandler(uid: number, tokenId: number | null, clientName: string | n
               summary: items.length
                 ? `You have ${items.length} MCP-ready favorited Skills.`
                 : 'Your favorite library is empty, but you can still use search_skills and recommend_skills_for_task to search the whole public MCP-ready N.E.I. Skill library.',
-              visibleCount: items.length,
-              hiddenBecauseNotMcpApprovedCount,
-              warnings:
+              note:
                 hiddenBecauseNotMcpApprovedCount > 0
-                  ? [
-                      `${hiddenBecauseNotMcpApprovedCount} favorite(s) are hidden because they are unpublished, deleted, or not approved for MCP.`,
-                    ]
-                  : [],
+                  ? 'Some saved items are currently unavailable through MCP.'
+                  : null,
               items,
               safety: MCP_SAFETY,
             });
@@ -686,25 +684,35 @@ function makeHandler(uid: number, tokenId: number | null, clientName: string | n
       server.tool(
         'favorite_skill',
         'Favorite a Skill into your N.E.I. Skill Library. This operation is idempotent.',
-        { id: z.number().describe('Skill ID') },
+        { title: z.string().describe('Exact Skill title returned by search_skills or recommend_skills_for_task') },
         async (args) => {
           const start = Date.now();
+          let skillId: number | undefined;
           try {
+            const resolvedId = await findMcpSkillIdByTitle(args.title);
+            if (!resolvedId) {
+              return toolResultMessage(false, 'Skill not found or not available through MCP.', {
+                title: args.title,
+              });
+            }
+            skillId = resolvedId;
             const post = await prisma.post.findUnique({
-              where: { id: args.id },
+              where: { id: resolvedId },
               select: { id: true, title: true, status: true, deletedAt: true, mcpApproved: true },
             });
             if (!post || post.status !== POST_STATUS.PUBLISHED || post.deletedAt || !post.mcpApproved) {
-              return toolResultMessage(false, 'Skill not found or not available through MCP.', { id: args.id });
+              return toolResultMessage(false, 'Skill not found or not available through MCP.', {
+                title: args.title,
+              });
             }
 
             const existing = await prisma.postFavorite.findUnique({
-              where: { userId_postId: { userId: uid, postId: args.id } },
+              where: { userId_postId: { userId: uid, postId: post.id } },
               select: { id: true },
             });
             await prisma.postFavorite.upsert({
-              where: { userId_postId: { userId: uid, postId: args.id } },
-              create: { userId: uid, postId: args.id },
+              where: { userId_postId: { userId: uid, postId: post.id } },
+              create: { userId: uid, postId: post.id },
               update: {},
             });
             if (!existing) {
@@ -712,18 +720,17 @@ function makeHandler(uid: number, tokenId: number | null, clientName: string | n
                 type: ACTIVITY_EVENT.FAVORITE_ADD,
                 userId: uid,
                 entityType: 'post',
-                entityId: args.id,
+                entityId: post.id,
                 source: 'mcp',
               });
             }
 
             return toolResultMessage(true, existing ? 'Skill was already favorited.' : 'Skill favorited.', {
-              id: post.id,
               title: post.title,
               alreadyFavorited: Boolean(existing),
             });
           } finally {
-            logCall('favorite_skill', start, args.id);
+            logCall('favorite_skill', start, skillId);
           }
         },
       );
@@ -732,37 +739,45 @@ function makeHandler(uid: number, tokenId: number | null, clientName: string | n
         'unfavorite_skill',
         'Remove a Skill from your N.E.I. Skill Library. Requires confirm=true to avoid accidental deletion.',
         {
-          id: z.number().describe('Skill ID'),
+          title: z.string().describe('Exact Skill title returned by search_skills, recommend_skills_for_task, or list_my_skills'),
           confirm: z.boolean().optional().default(false).describe('Must be true to remove the favorite'),
         },
         async (args) => {
           const start = Date.now();
+          let skillId: number | undefined;
           try {
             if (!args.confirm) {
               return toolResultMessage(false, 'Confirmation required. Call unfavorite_skill again with confirm=true to remove this favorite.', {
-                id: args.id,
+                title: args.title,
                 confirmationRequired: true,
               });
             }
 
+            const resolvedId = await findMcpSkillIdByTitle(args.title);
+            if (!resolvedId) {
+              return toolResultMessage(false, 'Skill not found or not available through MCP.', {
+                title: args.title,
+              });
+            }
+            skillId = resolvedId;
             const result = await prisma.postFavorite.deleteMany({
-              where: { userId: uid, postId: args.id },
+              where: { userId: uid, postId: resolvedId },
             });
             if (result.count > 0) {
               trackActivity({
                 type: ACTIVITY_EVENT.FAVORITE_REMOVE,
                 userId: uid,
                 entityType: 'post',
-                entityId: args.id,
+                entityId: resolvedId,
                 source: 'mcp',
               });
             }
             return toolResultMessage(true, result.count > 0 ? 'Skill unfavorited.' : 'Skill was not in your favorites.', {
-              id: args.id,
-              removedCount: result.count,
+              title: args.title,
+              removed: result.count > 0,
             });
           } finally {
-            logCall('unfavorite_skill', start, args.id);
+            logCall('unfavorite_skill', start, skillId);
           }
         },
       );
@@ -941,7 +956,7 @@ function makeHandler(uid: number, tokenId: number | null, clientName: string | n
     {
       serverInfo: {
         name: 'nei-pevc',
-        version: '1.0.0',
+        version: '1.1.0',
       },
       instructions: MCP_SERVER_INSTRUCTIONS,
     },
