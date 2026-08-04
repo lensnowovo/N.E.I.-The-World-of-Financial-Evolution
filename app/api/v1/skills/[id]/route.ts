@@ -11,33 +11,10 @@ import { normalizePublicText, normalizePublicUrl } from '@/lib/public-url';
  * 返回完整 body、attachments（剥掉 storageKey/uploaderId，带 downloadUrl）、skillAsset 全字段。
  * 去掉用户态（liked/favorited）。
  *
- * viewCount 自增带防刷：同 IP + post 5 分钟内只计一次。
- * （MVP 内存 Map，生产应换持久化——TODO）
+ * 公开读取路径保持只读。浏览量由网页端 /api/activity 在限流、去重后统一记录。
  */
 
-// 内存防刷：key = `${ip}:${postId}`，value = 过期时间戳
-const VIEW_DEDUP = new Map<string, number>();
-const VIEW_WINDOW_MS = 5 * 60 * 1000; // 5 分钟
-// 定期清理过期项，避免内存无限增长（每 10 分钟清一次）
-let lastCleanup = Date.now();
-
-function shouldCountView(ip: string, postId: number): boolean {
-  const now = Date.now();
-  // 清理过期
-  if (now - lastCleanup > 10 * 60 * 1000) {
-    for (const [k, exp] of VIEW_DEDUP) {
-      if (exp < now) VIEW_DEDUP.delete(k);
-    }
-    lastCleanup = now;
-  }
-  const key = `${ip}:${postId}`;
-  const exp = VIEW_DEDUP.get(key);
-  if (exp && exp > now) return false; // 窗口内已计过
-  VIEW_DEDUP.set(key, now + VIEW_WINDOW_MS);
-  return true;
-}
-
-export async function GET(req: Request, { params }: { params: Promise<{ id: string }> }) {
+export async function GET(_req: Request, { params }: { params: Promise<{ id: string }> }) {
   const id = parseInt((await params).id, 10);
   if (Number.isNaN(id)) {
     return NextResponse.json({ error: '无效的 id' }, { status: 400 });
@@ -54,13 +31,6 @@ export async function GET(req: Request, { params }: { params: Promise<{ id: stri
   });
   if (!post || post.status !== POST_STATUS.PUBLISHED || post.deletedAt) {
     return NextResponse.json({ error: '内容不存在或未发布' }, { status: 404 });
-  }
-
-  // viewCount 防刷自增（IP + post 5 分钟去重）
-  const ip = getClientIp(req);
-  if (shouldCountView(ip, id)) {
-    // 不 await，不阻塞响应（容许偶尔丢失计数）
-    void prisma.post.update({ where: { id }, data: { viewCount: { increment: 1 } } });
   }
 
   const attachments: ApiAttachment[] = post.attachments
@@ -107,15 +77,6 @@ export async function GET(req: Request, { params }: { params: Promise<{ id: stri
 
   const body: SingleResponse<ApiSkillDetail> = { data };
   return NextResponse.json(body);
-}
-
-function getClientIp(req: Request): string {
-  // 优先用标准转发头（生产部署在反向代理后），fallback 到连接信息
-  const xff = req.headers.get('x-forwarded-for');
-  if (xff) return xff.split(',')[0].trim();
-  const realIp = req.headers.get('x-real-ip');
-  if (realIp) return realIp;
-  return 'unknown';
 }
 
 function safeJsonArray(raw: string | null): string[] {

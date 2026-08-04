@@ -15,7 +15,7 @@
  * Sprint 0.x 的目标是「基础防护」，足够；后续如需跨实例一致限流，换 Redis 后端。
  *
  * 另提供 `checkAndConsume`：基于 RateLimitBucket 表的**原子时间桶**限流
- * （契约 §11），用于 Memory Node 激活相关端点（需要跨实例一致、并发安全）。
+ * （契约 §11），用于所有需要跨实例一致、并发安全的安全边界。
  */
 
 import { Prisma, PrismaClient } from '@prisma/client';
@@ -104,7 +104,8 @@ export interface CheckAndConsumeArgs {
   subject: string;
   /** 可选：原始 IP，仅写入 ip 列用于观测/日志（不影响计数）。 */
   ip?: string;
-  endpoint: string; // "code" | "activate" | "refresh" | "code:user"
+  /** 稳定、低基数的端点标识；不要放原始 URL、邮箱或其他个人信息。 */
+  endpoint: string;
   limit: number;
   windowMs: number;
 }

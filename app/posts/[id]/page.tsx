@@ -30,7 +30,6 @@ import { analyzeSkillQuality } from '@/lib/skill-quality';
 import { buildSkillDisplay } from '@/lib/skill-display';
 import { SkillQualityPanel } from '@/components/SkillQualityPanel';
 import { getPublicBaseUrl, normalizePublicText, normalizePublicUrl } from '@/lib/public-url';
-import { ACTIVITY_EVENT, trackActivity } from '@/lib/activity';
 import { serializeJsonLd } from '@/lib/json-ld';
 
 export async function generateMetadata({
@@ -123,23 +122,6 @@ export default async function PostDetailPage({
   const uid = me?.id ?? null;
   // 作者本人或管理员可编辑（US-013）
   const canEdit = me ? canEditPost(me.id, { userId: post.author.id }, me.isAdmin) : false;
-
-  // viewCount 自增是 non-critical 写：fire-and-forget，不阻塞渲染。
-  // serverless 函数返回后该 promise 可能被回收，最多少计一次浏览，可接受。
-  void incrementViewCount(id).catch(() => {});
-  if (uid) {
-    trackActivity({
-      type: ACTIVITY_EVENT.POST_VIEW,
-      userId: uid,
-      entityType: 'post',
-      entityId: id,
-      source: 'web',
-      metadata: {
-        scene: post.tagScene,
-        assetType: post.skillAsset?.assetType ?? post.tagSkill ?? null,
-      },
-    });
-  }
 
   let starred = false;
   if (uid) {
@@ -693,18 +675,6 @@ function getUsageBoundary({
   if (assetType === 'agent-discipline') return '作为 Agent 第一层上下文加载，用于约束后续 Skill / Workflow 的执行方式。';
   return '适合处理已脱敏或可公开讨论的工作材料；最终判断仍由使用者负责。';
 }
-
-async function incrementViewCount(postId: number): Promise<void> {
-  try {
-    await prisma.post.update({
-      where: { id: postId },
-      data: { viewCount: { increment: 1 } },
-    });
-  } catch (error) {
-    console.error(`Failed to increment view count for post ${postId}`, error);
-  }
-}
-
 
 /** 右栏小标签 chip */
 function TagChip({

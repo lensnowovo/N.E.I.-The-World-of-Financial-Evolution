@@ -85,6 +85,9 @@ jobs:
       - name: Memory Node browser activation UI tests
         run: npm run test:memory-setup
 
+      - name: Security abuse-control regression tests
+        run: npm run test:security-abuse-controls
+
       - name: Lint
         run: npm run lint
 
