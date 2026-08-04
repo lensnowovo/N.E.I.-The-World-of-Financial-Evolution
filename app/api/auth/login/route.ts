@@ -3,29 +3,51 @@ import bcrypt from 'bcryptjs';
 import { prisma } from '@/lib/db';
 import { setSession } from '@/lib/session';
 import { isEmail, isPassword, isCode } from '@/lib/validate';
-import { checkRateLimit } from '@/lib/rate-limit';
+import { checkAndConsume, getClientIp } from '@/lib/rate-limit';
+import { hashedRateLimitSubject } from '@/lib/rate-limit-subject';
 
 // 暴力破解防护：同 email 5 次失败 / 15min 后拒绝。注意：成功登录不计入。
 const LOGIN_FAIL_LIMIT = 5;
 const LOGIN_FAIL_WINDOW_MS = 15 * 60 * 1000;
+const LOGIN_IP_FAIL_LIMIT = 30;
 
 export async function POST(req: Request) {
   const { email, password, code, mode } = await req.json();
   if (!isEmail(email)) return NextResponse.json({ error: '请输入有效的邮箱地址' }, { status: 400 });
+  const normalizedEmail = email.toLowerCase();
+  const ip = getClientIp(req);
 
   /**
    * 记录一次失败登录尝试；若已达上限返回 429 响应，否则返回 null。
    * 仅在「认证失败」路径调用（用户不存在 / 验证码错 / 密码错 / 未设密码），
    * 输入格式校验失败与成功登录均不计入 —— 前者算 client 侧错误，后者是正常行为。
    */
-  const onAuthFail = (): NextResponse | null => {
-    const rl = checkRateLimit(
-      `login:email:${email.toLowerCase()}`,
-      LOGIN_FAIL_LIMIT,
-      LOGIN_FAIL_WINDOW_MS
-    );
-    if (!rl.ok) {
-      const retryAfterSec = Math.max(1, Math.ceil(rl.retryAfter / 1000));
+  const onAuthFail = async (): Promise<NextResponse | null> => {
+    // 先检查 IP。命中总量门禁后不再创建新的账号桶，防止随机邮箱制造高基数记录。
+    const ipRl = await checkAndConsume({
+      subject: `ip:${ip}`,
+      ip,
+      endpoint: 'auth:login:ip-failure',
+      limit: LOGIN_IP_FAIL_LIMIT,
+      windowMs: LOGIN_FAIL_WINDOW_MS,
+    });
+    if (!ipRl.allowed) {
+      const retryAfterSec = Math.max(ipRl.retryAfter, 1);
+      return NextResponse.json(
+        { error: '登录尝试过于频繁，请稍后再试' },
+        { status: 429, headers: { 'Retry-After': String(retryAfterSec) } }
+      );
+    }
+
+    const accountRl = await checkAndConsume({
+      subject: hashedRateLimitSubject('email', normalizedEmail),
+      ip,
+      endpoint: 'auth:login:account-failure',
+      limit: LOGIN_FAIL_LIMIT,
+      windowMs: LOGIN_FAIL_WINDOW_MS,
+    });
+    if (!accountRl.allowed) {
+      const retryAfterSec = Math.max(accountRl.retryAfter, 1);
       return NextResponse.json(
         { error: '登录尝试过于频繁，请稍后再试' },
         { status: 429, headers: { 'Retry-After': String(retryAfterSec) } }
@@ -34,9 +56,9 @@ export async function POST(req: Request) {
     return null;
   };
 
-  const user = await prisma.user.findUnique({ where: { email } });
+  const user = await prisma.user.findUnique({ where: { email: normalizedEmail } });
   if (!user) {
-    const limited = onAuthFail();
+    const limited = await onAuthFail();
     if (limited) return limited;
     // 用户枚举模糊（US-007）：账号不存在时不再返回 "账号不存在"，
     // 改为按当前登录模式返回与「凭证错误」完全一致的通用错误 + 状态码，
@@ -50,11 +72,11 @@ export async function POST(req: Request) {
   if (mode === 'code') {
     if (!isCode(code)) return NextResponse.json({ error: '验证码格式不正确' }, { status: 400 });
     const verificationCode = await prisma.verificationCode.findFirst({
-      where: { email, code, consumed: false, expiresAt: { gt: new Date() } },
+      where: { email: normalizedEmail, code, consumed: false, expiresAt: { gt: new Date() } },
       orderBy: { createdAt: 'desc' },
     });
     if (!verificationCode) {
-      const limited = onAuthFail();
+      const limited = await onAuthFail();
       if (limited) return limited;
       return NextResponse.json({ error: '验证码无效或已过期' }, { status: 400 });
     }
@@ -62,13 +84,13 @@ export async function POST(req: Request) {
   } else {
     if (!isPassword(password)) return NextResponse.json({ error: '密码格式不正确' }, { status: 400 });
     if (!user.passwordHash) {
-      const limited = onAuthFail();
+      const limited = await onAuthFail();
       if (limited) return limited;
       return NextResponse.json({ error: '该账号通过 GitHub 或邮箱验证码创建，请切换到对应方式登录（上方「验证码登录」标签或 GitHub 按钮）' }, { status: 400 });
     }
     const ok = await bcrypt.compare(password, user.passwordHash);
     if (!ok) {
-      const limited = onAuthFail();
+      const limited = await onAuthFail();
       if (limited) return limited;
       return NextResponse.json({ error: '邮箱或密码错误' }, { status: 401 });
     }

@@ -58,14 +58,14 @@ function normalizeMetadata(
   return Object.keys(out).length > 0 ? out : undefined;
 }
 
-export function trackActivity(input: TrackActivityInput): void {
+export function trackActivity(input: TrackActivityInput): Promise<void> {
   const type = String(input.type || '').trim().slice(0, 60);
-  if (!type) return;
+  if (!type) return Promise.resolve();
 
   const anonymousId = normalizeAnonymousId(input.anonymousId);
   const userId = typeof input.userId === 'number' && Number.isFinite(input.userId) ? input.userId : null;
 
-  prisma.activityEvent
+  return prisma.activityEvent
     .create({
       data: {
         type,
@@ -77,6 +77,7 @@ export function trackActivity(input: TrackActivityInput): void {
         metadata: normalizeMetadata(input.metadata),
       },
     })
+    .then(() => undefined)
     .catch(() => {
       /* Analytics must never block product flows. */
     });

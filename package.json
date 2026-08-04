@@ -23,6 +23,7 @@
     "test:activation": "node --import tsx --test scripts/check-activation-license.test.ts scripts/check-activation-input.test.ts",
     "test:memory-setup": "node --import tsx --test scripts/check-memory-setup.test.ts",
     "test:compliance": "node --import tsx --test scripts/check-compliance-baseline.test.ts",
+    "test:security-abuse-controls": "node --import tsx --test scripts/check-security-abuse-controls.test.ts",
     "test:bp-fact-card": "node --import tsx --test scripts/check-bp-fact-card.test.ts",
     "test:activation:integration": "node --import tsx --test scripts/check-activation-concurrency.test.ts",
     "smoke:public-posts": "tsx scripts/smoke-public-posts.ts",
