@@ -65,7 +65,7 @@ export type ReportItem = {
   };
 };
 
-type Tab = 'overview' | 'content' | 'review' | 'reports' | 'mcp' | 'mine' | 'data';
+type Tab = 'overview' | 'content' | 'review' | 'reports' | 'mcp' | 'memory' | 'mine' | 'data';
 
 const STATUS_LABEL: Record<string, string> = {
   [POST_STATUS.DRAFT]: '草稿',
@@ -115,6 +115,10 @@ export function AdminConsoleClient({
   const [showDeleted, setShowDeleted] = useState(false);
   const [busyId, setBusyId] = useState<number | null>(null);
   const [toast, setToast] = useState<{ ok: boolean; text: string } | null>(null);
+  const [trialEmail, setTrialEmail] = useState('');
+  const [trialDays, setTrialDays] = useState(90);
+  const [trialBusy, setTrialBusy] = useState(false);
+  const [trialResult, setTrialResult] = useState<string | null>(null);
 
   const visible = items.filter((i) => (showDeleted ? true : !i.deletedAt));
 
@@ -188,9 +192,39 @@ export function AdminConsoleClient({
     ...(reviewItems.length > 0 ? [{ key: 'review' as const, label: `待审 (${reviewItems.length})` }] : []),
     ...(reportItems.length > 0 ? [{ key: 'reports' as const, label: `举报 (${reportItems.length})` }] : []),
     { key: 'mcp', label: 'MCP 状态' },
+    { key: 'memory', label: 'Memory Node' },
     { key: 'mine', label: '我的发布' },
     { key: 'data', label: '数据' },
   ];
+
+  const onGrantMemoryTrial = useCallback(async () => {
+    setTrialBusy(true);
+    setTrialResult(null);
+    try {
+      const res = await fetch('/api/admin/memory-entitlements', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email: trialEmail, days: trialDays }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        const copy = data?.error === 'USER_NOT_FOUND'
+          ? '没有找到这个 N.E.I. 账号'
+          : data?.error === 'INVALID_REQUEST'
+            ? '请检查邮箱和试用天数'
+            : data?.error === 'ENTITLEMENT_MANAGED'
+              ? '该账号已有正式或团队权益，未覆盖原权益'
+            : '授权失败，请稍后重试';
+        setTrialResult(copy);
+        return;
+      }
+      setTrialResult(`已开通至 ${new Date(data.entitlement.expiresAt).toLocaleDateString('zh-CN')}`);
+    } catch {
+      setTrialResult('网络错误，授权失败');
+    } finally {
+      setTrialBusy(false);
+    }
+  }, [trialDays, trialEmail]);
 
   const onReview = useCallback(
     async (post: ReviewPostItem, action: 'approve' | 'reject' | 'revoke') => {
@@ -454,6 +488,49 @@ export function AdminConsoleClient({
               )}
             </div>
           </div>
+        </div>
+      )}
+
+      {/* —— Memory Node 内测资格 —— */}
+      {tab === 'memory' && (
+        <div className="max-w-2xl space-y-6">
+          <div>
+            <h2 className="font-serif text-lg text-ink-brown">开通试用资格</h2>
+            <p className="mt-2 font-sans text-xs leading-6 text-sepia">
+              只为已注册的 N.E.I. 账号开通限时 Memory Node Pro。授权可到期，不创建新账号，也不接触本地记忆。
+            </p>
+          </div>
+          <div className="grid gap-4 rounded-md border border-paper-edge bg-vellum/50 p-5 sm:grid-cols-[1fr_120px_auto] sm:items-end">
+            <label className="font-sans text-xs text-leather">
+              账号邮箱
+              <input
+                type="email"
+                value={trialEmail}
+                onChange={(event) => setTrialEmail(event.target.value)}
+                placeholder="user@example.com"
+                className="mt-2 h-10 w-full rounded-sm border border-paper-edge bg-white px-3 text-sm text-ink-brown outline-none focus:border-ink-brown"
+              />
+            </label>
+            <label className="font-sans text-xs text-leather">
+              试用天数
+              <input
+                type="number"
+                min={1}
+                max={365}
+                value={trialDays}
+                onChange={(event) => setTrialDays(Number(event.target.value))}
+                className="mt-2 h-10 w-full rounded-sm border border-paper-edge bg-white px-3 text-sm text-ink-brown outline-none focus:border-ink-brown"
+              />
+            </label>
+            <Button onClick={onGrantMemoryTrial} disabled={trialBusy || !trialEmail.trim()}>
+              {trialBusy ? '正在开通…' : '开通试用'}
+            </Button>
+          </div>
+          {trialResult && (
+            <p role="status" className="border-l-2 border-moss pl-3 font-sans text-sm text-leather">
+              {trialResult}
+            </p>
+          )}
         </div>
       )}
 
