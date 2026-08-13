@@ -22,6 +22,7 @@
     "test:mcp-search-intelligence": "node --import tsx --test scripts/mcp-search-intelligence.test.ts scripts/mcp-user-facing-contract.test.ts",
     "test:activation": "node --import tsx --test scripts/check-activation-license.test.ts scripts/check-activation-input.test.ts",
     "test:memory-setup": "node --import tsx --test scripts/check-memory-setup.test.ts",
+    "test:memory-entitlement": "node --import tsx --test scripts/check-memory-entitlement.test.ts",
     "test:compliance": "node --import tsx --test scripts/check-compliance-baseline.test.ts",
     "test:security-abuse-controls": "node --import tsx --test scripts/check-security-abuse-controls.test.ts",
     "test:bp-fact-card": "node --import tsx --test scripts/check-bp-fact-card.test.ts",
