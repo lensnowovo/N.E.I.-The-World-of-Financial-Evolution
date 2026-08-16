@@ -88,6 +88,9 @@ jobs:
       - name: Security abuse-control regression tests
         run: npm run test:security-abuse-controls
 
+      - name: Skill supply-chain integrity tests
+        run: npm run test:skill-supply-chain
+
       - name: Lint
         run: npm run lint
 

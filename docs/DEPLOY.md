@@ -1,5 +1,8 @@
 # N.E.I. 部署与发布指南
 
+> Skill 完整性签名、历史快照回填和 MCP 紧急处置见
+> `docs/security/skill-supply-chain-runbook.md`。发布相关迁移时必须按“迁移 → 回填 → 强制签名”的顺序执行。
+
 > 当前生产站点：[https://nei-pevc.com](https://nei-pevc.com)
 > 当前部署方式：直接 push `main` + Vercel Production Deployment
 

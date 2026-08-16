@@ -30,15 +30,17 @@ model User {
   createdAt       DateTime  @default(now())
   updatedAt       DateTime  @updatedAt
 
-  posts           Post[]
-  comments        Comment[]
-  stars           PostFavorite[]
-  commentLikes    CommentLike[]
-  mcpCallLogs     McpCallLog[]
-  mcpAccessTokens McpAccessToken[]
-  reports         Report[] // SEC-011: 用户提交的举报（作为举报人）
-  activityEvents  ActivityEvent[]
-  consents        UserConsent[] // 协议确认记录
+  posts                  Post[]
+  comments               Comment[]
+  stars                  PostFavorite[]
+  commentLikes           CommentLike[]
+  mcpCallLogs            McpCallLog[]
+  mcpAccessTokens        McpAccessToken[]
+  reports                Report[] // SEC-011: 用户提交的举报（作为举报人）
+  activityEvents         ActivityEvent[]
+  consents               UserConsent[] // 协议确认记录
+  adminAuditLogs         AdminAuditLog[]
+  approvedSkillRevisions SkillRevision[]  @relation("SkillRevisionApprover")
 
   // Memory Node 授权系统（PR1：仅 schema）
   activationCodes   ActivationCode[]
@@ -109,17 +111,61 @@ model Post {
   createdAt     DateTime  @default(now())
   updatedAt     DateTime  @updatedAt
 
-  author      User           @relation(fields: [userId], references: [id])
-  comments    Comment[]
-  attachments Attachment[]
-  stars       PostFavorite[]
-  skillAsset  SkillAsset?
-  reports     Report[] // SEC-011: 针对此帖的举报
+  author         User            @relation(fields: [userId], references: [id])
+  comments       Comment[]
+  attachments    Attachment[]
+  stars          PostFavorite[]
+  skillAsset     SkillAsset?
+  reports        Report[] // SEC-011: 针对此帖的举报
+  skillRevisions SkillRevision[]
 
   @@index([createdAt])
   @@index([tagScene])
   @@index([userId])
   @@index([deletedAt])
+}
+
+// ---------- 已审核 Skill 不可变快照 ----------
+// MCP 只应分发经过审核并通过完整性校验的快照，而不是可继续编辑的 Post.body。
+model SkillRevision {
+  id           Int       @id @default(autoincrement())
+  postId       Int
+  version      Int
+  title        String
+  content      String
+  contentHash  String
+  signature    String
+  approvedById Int
+  approvedAt   DateTime  @default(now())
+  revokedAt    DateTime?
+
+  post       Post @relation(fields: [postId], references: [id], onDelete: Cascade)
+  approvedBy User @relation("SkillRevisionApprover", fields: [approvedById], references: [id], onDelete: Restrict)
+
+  @@unique([postId, version])
+  @@index([postId, revokedAt, approvedAt])
+}
+
+// ---------- 管理员高风险操作审计 ----------
+// 独立记录审核、撤回、管理员编辑/删除等动作；不保存密钥或正文全文。
+model AdminAuditLog {
+  id          BigInt   @id @default(autoincrement())
+  actorUserId Int
+  action      String
+  entityType  String
+  entityId    String
+  reason      String?
+  beforeState Json?
+  afterState  Json?
+  ipAddress   String?
+  userAgent   String?
+  createdAt   DateTime @default(now())
+
+  actor User @relation(fields: [actorUserId], references: [id], onDelete: Restrict)
+
+  @@index([actorUserId, createdAt])
+  @@index([entityType, entityId, createdAt])
+  @@index([createdAt])
 }
 
 // ---------- 举报（SEC-011）----------
