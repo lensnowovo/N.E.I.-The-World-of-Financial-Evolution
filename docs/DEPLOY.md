@@ -134,6 +134,14 @@ workflow 文件：
 .github/workflows/ci.yml
 ```
 
+生产站另有独立于 Vercel 的 GitHub 定时巡检：
+
+```text
+.github/workflows/uptime.yml
+```
+
+每 15 分钟检查首页、`/api/health` 的数据库连通性，以及 MCP 在缺少凭证时是否仍返回 401。`/api/health` 只接受仓库 Secret `HEALTHCHECK_TOKEN`，避免公开端点被用于消耗数据库连接。失败会形成 GitHub Actions 失败记录，并按仓库通知设置提醒维护者。
+
 当前检查项：
 
 ```bash
@@ -259,6 +267,7 @@ prisma generate && next build
 | `GLM_API_KEY` | AI 相关能力 |
 | `MEMORY_LICENSE_PRIVATE_KEY` | Memory Node 授权：Ed25519 许可证签发私钥（PEM）。`openssl genpkey -algorithm ED25519` 生成。激活签发依赖此变量；未配置则 `/api/activation/activate` 在签发阶段失败。对应**公钥由 Memory Node 客户端编译内置（另一仓库 nei-memory-node）**。 |
 | `CRON_SECRET` | Vercel Cron 鉴权密钥，保护 `/api/cron/cleanup-rate-limits`。在 Vercel Project Settings → Environment Variables 配置；Vercel 会自动以 `Authorization: Bearer <CRON_SECRET>` 调用，未配置则该端点一律 401。 |
+| `HEALTHCHECK_TOKEN` | 外部可用性监控调用 `/api/health` 的 Bearer 密钥；同值写入 Vercel 环境变量与 GitHub Actions 仓库 Secret，不得放入前端代码。 |
 
 ### Vercel Cron（限流清理）
 
@@ -314,6 +323,16 @@ npm run verify
 ```bash
 npm run smoke:public-posts -- --base https://nei-pevc.com
 ```
+
+在本地或 Vercel Preview 做有上限的并发烟雾测试：
+
+```bash
+npm run test:load:safe -- --base https://<preview-domain> --requests 60 --concurrency 8
+```
+
+脚本默认拒绝对 `nei-pevc.com` 运行，且即使显式放行也限制为最多 200 个请求、20 并发。生产压测必须另行确定时间窗口、告警和回滚方案，不能把该开关当作日常命令。
+
+管理员控制台的审核、下架、精选排序、举报处置和 Memory Node 授权均要求最近 15 分钟内重新验证管理员密码。若返回 HTTP 428 / `ADMIN_REAUTH_REQUIRED`，先在 `/admin` 顶部完成二次验证，再重试操作。
 
 手动检查：
 

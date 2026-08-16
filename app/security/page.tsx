@@ -69,8 +69,9 @@ export default function SecurityPage() {
           <ol>
             <li>普通用户投稿统一进入管理员待审队列，不会直接公开。</li>
             <li>基础校验和安全扫描只提供审核线索，不能替代人工审核。</li>
-            <li>只有 <code>mcpApproved = true</code> 的内容才会被 MCP 返回。</li>
+            <li>只有通过审核并形成完整性签名快照的内容才会被 MCP 返回。</li>
             <li>已准入内容被作者编辑后，会撤回 MCP 准入并等待复审，防止 Rug Pull。</li>
+            <li>管理员执行准入、下架、精选和授权等敏感操作前，必须重新验证身份，操作结果写入审计日志。</li>
           </ol>
 
           <h2>外部 MCP 风险提示</h2>

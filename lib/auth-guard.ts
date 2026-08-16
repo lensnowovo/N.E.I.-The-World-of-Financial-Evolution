@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import { getCurrentUser, type SessionUser } from './session';
+import { getRecentAdminAuth } from './admin-reauth';
 
 /**
  * 管理员守卫（API 路由用）。
@@ -26,4 +27,24 @@ export async function requireAdmin(): Promise<{ user: SessionUser } | NextRespon
     return NextResponse.json({ error: '需要管理员权限' }, { status: 403 });
   }
   return { user };
+}
+
+/**
+ * 高风险管理员写操作守卫。
+ *
+ * 管理员的普通登录最长可维持 30 天，但审批、下架、精选、授权等操作必须在最近
+ * 15 分钟内重新验证密码。428 让前端可以明确区分“需二次验证”和普通 401/403。
+ */
+export async function requireRecentAdmin(): Promise<{ user: SessionUser } | NextResponse> {
+  const guard = await requireAdmin();
+  if (guard instanceof NextResponse) return guard;
+
+  const auth = await getRecentAdminAuth(guard.user.id);
+  if (!auth.recent) {
+    return NextResponse.json(
+      { error: '敏感操作前请重新验证管理员身份', code: 'ADMIN_REAUTH_REQUIRED' },
+      { status: 428 },
+    );
+  }
+  return guard;
 }

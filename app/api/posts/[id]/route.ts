@@ -7,6 +7,7 @@ import { canEditPost } from '@/lib/post-auth';
 import { withMetrics } from '@/lib/metrics';
 import { POST_STATUS } from '@/lib/status';
 import { writeAdminAudit } from '@/lib/admin-audit';
+import { requireRecentAdmin } from '@/lib/auth-guard';
 
 const sceneVals: string[] = SCENE_TAGS.map((t) => t.value);
 const industryVals: string[] = INDUSTRY_TAGS.map((t) => t.value);
@@ -71,6 +72,10 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
   }
   if (!canEditPost(user.id, post, user.isAdmin)) {
     return NextResponse.json({ error: '无权编辑此帖子' }, { status: 403 });
+  }
+  if (user.isAdmin && user.id !== post.userId) {
+    const recent = await requireRecentAdmin();
+    if (recent instanceof NextResponse) return recent;
   }
 
   const data = await req.json();
@@ -165,6 +170,10 @@ export async function DELETE(_req: Request, { params }: { params: Promise<{ id: 
   }
   if (!canEditPost(user.id, post, user.isAdmin)) {
     return NextResponse.json({ error: '无权删除此帖子' }, { status: 403 });
+  }
+  if (user.isAdmin && user.id !== post.userId) {
+    const recent = await requireRecentAdmin();
+    if (recent instanceof NextResponse) return recent;
   }
 
   await prisma.$transaction(async (tx) => {

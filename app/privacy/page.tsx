@@ -36,7 +36,7 @@ export default function PrivacyPage() {
         </Section>
 
         <Section title="四、Cookie 与本地存储">
-          <p>网站使用名为 pevc_session 的 HttpOnly 会话 Cookie 维持登录，设置 SameSite=Lax，生产环境启用 Secure，最长有效期 30 天。OAuth 流程还会使用短期、一次性的状态 Cookie 防止跨站请求伪造。</p>
+          <p>网站使用名为 pevc_session 的 HttpOnly 会话 Cookie 维持登录，设置 SameSite=Lax，生产环境启用 Secure，最长有效期 30 天。管理员执行审核、下架、授权等敏感操作时，还会使用最长 15 分钟的 HttpOnly 二次验证 Cookie；退出登录时一并清除。OAuth 流程另使用短期、一次性的状态 Cookie 防止跨站请求伪造。</p>
         </Section>
 
         <Section title="五、受托处理与跨境提供">

@@ -1,0 +1,39 @@
+name: Production uptime smoke
+
+on:
+  schedule:
+    - cron: '7,22,37,52 * * * *'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: production-uptime-smoke
+  cancel-in-progress: true
+
+jobs:
+  smoke:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Check public site
+        run: curl --fail --silent --show-error --location --max-time 15 https://nei-pevc.com/ > /dev/null
+
+      - name: Check application and database health
+        env:
+          HEALTHCHECK_TOKEN: ${{ secrets.HEALTHCHECK_TOKEN }}
+        run: |
+          response="$(curl --fail --silent --show-error --max-time 15 \
+            -H "Authorization: Bearer $HEALTHCHECK_TOKEN" \
+            https://nei-pevc.com/api/health)"
+          node -e 'const body=JSON.parse(process.argv[1]); if(body.status!=="ok"||body.database!=="reachable") process.exit(1)' "$response"
+
+      - name: Check MCP rejects missing credentials
+        run: |
+          status="$(curl --silent --output /dev/null --write-out '%{http_code}' --max-time 15 \
+            -X POST https://nei-pevc.com/api/mcp \
+            -H 'Content-Type: application/json' \
+            -H 'Accept: application/json, text/event-stream' \
+            --data '{"jsonrpc":"2.0","id":1,"method":"initialize","params":{}}')"
+          test "$status" = "401"

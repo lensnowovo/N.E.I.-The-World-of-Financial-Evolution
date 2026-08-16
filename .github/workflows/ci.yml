@@ -91,6 +91,9 @@ jobs:
       - name: Skill supply-chain integrity tests
         run: npm run test:skill-supply-chain
 
+      - name: Admin recent-auth token tests
+        run: npm run test:admin-reauth
+
       - name: Lint
         run: npm run lint
 
