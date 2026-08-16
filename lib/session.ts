@@ -13,6 +13,12 @@ function sign(payload: string) {
   return crypto.createHmac('sha256', SECRET).update(payload).digest('base64url');
 }
 
+function safeEqual(left: string, right: string) {
+  const a = Buffer.from(left);
+  const b = Buffer.from(right);
+  return a.length === b.length && crypto.timingSafeEqual(a, b);
+}
+
 function encode(uid: number) {
   const data = JSON.stringify({ uid, exp: Date.now() + MAX_AGE * 1000 });
   const b64 = Buffer.from(data).toString('base64url');
@@ -21,9 +27,9 @@ function encode(uid: number) {
 }
 
 function decode(token: string): { uid: number; exp: number } | null {
-  const [b64, sig] = token.split('.');
-  if (!b64 || !sig) return null;
-  if (sign(b64) !== sig) return null;
+  const [b64, sig, extra] = token.split('.');
+  if (!b64 || !sig || extra) return null;
+  if (!safeEqual(sign(b64), sig)) return null;
   try {
     const data = JSON.parse(Buffer.from(b64, 'base64url').toString());
     if (typeof data.uid !== 'number' || typeof data.exp !== 'number') return null;

@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/db';
-import { requireAdmin } from '@/lib/auth-guard';
+import { requireRecentAdmin } from '@/lib/auth-guard';
+import { writeAdminAudit } from '@/lib/admin-audit';
 import { parseMemoryTrialGrant } from '@/lib/memory-entitlement';
 
 export const dynamic = 'force-dynamic';
@@ -14,7 +15,7 @@ const DAY_MS = 86_400_000;
  * This endpoint never creates users and never receives Memory Node content.
  */
 export async function POST(req: Request) {
-  const guard = await requireAdmin();
+  const guard = await requireRecentAdmin();
   if (guard instanceof NextResponse) return guard;
 
   const input = parseMemoryTrialGrant(await req.json().catch(() => null));
@@ -50,26 +51,43 @@ export async function POST(req: Request) {
     days: input.days,
   });
 
-  const entitlement = await prisma.entitlement.upsert({
-    where: { userId: user.id },
-    create: {
-      userId: user.id,
-      plan: 'memory-node-pro',
-      status: 'active',
-      startedAt: now,
-      expiresAt,
-      source: 'admin-trial',
-      metadata,
-    },
-    update: {
-      plan: 'memory-node-pro',
-      status: 'active',
-      startedAt: now,
-      expiresAt,
-      source: 'admin-trial',
-      metadata,
-    },
-    select: { plan: true, status: true, expiresAt: true },
+  const entitlement = await prisma.$transaction(async (tx) => {
+    const result = await tx.entitlement.upsert({
+      where: { userId: user.id },
+      create: {
+        userId: user.id,
+        plan: 'memory-node-pro',
+        status: 'active',
+        startedAt: now,
+        expiresAt,
+        source: 'admin-trial',
+        metadata,
+      },
+      update: {
+        plan: 'memory-node-pro',
+        status: 'active',
+        startedAt: now,
+        expiresAt,
+        source: 'admin-trial',
+        metadata,
+      },
+      select: { plan: true, status: true, expiresAt: true },
+    });
+    await writeAdminAudit({
+      actorUserId: guard.user.id,
+      action: 'memory.entitlement.grant-trial',
+      entityType: 'user',
+      entityId: user.id,
+      beforeState: existing ?? undefined,
+      afterState: {
+        plan: result.plan,
+        status: result.status,
+        expiresAt: result.expiresAt?.toISOString() ?? null,
+      },
+      request: req,
+      client: tx,
+    });
+    return result;
   });
 
   return NextResponse.json({
