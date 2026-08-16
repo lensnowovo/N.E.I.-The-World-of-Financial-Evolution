@@ -158,12 +158,12 @@ function ConnectHero({ tokenCount, connectedCount, maxActive }: { tokenCount: nu
 
         <figure className="relative -mx-5 sm:mx-0" aria-label="N.E.I. Skills 通过 MCP 连接到 Codex、Claude Code 和 WorkBuddy">
           <Image
-            src="/mcp-connection-flow.png"
+            src="/mcp-connection-flow-transparent.png"
             alt="N.E.I. Skills 库通过 MCP 连接台流向 Codex、Claude Code 和 WorkBuddy"
             width={1637}
             height={960}
             priority
-            className="h-auto w-full mix-blend-multiply"
+            className="h-auto w-full"
           />
         </figure>
       </div>

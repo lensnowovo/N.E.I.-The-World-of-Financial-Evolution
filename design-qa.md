@@ -16,6 +16,7 @@ PASS
 - The selected warm ivory, espresso, moss and muted ochre palette is preserved.
 - The hero follows the selected left-copy/right-diagram composition.
 - The custom illustration clearly communicates `N.E.I. Skills 库 → MCP 连接台 → Codex / Claude Code / WorkBuddy`.
+- The illustration uses a transparent outer background, allowing the live paper texture and atmospheric field to continue without a visible rectangular edge; the diagram's cards retain a soft local fill for legibility.
 - The title, primary action and three-step connection path match the reference hierarchy.
 - The former dark control-console treatment has been replaced with a lighter editorial connection workspace.
 - Existing site typography, paper texture, navigation and footer remain consistent with the product.
