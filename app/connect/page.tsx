@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
+import Image from 'next/image';
 import Link from 'next/link';
 import { PUBLIC_BASE_URL } from '@/lib/public-url';
 import {
@@ -94,8 +95,8 @@ export default function ConnectPage() {
   const connectedCount = tokens.filter((token) => token.connected).length;
 
   return (
-    <div className="mx-auto max-w-page px-4 py-8 sm:px-6">
-      <ConnectHero tokenCount={tokens.length} connectedCount={connectedCount} />
+    <div className="mx-auto max-w-[1320px] px-4 py-8 sm:px-6">
+      <ConnectHero tokenCount={tokens.length} connectedCount={connectedCount} maxActive={maxActive} />
 
       <div className="mt-7">
         <McpConnectionConsole
@@ -119,43 +120,70 @@ export default function ConnectPage() {
   );
 }
 
-function ConnectHero({ tokenCount, connectedCount }: { tokenCount: number; connectedCount: number }) {
+function ConnectHero({ tokenCount, connectedCount, maxActive }: { tokenCount: number; connectedCount: number; maxActive: number }) {
   return (
-    <header className="mcp-access-hero relative overflow-hidden border-b border-paper-edge pb-7 pt-2">
-      <div className="relative grid gap-6 lg:grid-cols-[1fr_350px] lg:items-end">
-        <div>
-          <Link href="/" className="font-serif text-sm italic text-sepia transition-colors hover:text-ink-brown">← 返回 Skills 目录</Link>
-          <p className="mt-7 font-display text-[10px] uppercase tracking-[0.22em] text-gilded">N.E.I. MCP / Client Setup</p>
-          <h1 className="mt-2 max-w-4xl font-serif text-4xl leading-[1.08] text-ink-brown sm:text-5xl">连接 N.E.I. MCP</h1>
-          <p className="mt-4 max-w-2xl font-sans text-sm leading-7 text-leather">
-            为 Codex、Claude Code、Workbuddy 分别创建 Token。多个客户端可以同时使用，互不影响。
+    <header className="mcp-access-hero relative overflow-hidden border-b border-paper-edge pb-8 pt-2 sm:pb-10">
+      <Link href="/" className="relative z-10 font-serif text-sm italic text-sepia transition-colors hover:text-ink-brown">← 返回 Skills 目录</Link>
+
+      <div className="relative mt-8 grid gap-8 lg:grid-cols-[0.88fr_1.12fr] lg:items-center lg:gap-4">
+        <div className="relative z-10">
+          <p className="font-display text-[10px] uppercase tracking-[0.22em] text-gilded">N.E.I. MCP / Client Setup</p>
+          <h1 className="mt-3 max-w-2xl font-serif text-4xl leading-[1.08] text-ink-brown sm:text-5xl lg:whitespace-nowrap lg:text-[50px]">
+            把 N.E.I. 接入你的 Agent
+          </h1>
+          <p className="mt-5 max-w-xl font-sans text-sm leading-7 text-leather">
+            让 Codex、Claude Code 和 WorkBuddy 直接搜索 N.E.I. Skills，并读取你的收藏。
           </p>
-        </div>
-        <div className="mcp-access-brief relative border border-gilded/35 bg-parchment/55 px-5 py-4 backdrop-blur-[2px]">
-          <div className="flex items-center justify-between gap-4 border-b border-gilded/25 pb-3">
-            <p className="font-display text-[9px] uppercase tracking-[0.18em] text-sepia">Connection status</p>
-            <span className="font-mono text-[9px] text-gilded">N.E.I. / MCP</span>
+
+          <div className="mt-7 flex flex-wrap items-center gap-4">
+            <a
+              href="#new-connection"
+              className="inline-flex min-h-12 items-center gap-8 bg-moss px-6 font-serif text-sm text-vellum transition-colors hover:bg-ink-brown hover:text-vellum"
+            >
+              连接新 Agent <span aria-hidden="true">→</span>
+            </a>
+            <Link href="/mcp" className="font-serif text-sm italic text-sepia transition-colors hover:text-wax-red">
+              查看接入方法 →
+            </Link>
           </div>
-          <div className="mt-4 grid grid-cols-2 gap-5">
-            <HeroConnectionStat label="有效 Token" value={tokenCount} />
-            <HeroConnectionStat label="已验证连接" value={connectedCount} active={connectedCount > 0} />
-          </div>
-          <p className="mt-4 font-sans text-[11px] leading-5 text-leather">状态来自真实 MCP 请求，不用生成 Token 代替连接成功。</p>
+
+          <ol className="mt-8 flex flex-wrap items-center gap-x-3 gap-y-2 font-sans text-xs text-leather" aria-label="连接步骤">
+            <HeroStep number="1" label="选择客户端" />
+            <span className="text-gilded/70" aria-hidden="true">→</span>
+            <HeroStep number="2" label="复制配置" />
+            <span className="text-gilded/70" aria-hidden="true">→</span>
+            <HeroStep number="3" label="完成连接" />
+          </ol>
         </div>
+
+        <figure className="relative -mx-5 sm:mx-0" aria-label="N.E.I. Skills 通过 MCP 连接到 Codex、Claude Code 和 WorkBuddy">
+          <Image
+            src="/mcp-connection-flow-transparent.png"
+            alt="N.E.I. Skills 库通过 MCP 连接台流向 Codex、Claude Code 和 WorkBuddy"
+            width={1637}
+            height={960}
+            priority
+            className="h-auto w-full"
+          />
+        </figure>
+      </div>
+
+      <div className="relative z-10 mt-3 flex flex-wrap items-center justify-between gap-3 border-t border-paper-edge/80 pt-4 font-sans text-[11px] text-sepia">
+        <p>连接状态来自真实 MCP 工具调用</p>
+        <p className="font-mono tracking-[0.08em]">
+          {connectedCount} CONNECTED · {tokenCount}/{maxActive} ACTIVE
+        </p>
       </div>
     </header>
   );
 }
 
-function HeroConnectionStat({ label, value, active = false }: { label: string; value: number; active?: boolean }) {
+function HeroStep({ number, label }: { number: string; label: string }) {
   return (
-    <div>
-      <div className="flex items-center gap-2">
-        <span className={`h-1.5 w-1.5 rounded-full ${active ? 'mcp-signal-dot bg-moss' : 'bg-gilded/55'}`} />
-        <span className="font-serif text-3xl text-ink-brown">{value}</span>
-      </div>
-      <p className="mt-1 font-sans text-[11px] text-sepia">{label}</p>
-    </div>
+    <li className="inline-flex items-center gap-2">
+      <span className="inline-flex h-6 w-6 items-center justify-center rounded-full border border-moss/70 font-mono text-[10px] text-moss">{number}</span>
+      <span>{label}</span>
+    </li>
   );
 }
 
