@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useEffect } from 'react';
 import Link from 'next/link';
 import { cn } from '@/lib/cn';
 import { Button } from '@/components/ui/Button';
@@ -119,12 +119,64 @@ export function AdminConsoleClient({
   const [trialDays, setTrialDays] = useState(90);
   const [trialBusy, setTrialBusy] = useState(false);
   const [trialResult, setTrialResult] = useState<string | null>(null);
+  const [reauthStatus, setReauthStatus] = useState<'checking' | 'locked' | 'unlocked'>('checking');
+  const [reauthPassword, setReauthPassword] = useState('');
+  const [reauthBusy, setReauthBusy] = useState(false);
+  const [reauthError, setReauthError] = useState<string | null>(null);
 
   const visible = items.filter((i) => (showDeleted ? true : !i.deletedAt));
 
   const flash = useCallback((ok: boolean, text: string) => {
     setToast({ ok, text });
     window.setTimeout(() => setToast(null), 2500);
+  }, []);
+
+  useEffect(() => {
+    let cancelled = false;
+    fetch('/api/auth/admin-reauth', { cache: 'no-store' })
+      .then((res) => res.json())
+      .then((data) => {
+        if (!cancelled) setReauthStatus(data?.recent ? 'unlocked' : 'locked');
+      })
+      .catch(() => {
+        if (!cancelled) setReauthStatus('locked');
+      });
+    return () => { cancelled = true; };
+  }, []);
+
+  const onAdminReauth = useCallback(async () => {
+    if (!reauthPassword) return;
+    setReauthBusy(true);
+    setReauthError(null);
+    try {
+      const res = await fetch('/api/auth/admin-reauth', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ password: reauthPassword }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        setReauthStatus('locked');
+        setReauthError(data?.error ?? '验证失败');
+        return;
+      }
+      setReauthPassword('');
+      setReauthStatus('unlocked');
+      flash(true, '敏感操作已解锁 15 分钟');
+    } catch {
+      setReauthError('网络错误，请稍后重试');
+    } finally {
+      setReauthBusy(false);
+    }
+  }, [flash, reauthPassword]);
+
+  const readMutationError = useCallback(async (res: Response, fallback: string) => {
+    const data = await res.json().catch(() => ({}));
+    if (res.status === 428 || data?.code === 'ADMIN_REAUTH_REQUIRED') {
+      setReauthStatus('locked');
+      setReauthError('验证已过期，请重新输入管理员密码');
+    }
+    return data?.error ?? fallback;
   }, []);
 
   const onDelete = useCallback(
@@ -135,8 +187,7 @@ export function AdminConsoleClient({
       try {
         const res = await fetch(`/api/posts/${post.id}`, { method: 'DELETE' });
         if (!res.ok) {
-          const data = await res.json().catch(() => ({}));
-          flash(false, `删除失败：${data?.error ?? res.status}`);
+          flash(false, `删除失败：${await readMutationError(res, String(res.status))}`);
           return;
         }
         const nowIso = new Date().toISOString();
@@ -149,7 +200,7 @@ export function AdminConsoleClient({
         setBusyId(null);
       }
     },
-    [flash],
+    [flash, readMutationError],
   );
 
   const onToggleFeatured = useCallback(
@@ -163,8 +214,7 @@ export function AdminConsoleClient({
           body: JSON.stringify({ featured: next }),
         });
         if (!res.ok) {
-          const data = await res.json().catch(() => ({}));
-          flash(false, `操作失败：${data?.error ?? res.status}`);
+          flash(false, `操作失败：${await readMutationError(res, String(res.status))}`);
           return;
         }
         const data = await res.json();
@@ -183,7 +233,7 @@ export function AdminConsoleClient({
         setBusyId(null);
       }
     },
-    [flash],
+    [flash, readMutationError],
   );
 
   const TABS: { key: Tab; label: string }[] = [
@@ -208,6 +258,10 @@ export function AdminConsoleClient({
       });
       const data = await res.json().catch(() => ({}));
       if (!res.ok) {
+        if (res.status === 428 || data?.code === 'ADMIN_REAUTH_REQUIRED') {
+          setReauthStatus('locked');
+          setReauthError('验证已过期，请重新输入管理员密码');
+        }
         const copy = data?.error === 'USER_NOT_FOUND'
           ? '没有找到这个 N.E.I. 账号'
           : data?.error === 'INVALID_REQUEST'
@@ -238,8 +292,7 @@ export function AdminConsoleClient({
           body: JSON.stringify({ action }),
         });
         if (!res.ok) {
-          const data = await res.json().catch(() => ({}));
-          flash(false, `操作失败：${data?.error ?? res.status}`);
+          flash(false, `操作失败：${await readMutationError(res, String(res.status))}`);
           return;
         }
         const data = await res.json();
@@ -261,7 +314,7 @@ export function AdminConsoleClient({
         setBusyId(null);
       }
     },
-    [flash],
+    [flash, readMutationError],
   );
 
   // SEC-011 举报处置：closed（成立，配合内容审核动作）/ dismissed（驳回）
@@ -278,8 +331,7 @@ export function AdminConsoleClient({
           body: JSON.stringify({ action }),
         });
         if (!res.ok) {
-          const data = await res.json().catch(() => ({}));
-          flash(false, `操作失败：${data?.error ?? res.status}`);
+          flash(false, `操作失败：${await readMutationError(res, String(res.status))}`);
           return;
         }
         // 两种动作都从 open 队列移除（closed/dismissed 都不再是 open）
@@ -291,11 +343,46 @@ export function AdminConsoleClient({
         setBusyId(null);
       }
     },
-    [flash],
+    [flash, readMutationError],
   );
 
   return (
     <div>
+      <section className="mb-5 rounded-md border border-gilded/40 bg-vellum/70 px-4 py-3">
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
+          <div className="min-w-0 flex-1">
+            <p className="font-serif text-sm text-ink-brown">敏感操作保护</p>
+            <p className="mt-1 font-sans text-[11px] leading-5 text-sepia">
+              审核、下架、精选排序和授权操作需在最近 15 分钟内重新验证管理员密码。
+            </p>
+          </div>
+          {reauthStatus === 'unlocked' ? (
+            <span className="inline-flex h-9 items-center rounded-sm border border-moss/40 bg-moss/5 px-3 font-sans text-xs text-moss">
+              已解锁 · 15 分钟后自动失效
+            </span>
+          ) : (
+            <form
+              className="flex w-full gap-2 sm:w-auto"
+              onSubmit={(event) => { event.preventDefault(); void onAdminReauth(); }}
+            >
+              <input
+                type="password"
+                autoComplete="current-password"
+                value={reauthPassword}
+                onChange={(event) => setReauthPassword(event.target.value)}
+                placeholder={reauthStatus === 'checking' ? '正在检查状态…' : '输入管理员密码'}
+                disabled={reauthBusy || reauthStatus === 'checking'}
+                className="h-9 min-w-0 flex-1 rounded-sm border border-paper-edge bg-white px-3 font-sans text-sm text-ink-brown outline-none focus:border-gilded sm:w-56"
+              />
+              <Button type="submit" size="sm" disabled={reauthBusy || !reauthPassword || reauthStatus === 'checking'}>
+                {reauthBusy ? '验证中…' : '解锁操作'}
+              </Button>
+            </form>
+          )}
+        </div>
+        {reauthError && <p role="alert" className="mt-2 font-sans text-xs text-wax-red">{reauthError}</p>}
+      </section>
+
       {/* Tab 条 */}
       <div className="flex items-center gap-1 mb-6 border-b border-paper-edge overflow-x-auto">
         {TABS.map((t) => (
@@ -382,7 +469,17 @@ export function AdminConsoleClient({
       {tab === 'content' && (
         <div className="space-y-8">
           {/* 精选拖拽排序 */}
-          <FeaturedDragPanel featured={featured} onReorder={setFeatured} onToggleFeatured={onToggleFeatured} busyId={busyId} flash={flash} />
+          <FeaturedDragPanel
+            featured={featured}
+            onReorder={setFeatured}
+            onToggleFeatured={onToggleFeatured}
+            busyId={busyId}
+            flash={flash}
+            onReauthRequired={() => {
+              setReauthStatus('locked');
+              setReauthError('验证已过期，请重新输入管理员密码');
+            }}
+          />
 
           {/* 工具条 */}
           <div className="flex items-center gap-3 flex-wrap">
@@ -604,12 +701,14 @@ function FeaturedDragPanel({
   onToggleFeatured,
   busyId,
   flash,
+  onReauthRequired,
 }: {
   featured: AdminPostItem[];
   onReorder: (next: AdminPostItem[]) => void;
   onToggleFeatured: (p: AdminPostItem) => void;
   busyId: number | null;
   flash: (ok: boolean, text: string) => void;
+  onReauthRequired: () => void;
 }) {
   const [dragIndex, setDragIndex] = useState<number | null>(null);
   const [saving, setSaving] = useState(false);
@@ -634,9 +733,14 @@ function FeaturedDragPanel({
       });
       if (!res.ok) {
         const data = await res.json().catch(() => ({}));
+        onReorder(featured);
+        if (res.status === 428 || data?.code === 'ADMIN_REAUTH_REQUIRED') {
+          onReauthRequired();
+        }
         flash(false, `排序保存失败：${data?.error ?? res.status}`);
       }
     } catch {
+      onReorder(featured);
       flash(false, '网络错误，排序未保存');
     } finally {
       setSaving(false);

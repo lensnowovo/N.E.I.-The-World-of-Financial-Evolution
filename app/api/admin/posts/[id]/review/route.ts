@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/db';
-import { requireAdmin } from '@/lib/auth-guard';
+import { requireRecentAdmin } from '@/lib/auth-guard';
 import { POST_STATUS } from '@/lib/status';
 import { readCanonicalSkillContent } from '@/lib/canonical-skill-content';
 import { extractPlainText, extractReadableText } from '@/lib/skill-text';
@@ -18,7 +18,7 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
   const id = parseInt((await params).id, 10);
   if (Number.isNaN(id)) return NextResponse.json({ error: '参数错误' }, { status: 400 });
 
-  const guard = await requireAdmin();
+  const guard = await requireRecentAdmin();
   if (guard instanceof NextResponse) return guard;
 
   const data = await req.json().catch(() => ({}));

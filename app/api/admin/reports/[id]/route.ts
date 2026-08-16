@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/db';
-import { requireAdmin } from '@/lib/auth-guard';
+import { requireRecentAdmin } from '@/lib/auth-guard';
+import { writeAdminAudit } from '@/lib/admin-audit';
 
 // PATCH /api/admin/reports/[id] —— 管理员处置举报（SEC-011 闭环）
 // body: { action: 'closed' | 'dismissed' }
@@ -12,7 +13,7 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
   const id = parseInt((await params).id, 10);
   if (Number.isNaN(id)) return NextResponse.json({ error: '参数错误' }, { status: 400 });
 
-  const guard = await requireAdmin();
+  const guard = await requireRecentAdmin();
   if (guard instanceof NextResponse) return guard;
 
   const data = await req.json().catch(() => ({}));
@@ -22,15 +23,28 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
     return NextResponse.json({ error: '未知的处置动作（应为 closed 或 dismissed）' }, { status: 400 });
   }
 
-  const report = await prisma.report.findUnique({ where: { id }, select: { id: true } });
+  const report = await prisma.report.findUnique({ where: { id }, select: { id: true, status: true } });
   if (!report) {
     return NextResponse.json({ error: '举报不存在' }, { status: 404 });
   }
 
-  const updated = await prisma.report.update({
-    where: { id },
-    data: { status: action },
-    select: { id: true, status: true },
+  const updated = await prisma.$transaction(async (tx) => {
+    const result = await tx.report.update({
+      where: { id },
+      data: { status: action },
+      select: { id: true, status: true },
+    });
+    await writeAdminAudit({
+      actorUserId: guard.user.id,
+      action: `report.${action}`,
+      entityType: 'report',
+      entityId: id,
+      beforeState: { status: report.status },
+      afterState: result,
+      request: req,
+      client: tx,
+    });
+    return result;
   });
   return NextResponse.json(updated);
 }
