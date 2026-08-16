@@ -26,6 +26,7 @@
     "test:compliance": "node --import tsx --test scripts/check-compliance-baseline.test.ts",
     "test:security-abuse-controls": "node --import tsx --test scripts/check-security-abuse-controls.test.ts",
     "test:bp-fact-card": "node --import tsx --test scripts/check-bp-fact-card.test.ts",
+    "test:skill-supply-chain": "node --import tsx --test scripts/check-skill-supply-chain.test.ts",
     "test:activation:integration": "node --import tsx --test scripts/check-activation-concurrency.test.ts",
     "smoke:public-posts": "tsx scripts/smoke-public-posts.ts",
     "smoke:public-downloads": "tsx scripts/smoke-public-downloads.ts",
@@ -33,6 +34,7 @@
     "db:push": "prisma db push",
     "db:migrate:deploy": "prisma migrate deploy",
     "db:migrate:status": "prisma migrate status",
+    "db:backfill-skill-revisions": "tsx scripts/backfill-signed-skill-revisions.ts",
     "db:seed": "tsx prisma/seed.ts",
     "setup": "prisma db push && tsx prisma/seed.ts"
   },

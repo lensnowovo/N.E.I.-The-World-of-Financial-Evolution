@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/db';
 import { getSessionUid } from '@/lib/session';
 import { saveBuffer } from '@/lib/storage';
+import { checkAndConsume, getClientIp } from '@/lib/rate-limit';
 
 const MAX_SIZE = 4 * 1024 * 1024;
 
@@ -13,6 +14,36 @@ const ALLOWED_EXT = new Set([
 export async function POST(req: Request) {
   const uid = await getSessionUid();
   if (!uid) return NextResponse.json({ error: '请先登录' }, { status: 401 });
+
+  const ip = getClientIp(req);
+  const userLimit = await checkAndConsume({
+    subject: `upload-user:${uid}`,
+    ip: ip === 'unknown' ? undefined : ip,
+    endpoint: 'upload:user',
+    limit: 20,
+    windowMs: 60 * 60 * 1000,
+  });
+  if (!userLimit.allowed) {
+    return NextResponse.json(
+      { error: '上传过于频繁，请稍后再试' },
+      { status: 429, headers: { 'Retry-After': String(Math.max(1, userLimit.retryAfter)) } },
+    );
+  }
+  if (ip !== 'unknown') {
+    const ipLimit = await checkAndConsume({
+      subject: `upload-ip:${ip}`,
+      ip,
+      endpoint: 'upload:ip',
+      limit: 60,
+      windowMs: 60 * 60 * 1000,
+    });
+    if (!ipLimit.allowed) {
+      return NextResponse.json(
+        { error: '当前网络上传过于频繁，请稍后再试' },
+        { status: 429, headers: { 'Retry-After': String(Math.max(1, ipLimit.retryAfter)) } },
+      );
+    }
+  }
 
   let form: FormData;
   try {

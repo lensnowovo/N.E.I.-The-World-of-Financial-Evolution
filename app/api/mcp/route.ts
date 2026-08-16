@@ -13,6 +13,8 @@ import { normalizePublicText } from '@/lib/public-url';
 import { ACTIVITY_EVENT, trackActivity } from '@/lib/activity';
 import { hashMcpAccessToken } from '@/lib/mcp-access-tokens';
 import { readCanonicalSkillContent } from '@/lib/canonical-skill-content';
+import { resolveApprovedSkillContent } from '@/lib/approved-skill-content';
+import { checkAndConsume } from '@/lib/rate-limit';
 import {
   buildConnectorSetupPrompt,
   getConnectorById,
@@ -99,32 +101,6 @@ function safeJsonArray(raw: string | null): string[] {
   }
 }
 
-function normalizeSearchText(value: string) {
-  return value
-    .toLowerCase()
-    .replace(/[，。、；：？！“”《》"'`~!@#$%^&*()[\]{}|\\/?+=_-]+/g, ' ')
-    .replace(/\s+/g, ' ')
-    .trim();
-}
-
-function tokenizeQuery(value: string) {
-  const normalized = normalizeSearchText(value);
-  return Array.from(new Set([normalized, ...normalized.split(/\s+/)].filter(Boolean)));
-}
-
-function makeSnippet(html: string, query: string): string | null {
-  const tokens = tokenizeQuery(query).filter((token) => token.length >= 2);
-  if (tokens.length === 0) return null;
-  const text = stripHtml(html);
-  const lower = text.toLowerCase();
-  const token = tokens.find((part) => lower.includes(part.toLowerCase()));
-  if (!token) return null;
-  const idx = lower.indexOf(token.toLowerCase());
-  const start = Math.max(0, idx - 40);
-  const end = Math.min(text.length, idx + token.length + 70);
-  return `${start > 0 ? '...' : ''}${text.slice(start, end)}${end < text.length ? '...' : ''}`;
-}
-
 function jsonContent(payload: JsonValue) {
   return {
     content: [
@@ -185,25 +161,53 @@ async function findDefaultDiscipline() {
       author: { select: { nickname: true } },
       skillAsset: { select: { assetType: true, originalAuthor: true, sourceUrl: true, usageNotes: true } },
       _count: { select: { stars: true, comments: true, attachments: true } },
+      attachments: {
+        orderBy: { createdAt: 'asc' },
+        select: { fileName: true, mimeType: true, storageKey: true },
+      },
     },
     orderBy: { id: 'asc' },
   });
 }
 
-function postToMcpItem(post: any, query = '') {
-  const body = normalizePublicText(post.body);
+function postToMcpItem(post: any, approvedContent: string | null = null) {
+  // Discovery responses intentionally do not echo mutable Post.body. Full instructions are only
+  // returned by get_skill/apply_skill after signed-revision verification. This keeps a database
+  // body tamper from becoming prompt injection through search/list metadata.
   return {
     title: post.title,
     scene: post.tagScene,
     industry: post.tagIndustry ?? null,
     type: post.skillAsset?.assetType ?? post.tagSkill ?? null,
     author: post.skillAsset?.originalAuthor || post.author?.nickname || null,
-    excerpt: stripHtml(body).slice(0, 180),
-    snippet: query ? makeSnippet(body, query) : null,
+    excerpt: approvedContent
+      ? stripHtml(normalizePublicText(approvedContent)).slice(0, 180)
+      : `${post.tagScene}${post.skillAsset?.assetType ? ` · ${post.skillAsset.assetType}` : ''}`,
+    snippet: null,
     tags: safeJsonArray(post.tagContent),
     featured: Boolean(post.featured),
     updatedAt: post.updatedAt.toISOString(),
   };
+}
+
+async function verifiedMcpItem(post: any, _query = '') {
+  try {
+    const approved = await resolveApprovedSkillContent({
+      postId: post.id,
+      version: post.version,
+      title: post.title,
+      revision: post.skillRevisions?.[0] ?? null,
+      // Legacy rollout only: discovery never returns this mutable body. It merely allows existing
+      // approved rows to remain searchable until the signed snapshot backfill is complete.
+      fallback: async () => normalizePublicText(extractPlainText(post.body)),
+    });
+    // Only signed immutable content may appear as a discovery excerpt. During the legacy backfill
+    // window, return neutral metadata instead of echoing mutable Post.body.
+    return postToMcpItem(post, approved.signed ? approved.content : null);
+  } catch (error) {
+    console.error(`[SEC] blocked unverified MCP metadata for post ${post.id}:`, error);
+    return null;
+  }
 }
 
 async function findMcpSkillIdByTitle(title: string): Promise<number | null> {
@@ -287,6 +291,11 @@ function makeHandler(uid: number, tokenId: number | null, clientName: string | n
                 author: { select: { nickname: true } },
                 skillAsset: { select: { assetType: true, originalAuthor: true } },
                 _count: { select: { stars: true, comments: true, attachments: true } },
+                skillRevisions: {
+                  where: { revokedAt: null },
+                  orderBy: { approvedAt: 'desc' },
+                  take: 1,
+                },
               },
               orderBy: { id: 'desc' },
               take: query || args.tags?.length || args.sort === 'relevance' ? 240 : cap + 1,
@@ -309,14 +318,17 @@ function makeHandler(uid: number, tokenId: number | null, clientName: string | n
                   matchedSignals: [] as string[],
                 }));
             const pageItems = ranked.slice(0, cap);
+            const verifiedItems = (await Promise.all(
+              pageItems.map(({ post }) => verifiedMcpItem(post, query)),
+            )).filter((item): item is NonNullable<typeof item> => item !== null);
 
             return jsonContent({
-              summary: pageItems.length
-                ? `Found ${pageItems.length} MCP-ready N.E.I. Skills.`
+              summary: verifiedItems.length
+                ? `Found ${verifiedItems.length} MCP-ready N.E.I. Skills.`
                 : 'No MCP-ready Skill matched this request.',
-              count: pageItems.length,
+              count: verifiedItems.length,
               hasMore: ranked.length > cap,
-              items: pageItems.map(({ post }) => postToMcpItem(post, query)),
+              items: verifiedItems,
               safety: MCP_SAFETY,
             });
           } finally {
@@ -353,6 +365,11 @@ function makeHandler(uid: number, tokenId: number | null, clientName: string | n
                 author: { select: { nickname: true } },
                 skillAsset: { select: { assetType: true, originalAuthor: true } },
                 _count: { select: { stars: true, comments: true, attachments: true } },
+                skillRevisions: {
+                  where: { revokedAt: null },
+                  orderBy: { approvedAt: 'desc' },
+                  take: 1,
+                },
               },
               orderBy: { createdAt: 'desc' },
               take: 200,
@@ -366,21 +383,31 @@ function makeHandler(uid: number, tokenId: number | null, clientName: string | n
                   author: { select: { nickname: true } },
                   skillAsset: { select: { assetType: true, originalAuthor: true } },
                   _count: { select: { stars: true, comments: true, attachments: true } },
+                  skillRevisions: {
+                    where: { revokedAt: null },
+                    orderBy: { approvedAt: 'desc' },
+                    take: 1,
+                  },
                 },
                 orderBy: { createdAt: 'desc' },
                 take: 200,
               });
             }
 
-            const ranked = rankMcpCandidates(posts, {
+            const candidates = rankMcpCandidates(posts, {
               text: `${args.task} ${args.industry ?? ''}`,
               explicitIndustry: args.industry,
               interpretation,
               includeZeroScore: true,
-            })
-              .slice(0, cap)
-              .map((entry, index, entries) => ({
-                ...postToMcpItem(entry.post, args.task),
+            }).slice(0, cap);
+            const verifiedCandidates = (await Promise.all(
+              candidates.map(async (entry) => {
+                const item = await verifiedMcpItem(entry.post, args.task);
+                return item ? { entry, item } : null;
+              }),
+            )).filter((item): item is NonNullable<typeof item> => item !== null);
+            const ranked = verifiedCandidates.map(({ entry, item }, index, entries) => ({
+                ...item,
                 role: recommendationRole(index, entries.length),
                 recommendedOrder: index + 1,
                 reason: recommendationReason(entry),
@@ -434,24 +461,36 @@ function makeHandler(uid: number, tokenId: number | null, clientName: string | n
                 author: { select: { nickname: true } },
                 skillAsset: { select: { assetType: true, originalAuthor: true, usageNotes: true } },
                 _count: { select: { stars: true, comments: true, attachments: true } },
+                skillRevisions: {
+                  where: { revokedAt: null },
+                  orderBy: { approvedAt: 'desc' },
+                  take: 1,
+                },
               },
               orderBy: [{ featured: 'desc' }, { id: 'asc' }],
               take: 30,
             });
 
+            const verifiedDisciplines = (await Promise.all(
+              posts.map(async (post) => {
+                const item = await verifiedMcpItem(post);
+                return item ? {
+                  ...item,
+                  usageNotes: post.skillAsset?.usageNotes ?? null,
+                  loadingHint:
+                    post.body.includes(`slug:${DEFAULT_DISCIPLINE_SLUG}`)
+                      ? 'Recommended default: load this before applying PEVC Skills / Workflows.'
+                      : 'Optional discipline: load when relevant to the task.',
+                } : null;
+              }),
+            )).filter((item): item is NonNullable<typeof item> => item !== null);
+
             return jsonContent({
-              summary: posts.length
-                ? `Found ${posts.length} MCP-ready N.E.I. Agent Discipline(s).`
+              summary: verifiedDisciplines.length
+                ? `Found ${verifiedDisciplines.length} MCP-ready N.E.I. Agent Discipline(s).`
                 : 'No MCP-ready Agent Discipline is currently available.',
               defaultDisciplineSlug: DEFAULT_DISCIPLINE_SLUG,
-              items: posts.map((post) => ({
-                ...postToMcpItem(post),
-                usageNotes: post.skillAsset?.usageNotes ?? null,
-                loadingHint:
-                  post.body.includes(`slug:${DEFAULT_DISCIPLINE_SLUG}`)
-                    ? 'Recommended default: load this before applying PEVC Skills / Workflows.'
-                    : 'Optional discipline: load when relevant to the task.',
-              })),
+              items: verifiedDisciplines,
               safety: MCP_SAFETY,
             });
           } finally {
@@ -474,7 +513,16 @@ function makeHandler(uid: number, tokenId: number | null, clientName: string | n
             }
             postId = post.id;
 
-            const text = normalizePublicText(extractReadableText(post.body));
+            const resolved = await resolveApprovedSkillContent({
+              postId: post.id,
+              version: post.version,
+              title: post.title,
+              fallback: async () => readCanonicalSkillContent(
+                post.attachments,
+                normalizePublicText(extractReadableText(post.body)),
+              ),
+            });
+            const text = normalizePublicText(resolved.content);
             return {
               content: [
                 {
@@ -509,7 +557,9 @@ function makeHandler(uid: number, tokenId: number | null, clientName: string | n
             const post = await prisma.post.findUnique({
               where: { id: resolvedId },
               select: {
+                id: true,
                 title: true,
+                version: true,
                 body: true,
                 tagScene: true,
                 status: true,
@@ -533,9 +583,13 @@ function makeHandler(uid: number, tokenId: number | null, clientName: string | n
                 ? extractReadableText(post.body)
                 : extractPlainText(post.body),
             );
-            const text = normalizePublicText(
-              await readCanonicalSkillContent(post.attachments, fallbackText),
-            );
+            const approved = await resolveApprovedSkillContent({
+              postId: post.id,
+              version: post.version,
+              title: post.title,
+              fallback: async () => readCanonicalSkillContent(post.attachments, fallbackText),
+            });
+            const text = normalizePublicText(approved.content);
             const placeholders = [
               ...new Set(
                 [...text.matchAll(/\[([^\]]{2,30})\]/g)]
@@ -583,7 +637,9 @@ function makeHandler(uid: number, tokenId: number | null, clientName: string | n
             const post = await prisma.post.findUnique({
               where: { id: resolvedId },
               select: {
+                id: true,
                 title: true,
+                version: true,
                 body: true,
                 status: true,
                 deletedAt: true,
@@ -600,9 +656,16 @@ function makeHandler(uid: number, tokenId: number | null, clientName: string | n
               });
             }
 
-            const promptText = normalizePublicText(
-              await readCanonicalSkillContent(post.attachments, extractPlainText(post.body)),
-            );
+            const approved = await resolveApprovedSkillContent({
+              postId: post.id,
+              version: post.version,
+              title: post.title,
+              fallback: async () => readCanonicalSkillContent(
+                post.attachments,
+                extractPlainText(post.body),
+              ),
+            });
+            const promptText = normalizePublicText(approved.content);
             const unfilled = [...promptText.matchAll(/\[([^\]]{2,30})\]/g)]
               .map((m) => m[1])
               .filter((s) => !/^\s*$/.test(s));
@@ -645,6 +708,11 @@ function makeHandler(uid: number, tokenId: number | null, clientName: string | n
                     author: { select: { nickname: true } },
                     skillAsset: { select: { assetType: true, originalAuthor: true } },
                     _count: { select: { stars: true, comments: true, attachments: true } },
+                    skillRevisions: {
+                      where: { revokedAt: null },
+                      orderBy: { approvedAt: 'desc' },
+                      take: 1,
+                    },
                   },
                 },
               },
@@ -659,10 +727,12 @@ function makeHandler(uid: number, tokenId: number | null, clientName: string | n
                 f.post.mcpApproved,
             );
             const hiddenBecauseNotMcpApprovedCount = favs.length - visible.length;
-            const items = visible.map((f) => ({
-              ...postToMcpItem(f.post),
-              favoritedAt: f.createdAt.toISOString(),
-            }));
+            const items = (await Promise.all(
+              visible.map(async (f) => {
+                const item = await verifiedMcpItem(f.post);
+                return item ? { ...item, favoritedAt: f.createdAt.toISOString() } : null;
+              }),
+            )).filter((item): item is NonNullable<typeof item> => item !== null);
 
             return jsonContent({
               summary: items.length
@@ -980,22 +1050,52 @@ function perRequestCtx(req: Request): { clientName: string | null; requestId: st
 export const POST = withMetrics('POST /api/mcp', mcpPost);
 
 async function mcpPost(req: Request): Promise<Response> {
+  if (process.env.MCP_DISABLED === 'true') return mcpUnavailableResponse();
   const auth = await getAuthContextFromRequest(req);
   if (!auth) return unauthorizedResponse();
+  const limited = await enforceMcpRateLimit(auth);
+  if (limited) return limited;
   const { clientName, requestId } = perRequestCtx(req);
   return makeHandler(auth.uid, auth.tokenId, clientName, requestId)(req);
 }
 
 export async function GET(req: Request): Promise<Response> {
+  if (process.env.MCP_DISABLED === 'true') return mcpUnavailableResponse();
   const auth = await getAuthContextFromRequest(req);
   if (!auth) return unauthorizedResponse();
+  const limited = await enforceMcpRateLimit(auth);
+  if (limited) return limited;
   const { clientName, requestId } = perRequestCtx(req);
   return makeHandler(auth.uid, auth.tokenId, clientName, requestId)(req);
 }
 
 export async function DELETE(req: Request): Promise<Response> {
+  if (process.env.MCP_DISABLED === 'true') return mcpUnavailableResponse();
   const auth = await getAuthContextFromRequest(req);
   if (!auth) return unauthorizedResponse();
+  const limited = await enforceMcpRateLimit(auth);
+  if (limited) return limited;
   const { clientName, requestId } = perRequestCtx(req);
   return makeHandler(auth.uid, auth.tokenId, clientName, requestId)(req);
+}
+
+function mcpUnavailableResponse(): Response {
+  return new Response(JSON.stringify({ error: 'service_unavailable', message: 'MCP is temporarily paused for safety.' }), {
+    status: 503,
+    headers: { 'Content-Type': 'application/json', 'Retry-After': '300' },
+  });
+}
+
+async function enforceMcpRateLimit(auth: McpAuthContext): Promise<Response | null> {
+  const result = await checkAndConsume({
+    subject: auth.tokenId ? `mcp-token:${auth.tokenId}` : `mcp-user:${auth.uid}`,
+    endpoint: 'mcp:request',
+    limit: 240,
+    windowMs: 60_000,
+  });
+  if (result.allowed) return null;
+  return new Response(JSON.stringify({ error: 'rate_limited', message: 'Too many MCP requests.' }), {
+    status: 429,
+    headers: { 'Content-Type': 'application/json', 'Retry-After': String(Math.max(1, result.retryAfter)) },
+  });
 }

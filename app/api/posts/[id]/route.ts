@@ -6,6 +6,7 @@ import { SCENE_TAGS, INDUSTRY_TAGS, CONTENT_TAGS, SKILL_TAGS } from '@/lib/tags'
 import { canEditPost } from '@/lib/post-auth';
 import { withMetrics } from '@/lib/metrics';
 import { POST_STATUS } from '@/lib/status';
+import { writeAdminAudit } from '@/lib/admin-audit';
 
 const sceneVals: string[] = SCENE_TAGS.map((t) => t.value);
 const industryVals: string[] = INDUSTRY_TAGS.map((t) => t.value);
@@ -63,7 +64,7 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
   // 取 post（不早返回 deletedAt，单独判定 → 软删后 PATCH 返回 404）
   const post = await prisma.post.findUnique({
     where: { id },
-    select: { id: true, userId: true, deletedAt: true, status: true },
+    select: { id: true, userId: true, deletedAt: true, status: true, version: true, mcpApproved: true },
   });
   if (!post || post.deletedAt) {
     return NextResponse.json({ error: '内容不存在或已删除' }, { status: 404 });
@@ -101,22 +102,45 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
   }
   const cleanContent = tagContentArr.filter((c) => contentVals.includes(c));
 
-  // 普通用户编辑公开内容后重新进入人工待审，防止已发布内容被替换为泄密、侵权或恶意指令。
-  // 管理员编辑可保持原状态，但 MCP 准入始终撤销并重新审核。
-  await prisma.post.update({
-    where: { id },
-    data: {
-      title,
-      body: sanitizeHtml(body),
-      tagScene,
-      tagIndustry,
-      tagContent: JSON.stringify(cleanContent),
-      tagSkill,
-      status: user.isAdmin ? post.status : POST_STATUS.PENDING,
-      version: { increment: 1 },
-      mcpApproved: false,
-      reviewFlag: 'edited: pending re-review',
-    },
+  // 所有已发布内容（包括管理员编辑）都必须重新审核。管理员账号被盗时，单次 PATCH
+  // 不得直接把恶意正文暴露在网站或 MCP；审核是独立、可审计的第二个动作。
+  await prisma.$transaction(async (tx) => {
+    const updated = await tx.post.update({
+      where: { id },
+      data: {
+        title,
+        body: sanitizeHtml(body),
+        tagScene,
+        tagIndustry,
+        tagContent: JSON.stringify(cleanContent),
+        tagSkill,
+        status: post.status === POST_STATUS.PUBLISHED ? POST_STATUS.PENDING : post.status,
+        version: { increment: 1 },
+        mcpApproved: false,
+        reviewFlag: 'edited: pending re-review',
+      },
+      select: { id: true, status: true, version: true, mcpApproved: true, reviewFlag: true },
+    });
+    await tx.skillRevision.updateMany({
+      where: { postId: id, revokedAt: null },
+      data: { revokedAt: new Date() },
+    });
+    if (user.isAdmin) {
+      await writeAdminAudit({
+        actorUserId: user.id,
+        action: 'post.edit',
+        entityType: 'post',
+        entityId: id,
+        beforeState: {
+          status: post.status,
+          version: post.version,
+          mcpApproved: post.mcpApproved,
+        },
+        afterState: updated,
+        request: req,
+        client: tx,
+      });
+    }
   });
 
   return NextResponse.json({ id });
@@ -134,7 +158,7 @@ export async function DELETE(_req: Request, { params }: { params: Promise<{ id: 
   // 取 post —— 已软删或不存在的都返回 404（防重复删，与 PATCH 语义一致）
   const post = await prisma.post.findUnique({
     where: { id },
-    select: { id: true, userId: true, deletedAt: true },
+    select: { id: true, userId: true, deletedAt: true, status: true, version: true, mcpApproved: true },
   });
   if (!post || post.deletedAt) {
     return NextResponse.json({ error: '内容不存在或已删除' }, { status: 404 });
@@ -143,7 +167,33 @@ export async function DELETE(_req: Request, { params }: { params: Promise<{ id: 
     return NextResponse.json({ error: '无权删除此帖子' }, { status: 403 });
   }
 
-  await prisma.post.update({ where: { id }, data: { deletedAt: new Date() } });
+  await prisma.$transaction(async (tx) => {
+    const updated = await tx.post.update({
+      where: { id },
+      data: { deletedAt: new Date(), mcpApproved: false },
+      select: { id: true, deletedAt: true, mcpApproved: true },
+    });
+    await tx.skillRevision.updateMany({
+      where: { postId: id, revokedAt: null },
+      data: { revokedAt: new Date() },
+    });
+    if (user.isAdmin) {
+      await writeAdminAudit({
+        actorUserId: user.id,
+        action: 'post.delete',
+        entityType: 'post',
+        entityId: id,
+        beforeState: {
+          status: post.status,
+          version: post.version,
+          mcpApproved: post.mcpApproved,
+        },
+        afterState: updated,
+        request: _req,
+        client: tx,
+      });
+    }
+  });
 
   return NextResponse.json({ id });
 }
