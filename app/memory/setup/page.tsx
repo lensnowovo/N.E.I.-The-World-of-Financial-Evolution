@@ -12,9 +12,22 @@ export const metadata: Metadata = {
 
 export const dynamic = 'force-dynamic';
 
-export default async function MemorySetupPage() {
+export default async function MemorySetupPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ desktop_state?: string }>;
+}) {
+  const { desktop_state: desktopState } = await searchParams;
   const uid = await getSessionUid();
-  if (uid === null) redirect('/login?next=/memory/setup');
+  if (uid === null) {
+    const next = desktopState
+      ? `/memory/setup?desktop_state=${encodeURIComponent(desktopState)}`
+      : '/memory/setup';
+    redirect(`/login?next=${encodeURIComponent(next)}`);
+  }
+  const safeDesktopState = /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/.test(desktopState ?? '')
+    ? desktopState ?? null
+    : null;
 
   return (
     <div className="mx-auto max-w-4xl px-4 pb-16 pt-8 sm:px-6 sm:pt-12">
@@ -24,7 +37,7 @@ export default async function MemorySetupPage() {
         </Link>
         <span className="font-mono text-[10px] uppercase tracking-wider text-sepia">N.E.I. Account</span>
       </div>
-      <ActivationCodePanel />
+      <ActivationCodePanel desktopState={safeDesktopState} />
     </div>
   );
 }

@@ -2,6 +2,7 @@ import type { Metadata } from 'next';
 import Link from 'next/link';
 import { getSessionUid } from '@/lib/session';
 import { MemoryAtmosphere } from '@/components/memory/MemoryAtmosphere';
+import { MemoryFirstRunDemo } from '@/components/memory/MemoryFirstRunDemo';
 
 export const metadata: Metadata = {
   title: 'N.E.I. Memory Node｜跨项目、跨客户端的本地投资记忆',
@@ -33,6 +34,14 @@ const flow = [
 
 const boundaries = ['不保存原始文件', '不监听完整聊天', '不上传项目记忆', '不远程删除本地数据'] as const;
 
+const windowsDownloadUrl = process.env.NEXT_PUBLIC_MEMORY_NODE_WINDOWS_DOWNLOAD_URL?.trim();
+const windowsVersion = process.env.NEXT_PUBLIC_MEMORY_NODE_WINDOWS_VERSION?.trim();
+const windowsSha256 = process.env.NEXT_PUBLIC_MEMORY_NODE_WINDOWS_SHA256?.trim();
+const windowsReleaseSigned = process.env.NEXT_PUBLIC_MEMORY_NODE_WINDOWS_SIGNED === 'true';
+const windowsReleaseReady = Boolean(
+  windowsDownloadUrl && windowsVersion && windowsSha256 && windowsReleaseSigned,
+);
+
 export default async function MemoryPage() {
   const signedIn = (await getSessionUid()) !== null;
 
@@ -61,6 +70,14 @@ export default async function MemoryPage() {
               </p>
 
               <div className="mt-9 flex flex-wrap items-center gap-3">
+                {windowsReleaseReady && (
+                  <a
+                    href={windowsDownloadUrl}
+                    className="inline-flex min-h-11 items-center rounded-sm bg-gilded px-5 font-serif text-sm text-ink-brown transition-colors hover:bg-vellum"
+                  >
+                    下载 Windows v{windowsVersion} →
+                  </a>
+                )}
                 {signedIn ? (
                   <Link
                     href="/memory/setup"
@@ -94,8 +111,8 @@ export default async function MemoryPage() {
                 <span className="relative inline-flex h-3 w-3 rounded-full border border-[#7ee8d5] bg-[#0a2727]" />
               </span>
               <div>
-                <p className="font-serif text-lg text-vellum">内部版本开发中</p>
-                <p className="mt-0.5 font-mono text-[10px] text-vellum/45">DOWNLOAD NOT YET AVAILABLE</p>
+                <p className="font-serif text-lg text-vellum">{windowsReleaseReady ? 'Windows 版本可用' : '内部版本验收中'}</p>
+                <p className="mt-0.5 font-mono text-[10px] text-vellum/45">{windowsReleaseReady ? `SIGNED RELEASE · V${windowsVersion}` : 'SIGNED DOWNLOAD NOT YET AVAILABLE'}</p>
               </div>
             </div>
 
@@ -112,6 +129,41 @@ export default async function MemoryPage() {
           </aside>
         </div>
       </MemoryAtmosphere>
+
+      <section className="mt-6 rounded-lg border border-[#cbd8d3] bg-[#f3f6f3] p-6 shadow-[0_12px_36px_-32px_rgba(16,69,67,0.7)] sm:p-8">
+        <div className="flex flex-col gap-5 sm:flex-row sm:items-end sm:justify-between">
+          <div>
+            <p className="font-display text-[10px] uppercase tracking-display text-sepia">First Run · About 60 Seconds</p>
+            <h2 className="mt-2 font-serif text-3xl text-ink-brown">下载后，只做三件事。</h2>
+          </div>
+          {windowsReleaseReady ? (
+            <a href={windowsDownloadUrl} className="inline-flex min-h-11 items-center justify-center rounded-sm bg-ink-brown px-5 font-serif text-sm text-vellum hover:bg-wax-red">
+              下载已签名安装包
+            </a>
+          ) : (
+            <span className="font-sans text-xs text-sepia">公开下载将在代码签名验收后开放</span>
+          )}
+        </div>
+        <ol className="mt-7 grid gap-3 sm:grid-cols-3">
+          {[
+            ['1', '登录', '浏览器使用 N.E.I. 账号登录，完成后自动返回客户端。'],
+            ['2', '连接', 'Memory Node 自动识别 Codex / WorkBuddy，一次操作完成配置。'],
+            ['3', '试一条记忆', '复制 60 秒体验指令，在 Agent 对话里确认并再次召回。'],
+          ].map(([number, title, detail]) => (
+            <li key={number} className="rounded-md border border-paper-edge bg-vellum p-5">
+              <span className="font-mono text-xs text-gilded">0{number}</span>
+              <h3 className="mt-4 font-serif text-lg text-ink-brown">{title}</h3>
+              <p className="mt-2 font-sans text-xs leading-6 text-sepia">{detail}</p>
+            </li>
+          ))}
+        </ol>
+        <MemoryFirstRunDemo />
+        {windowsReleaseReady && (
+          <p className="mt-5 break-all font-mono text-[10px] leading-5 text-sepia">
+            SHA-256: {windowsSha256} · Authenticode 已验证
+          </p>
+        )}
+      </section>
 
       <section id="how-it-works" className="scroll-mt-24 border-x border-b border-paper-edge bg-vellum">
         <div className="grid border-b border-paper-edge md:grid-cols-[0.72fr_1.28fr]">
