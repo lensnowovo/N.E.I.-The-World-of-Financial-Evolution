@@ -3,6 +3,7 @@ import Link from 'next/link';
 import { getSessionUid } from '@/lib/session';
 import { MemoryAtmosphere } from '@/components/memory/MemoryAtmosphere';
 import { MemoryFirstRunDemo } from '@/components/memory/MemoryFirstRunDemo';
+import { parseMemoryWindowsRelease } from '@/lib/memory-windows-release';
 
 export const metadata: Metadata = {
   title: 'N.E.I. Memory Node｜跨项目、跨客户端的本地投资记忆',
@@ -34,13 +35,11 @@ const flow = [
 
 const boundaries = ['不保存原始文件', '不监听完整聊天', '不上传项目记忆', '不远程删除本地数据'] as const;
 
-const windowsDownloadUrl = process.env.NEXT_PUBLIC_MEMORY_NODE_WINDOWS_DOWNLOAD_URL?.trim();
-const windowsVersion = process.env.NEXT_PUBLIC_MEMORY_NODE_WINDOWS_VERSION?.trim();
-const windowsSha256 = process.env.NEXT_PUBLIC_MEMORY_NODE_WINDOWS_SHA256?.trim();
-const windowsReleaseSigned = process.env.NEXT_PUBLIC_MEMORY_NODE_WINDOWS_SIGNED === 'true';
-const windowsReleaseReady = Boolean(
-  windowsDownloadUrl && windowsVersion && windowsSha256 && windowsReleaseSigned,
-);
+const windowsRelease = parseMemoryWindowsRelease(process.env);
+const windowsReleaseReady = windowsRelease !== null;
+const windowsDownloadUrl = windowsRelease?.downloadUrl;
+const windowsVersion = windowsRelease?.version;
+const windowsSha256 = windowsRelease?.sha256;
 
 export default async function MemoryPage() {
   const signedIn = (await getSessionUid()) !== null;
