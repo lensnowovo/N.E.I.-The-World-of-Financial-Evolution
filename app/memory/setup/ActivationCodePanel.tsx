@@ -27,7 +27,17 @@ function formatRemaining(seconds: number) {
   return `${minutes}:${String(rest).padStart(2, '0')}`;
 }
 
-export function ActivationCodePanel() {
+export function activationDeepLink(code: string, desktopState: string) {
+  if (!/^[0-9A-HJKMNP-TV-Z]{8}$/.test(code)) {
+    throw new Error('Invalid activation code');
+  }
+  if (!/^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/.test(desktopState)) {
+    throw new Error('Invalid desktop state');
+  }
+  return `nei-memory-node://activate?code=${code}&state=${desktopState}`;
+}
+
+export function ActivationCodePanel({ desktopState }: { desktopState: string | null }) {
   const [code, setCode] = useState<string | null>(null);
   const [expiresAt, setExpiresAt] = useState<number | null>(null);
   const [now, setNow] = useState(() => Date.now());
@@ -69,6 +79,9 @@ export function ActivationCodePanel() {
       setCode(payload.code);
       setNow(Date.now());
       setExpiresAt(Date.now() + ttl * 1000);
+      if (desktopState) {
+        window.location.assign(activationDeepLink(payload.code, desktopState));
+      }
     } catch {
       setError('网络连接失败，请检查网络后重试。');
     } finally {
@@ -99,7 +112,7 @@ export function ActivationCodePanel() {
       </div>
 
       <p className="mt-4 max-w-2xl font-sans text-sm leading-7 text-leather">
-        在 Memory Node 中点击“登录 N.E.I.”，再把这里生成的一次性激活码粘贴回客户端。
+        在 Memory Node 中点击“登录 N.E.I.”。生成一次性激活码后，网页会自动返回客户端。
       </p>
 
       <div className="mt-8 min-h-44 rounded-md border border-paper-edge bg-vellum p-5 sm:p-7">
@@ -116,7 +129,7 @@ export function ActivationCodePanel() {
                 {code}
               </button>
               <p className="mt-3 font-sans text-xs text-sepia">
-                {copied ? '已复制' : '点击激活码即可复制'} · {formatRemaining(remaining)} 后失效
+                {copied ? '已复制' : '未自动返回时，点击激活码复制'} · {formatRemaining(remaining)} 后失效
               </p>
             </div>
             <button
@@ -127,6 +140,14 @@ export function ActivationCodePanel() {
             >
               重新生成
             </button>
+            {desktopState && (
+              <a
+                href={activationDeepLink(code ?? '', desktopState)}
+                className="inline-flex h-10 items-center justify-center rounded-sm bg-ink-brown px-4 font-serif text-sm text-vellum transition-colors hover:bg-wax-red"
+              >
+                返回 Memory Node
+              </a>
+            )}
           </div>
         ) : (
           <div className="flex min-h-32 flex-col items-start justify-center">
