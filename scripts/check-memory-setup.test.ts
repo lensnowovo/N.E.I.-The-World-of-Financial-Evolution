@@ -1,7 +1,10 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import { activationDeepLink, activationErrorMessage } from '../app/memory/setup/ActivationCodePanel';
-import { parseMemoryWindowsRelease } from '../lib/memory-windows-release';
+import {
+  MEMORY_WINDOWS_GITHUB_PREVIEW,
+  parseMemoryWindowsRelease,
+} from '../lib/memory-windows-release';
 
 test('activation setup maps stable server errors without leaking details', () => {
   assert.equal(
@@ -86,4 +89,17 @@ test('Memory Node download fails closed for incomplete or inconsistent metadata'
     }),
     null,
   );
+});
+
+test('Memory Node GitHub Preview points to one immutable public release', () => {
+  assert.deepEqual(MEMORY_WINDOWS_GITHUB_PREVIEW, {
+    version: '0.1.4',
+    downloadUrl:
+      'https://github.com/lensnowovo/nei-memory-node-releases/releases/download/v0.1.4/NEI-Memory-Node_0.1.4_x64-setup.exe',
+    releaseUrl:
+      'https://github.com/lensnowovo/nei-memory-node-releases/releases/tag/v0.1.4',
+    sha256: '8B9E29BC0FC47C450717EF5E8776B8C0CB52181ABB79540D2DEFE3FB4D4F95AA',
+    signed: false,
+  });
+  assert.match(MEMORY_WINDOWS_GITHUB_PREVIEW.sha256, /^[0-9A-F]{64}$/);
 });

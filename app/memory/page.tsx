@@ -3,7 +3,7 @@ import Link from 'next/link';
 import { getSessionUid } from '@/lib/session';
 import { MemoryAtmosphere } from '@/components/memory/MemoryAtmosphere';
 import { MemoryFirstRunDemo } from '@/components/memory/MemoryFirstRunDemo';
-import { parseMemoryWindowsRelease } from '@/lib/memory-windows-release';
+import { MEMORY_WINDOWS_GITHUB_PREVIEW, parseMemoryWindowsRelease } from '@/lib/memory-windows-release';
 
 export const metadata: Metadata = {
   title: 'N.E.I. Memory Node｜跨项目、跨客户端的本地投资记忆',
@@ -12,7 +12,7 @@ export const metadata: Metadata = {
   alternates: { canonical: '/memory' },
   openGraph: {
     title: 'N.E.I. Memory Node',
-    description: '跨项目、跨客户端的本地投资记忆。Windows 内部测试版开发中。',
+    description: '跨项目、跨客户端的本地投资记忆。Windows Preview 已开放下载。',
     url: '/memory',
     type: 'website',
     siteName: 'N.E.I.',
@@ -36,10 +36,14 @@ const flow = [
 const boundaries = ['不保存原始文件', '不监听完整聊天', '不上传项目记忆', '不远程删除本地数据'] as const;
 
 const windowsRelease = parseMemoryWindowsRelease(process.env);
-const windowsReleaseReady = windowsRelease !== null;
-const windowsDownloadUrl = windowsRelease?.downloadUrl;
-const windowsVersion = windowsRelease?.version;
-const windowsSha256 = windowsRelease?.sha256;
+const windowsDistribution = windowsRelease ?? MEMORY_WINDOWS_GITHUB_PREVIEW;
+const windowsReleaseSigned = windowsRelease !== null;
+const windowsDownloadUrl = windowsDistribution.downloadUrl;
+const windowsVersion = windowsDistribution.version;
+const windowsSha256 = windowsDistribution.sha256;
+const windowsReleaseUrl = windowsReleaseSigned
+  ? `https://github.com/lensnowovo/nei-memory-node/releases/tag/v${windowsVersion}`
+  : MEMORY_WINDOWS_GITHUB_PREVIEW.releaseUrl;
 
 export default async function MemoryPage() {
   const signedIn = (await getSessionUid()) !== null;
@@ -56,7 +60,7 @@ export default async function MemoryPage() {
               <div className="mb-7 flex flex-wrap items-center gap-3">
                 <span className="font-display text-[10px] uppercase tracking-display text-gilded">Local Memory Infrastructure</span>
                 <span className="h-px w-10 bg-gilded/45" />
-                <span className="font-mono text-[10px] text-vellum/55">PRIVATE PREVIEW · WINDOWS</span>
+                <span className="font-mono text-[10px] text-vellum/55">GITHUB PREVIEW · WINDOWS</span>
               </div>
 
               <h1 className="max-w-4xl font-serif text-4xl leading-[1.14] text-vellum sm:text-5xl lg:text-6xl">
@@ -69,14 +73,12 @@ export default async function MemoryPage() {
               </p>
 
               <div className="mt-9 flex flex-wrap items-center gap-3">
-                {windowsReleaseReady && (
-                  <a
-                    href={windowsDownloadUrl}
-                    className="inline-flex min-h-11 items-center rounded-sm bg-gilded px-5 font-serif text-sm text-ink-brown transition-colors hover:bg-vellum"
-                  >
-                    下载 Windows v{windowsVersion} →
-                  </a>
-                )}
+                <a
+                  href={windowsDownloadUrl}
+                  className="inline-flex min-h-11 items-center rounded-sm bg-gilded px-5 font-serif text-sm text-ink-brown transition-colors hover:bg-vellum"
+                >
+                  {windowsReleaseSigned ? '下载 Windows' : '从 GitHub 下载 Preview'} v{windowsVersion} →
+                </a>
                 {signedIn ? (
                   <Link
                     href="/memory/setup"
@@ -110,8 +112,10 @@ export default async function MemoryPage() {
                 <span className="relative inline-flex h-3 w-3 rounded-full border border-[#7ee8d5] bg-[#0a2727]" />
               </span>
               <div>
-                <p className="font-serif text-lg text-vellum">{windowsReleaseReady ? 'Windows 版本可用' : '内部版本验收中'}</p>
-                <p className="mt-0.5 font-mono text-[10px] text-vellum/45">{windowsReleaseReady ? `SIGNED RELEASE · V${windowsVersion}` : 'SIGNED DOWNLOAD NOT YET AVAILABLE'}</p>
+                <p className="font-serif text-lg text-vellum">Windows Preview 可用</p>
+                <p className="mt-0.5 font-mono text-[10px] text-vellum/45">
+                  {windowsReleaseSigned ? `SIGNED RELEASE · V${windowsVersion}` : `UNSIGNED PREVIEW · V${windowsVersion}`}
+                </p>
               </div>
             </div>
 
@@ -135,13 +139,9 @@ export default async function MemoryPage() {
             <p className="font-display text-[10px] uppercase tracking-display text-sepia">First Run · About 60 Seconds</p>
             <h2 className="mt-2 font-serif text-3xl text-ink-brown">下载后，只做三件事。</h2>
           </div>
-          {windowsReleaseReady ? (
-            <a href={windowsDownloadUrl} className="inline-flex min-h-11 items-center justify-center rounded-sm bg-ink-brown px-5 font-serif text-sm text-vellum hover:bg-wax-red">
-              下载已签名安装包
-            </a>
-          ) : (
-            <span className="font-sans text-xs text-sepia">公开下载将在代码签名验收后开放</span>
-          )}
+          <a href={windowsDownloadUrl} className="inline-flex min-h-11 items-center justify-center rounded-sm bg-ink-brown px-5 font-serif text-sm text-vellum hover:bg-wax-red">
+            {windowsReleaseSigned ? '下载已签名安装包' : '从 GitHub 下载 Windows Preview'}
+          </a>
         </div>
         <ol className="mt-7 grid gap-3 sm:grid-cols-3">
           {[
@@ -157,11 +157,18 @@ export default async function MemoryPage() {
           ))}
         </ol>
         <MemoryFirstRunDemo />
-        {windowsReleaseReady && (
-          <p className="mt-5 break-all font-mono text-[10px] leading-5 text-sepia">
-            SHA-256: {windowsSha256} · Authenticode 已验证
+        {!windowsReleaseSigned && (
+          <p className="mt-5 rounded-sm border border-gilded/35 bg-gilded/5 px-4 py-3 font-sans text-xs leading-6 text-leather">
+            当前 GitHub Preview 尚未取得 Windows 可信发布者签名，首次运行可能出现 SmartScreen 或“未知发布者”提示。
+            请只从本页或官方 GitHub Release 下载，并核对 SHA-256。
           </p>
         )}
+        <p className="mt-5 break-all font-mono text-[10px] leading-5 text-sepia">
+          SHA-256: {windowsSha256} · {windowsReleaseSigned ? 'Authenticode 已验证' : '未签名 Preview'} ·{' '}
+          <a href={windowsReleaseUrl} className="underline decoration-paper-edge underline-offset-2 hover:text-wax-red">
+            查看 GitHub Release 与校验文件
+          </a>
+        </p>
       </section>
 
       <section id="how-it-works" className="scroll-mt-24 border-x border-b border-paper-edge bg-vellum">
@@ -254,10 +261,10 @@ export default async function MemoryPage() {
             </Link>
           </div>
           <div className="border-t border-paper-edge p-6 sm:p-8 md:border-t-0">
-            <p className="font-mono text-[10px] text-moss">LOCAL · PRIVATE PREVIEW</p>
+            <p className="font-mono text-[10px] text-moss">LOCAL · GITHUB PREVIEW</p>
             <h3 className="mt-2 font-serif text-xl text-ink-brown">N.E.I. Memory Node MCP</h3>
             <p className="mt-2 font-sans text-sm leading-7 text-leather">
-              保存并调用个人、机构、基金和项目记忆。服务运行在本机，首版面向 Windows 内部测试。
+              保存并调用个人、机构、基金和项目记忆。服务运行在本机，Windows Preview 已通过 GitHub Releases 开放。
             </p>
             <Link href={signedIn ? '/memory/setup' : '/login?next=/memory/setup'} className="mt-5 inline-flex font-serif text-sm italic text-wax-red hover:underline">
               使用 N.E.I. 账号连接 →
