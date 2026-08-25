@@ -4,6 +4,21 @@ export type MemoryWindowsRelease = {
   sha256: string;
 };
 
+export type MemoryWindowsGitHubPreview = MemoryWindowsRelease & {
+  releaseUrl: string;
+  signed: false;
+};
+
+export const MEMORY_WINDOWS_GITHUB_PREVIEW: MemoryWindowsGitHubPreview = {
+  version: '0.1.4',
+  downloadUrl:
+    'https://github.com/lensnowovo/nei-memory-node-releases/releases/download/v0.1.4/NEI-Memory-Node_0.1.4_x64-setup.exe',
+  releaseUrl:
+    'https://github.com/lensnowovo/nei-memory-node-releases/releases/tag/v0.1.4',
+  sha256: '8B9E29BC0FC47C450717EF5E8776B8C0CB52181ABB79540D2DEFE3FB4D4F95AA',
+  signed: false,
+};
+
 const VERSION_PATTERN = /^\d+\.\d+\.\d+(?:-[0-9A-Za-z.-]+)?$/;
 const SHA256_PATTERN = /^[0-9A-Fa-f]{64}$/;
 const RELEASE_REPOSITORY = '/lensnowovo/nei-memory-node/releases/download/';
