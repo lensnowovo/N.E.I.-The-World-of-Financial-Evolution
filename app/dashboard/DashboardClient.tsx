@@ -74,6 +74,7 @@ export function DashboardClient({
   disciplines,
   mcpOnboardingStatus,
   userId,
+  canPublish,
 }: {
   initialItems: FavItem[];
   initialStats: Stats;
@@ -86,6 +87,7 @@ export function DashboardClient({
   disciplines: DefaultDiscipline[];
   mcpOnboardingStatus: McpOnboardingStatus;
   userId: number;
+  canPublish: boolean;
 }) {
   const [tab, setTab] = useState<'stars' | 'mine' | 'discipline' | 'mcp'>('stars');
   const [items, setItems] = useState(initialItems);
@@ -151,7 +153,7 @@ export function DashboardClient({
       <div className="mb-7 flex items-center gap-1 overflow-x-auto overflow-y-hidden border-b border-paper-edge" role="tablist" aria-label="个人工作台">
         {([
           ['stars', '我的收藏'],
-          ['mine', '我的发布'],
+          ...(canPublish || myPosts.length > 0 ? [['mine', '历史发布'] as const] : []),
           ['discipline', '工作纪律'],
           ['mcp', 'MCP 连接'],
         ] as const).map(([key, label]) => (
@@ -236,13 +238,12 @@ export function DashboardClient({
           {myPosts.length === 0 ? (
             <div className="border border-paper-edge bg-vellum rounded-md py-14 px-8 text-center">
               <p className="font-serif italic text-leather text-lg mb-2">还没有发布内容</p>
-              <p className="font-sans text-sm text-sepia mb-6">分享你的知识，让同行看见你的专业</p>
-              <Link href="/publish" className="inline-flex items-center h-9 px-4 bg-ink-brown text-vellum font-serif text-sm rounded-sm">去发布</Link>
+              <p className="font-sans text-sm text-sepia">公开投稿当前已暂停，Skill Library 由 N.E.I. 编辑维护。</p>
             </div>
           ) : (
             <div className="space-y-2">
               {myPosts.map((p) => (
-                <MyPostRow key={p.id} post={p} />
+                <MyPostRow key={p.id} post={p} canEdit={canPublish} />
               ))}
               <p className="mt-4 font-sans text-xs text-sepia italic">
                 需要删除已发布的内容？<Link href="/admin" className="text-leather hover:text-ink-brown underline">联系管理员</Link>，或在帖子详情页右上角操作中提交处理。
@@ -567,7 +568,7 @@ function FavRow({
   );
 }
 
-function MyPostRow({ post }: { post: MyPost }) {
+function MyPostRow({ post, canEdit }: { post: MyPost; canEdit: boolean }) {
   const sceneLabel = SCENE_LABELS[post.tagScene] || post.tagScene;
   return (
     <div className="border border-paper-edge bg-vellum/60 rounded p-3 hover:border-sepia transition-colors">
@@ -591,12 +592,14 @@ function MyPostRow({ post }: { post: MyPost }) {
         </span>
 
         {/* 编辑入口 */}
-        <Link
-          href={`/posts/${post.id}/edit`}
-          className="text-xs text-wax-red hover:underline font-sans shrink-0"
-        >
-          编辑
-        </Link>
+        {canEdit && (
+          <Link
+            href={`/posts/${post.id}/edit`}
+            className="text-xs text-wax-red hover:underline font-sans shrink-0"
+          >
+            编辑
+          </Link>
+        )}
       </div>
     </div>
   );

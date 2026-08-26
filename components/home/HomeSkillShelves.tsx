@@ -183,19 +183,14 @@ function SkillShelf({
                         Open Slot {String(items.length + slotIndex + 1).padStart(2, '0')}
                       </p>
                       <p className="mt-2 font-serif text-base text-leather">这一格还空着</p>
-                      <Link
-                        href="/publish"
-                        className="mt-3 inline-flex border-b border-sepia/45 pb-0.5 font-serif italic text-xs text-sepia hover:border-wax-red hover:text-wax-red"
-                      >
-                        投稿补充这个分类 →
-                      </Link>
+                      <p className="mt-3 font-serif italic text-xs text-sepia">由 N.E.I. 编辑持续补充</p>
                     </div>
                   </li>
                 ))}
             </ol>
         ) : (
             <p className="m-4 border border-dashed border-paper-edge px-4 py-8 text-center font-serif italic text-sm text-sepia">
-              当前索引下还没有公开 Skill，欢迎贡献第一条。
+              当前索引下还没有公开 Skill，N.E.I. 编辑正在补充。
             </p>
         )}
         {loading && (

@@ -1,7 +1,6 @@
 import { notFound, redirect } from 'next/navigation';
 import { prisma } from '@/lib/db';
 import { getCurrentUser } from '@/lib/session';
-import { canEditPost } from '@/lib/post-auth';
 import { POST_STATUS } from '@/lib/status';
 import { EditForm } from './EditForm';
 
@@ -32,10 +31,7 @@ export default async function EditPostPage({
   if (!post || post.deletedAt) notFound();
 
   const me = await getCurrentUser();
-  if (!me) {
-    redirect(`/login?next=/posts/${id}/edit`);
-  }
-  if (!canEditPost(me.id, { userId: post.userId }, me.isAdmin)) {
+  if (!me?.isAdmin) {
     redirect(`/posts/${id}`);
   }
 

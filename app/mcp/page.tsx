@@ -247,7 +247,7 @@ export default async function McpGuidePage() {
             <p className="font-display tracking-display text-[10px] text-sepia uppercase mb-2">核心原则</p>
             <p className="font-sans text-xs text-leather leading-relaxed">
               N.E.I. 只分发 Skill 内容。AI 执行用你的客户端额度，敏感项目材料留在你的客户端侧。
-              Token 可随时撤销，投稿 Skill 审核后才进入 MCP。
+              Token 可随时撤销；Skill 经管理员审核并准入后才进入 MCP。
             </p>
           </div>
         </aside>

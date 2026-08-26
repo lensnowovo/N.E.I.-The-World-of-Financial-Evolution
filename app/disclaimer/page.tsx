@@ -11,7 +11,7 @@ export default function DisclaimerPage() {
       <div className="prose-manuscript max-w-none space-y-6 text-sm leading-7 text-leather">
         <section>
           <h2 className="font-serif text-xl text-ink-brown">内容来源</h2>
-          <p>N.E.I. 上的内容可能由用户投稿、社区共创或 AI 辅助生成。每个 Skill 标注了原作者和来源。N.E.I. 对用户投稿内容进行安全扫描和质量审核，但不保证内容的绝对准确性、完整性或时效性。</p>
+          <p>N.E.I. 上的内容可能来自历史投稿、GitHub 社区线索、公开资料整理或 AI 辅助。每个 Skill 应标注原作者和来源。N.E.I. 对候选内容进行安全扫描和质量审核，但不保证内容的绝对准确性、完整性或时效性。</p>
         </section>
         <section>
           <h2 className="font-serif text-xl text-ink-brown">不构成专业意见</h2>

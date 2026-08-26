@@ -26,7 +26,7 @@ export default function PrivacyPage() {
             <li>社区数据：投稿、评论、收藏、关注、举报、来源及许可证信息、附件与审核状态。</li>
             <li>MCP 数据：Token 哈希、Token 名称及提示、创建/撤销/最后使用时间；调用工具名、Skill ID、耗时、请求标识等元数据。MCP 不记录项目正文或工具响应正文。</li>
             <li>Memory Node 授权数据：权益计划与期限、设备 ID 和名称、平台、客户端版本、激活/最后在线/撤销时间、许可证版本。记忆正文不上传。</li>
-            <li>AI 辅助数据：只有在您主动使用 AI 转写、补全或提交公开投稿审核时，相应文本才会发送给页面标明的模型服务。请先脱敏。</li>
+            <li>AI 辅助数据：站内公开投稿及其 AI 转写、补全功能当前不向普通账号开放；管理员整理公开内容时仍须先完成脱敏和来源核验。</li>
           </ul>
         </Section>
 
@@ -49,7 +49,7 @@ export default function PrivacyPage() {
                 <Row name="Neon" use="PostgreSQL 数据库；账号、社区、MCP 与授权数据" location="新加坡" />
                 <Row name="Resend" use="发送验证码邮件；邮箱地址和邮件投递元数据" location="境外服务" />
                 <Row name="GitHub" use="可选 OAuth 登录与源码/仓库导入；GitHub 账号资料" location="境外服务" />
-                <Row name="智谱 GLM" use="用户主动使用的 AI 辅助与公开投稿安全检查；相应文本" location="中国境内服务" />
+                <Row name="智谱 GLM" use="管理员内容整理与安全检查；相应公开候选文本" location="中国境内服务" />
                 <Row name="阿里云 OSS / 配置的对象存储" use="用户上传并决定公开的附件" location="当前生产配置为中国境内" />
               </tbody>
             </table>

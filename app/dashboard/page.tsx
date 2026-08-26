@@ -204,10 +204,10 @@ export default async function DashboardPage() {
             <p className="font-display text-[10px] uppercase tracking-[0.22em] text-gilded">Private work desk</p>
             <h1 className="mt-2 font-serif text-3xl text-ink-brown sm:text-4xl">{me.nickname} 的工作台</h1>
             <p className="mt-3 max-w-2xl font-sans text-sm leading-7 text-leather">
-              继续整理收藏、维护自己的贡献，确认 Agent 是否在正常调用 N.E.I.。
+              继续整理收藏，确认 Agent 是否在正常调用 N.E.I.。
             </p>
             <div className="mt-5 flex flex-wrap gap-2">
-              <Link href="/publish" className="inline-flex h-9 items-center border border-ink-brown bg-ink-brown px-4 font-serif text-sm text-parchment transition-colors hover:bg-sepia">发布 Skill</Link>
+              {me.isAdmin && <Link href="/publish" className="inline-flex h-9 items-center border border-ink-brown bg-ink-brown px-4 font-serif text-sm text-parchment transition-colors hover:bg-sepia">发布 Skill</Link>}
               <Link href={`/profile/${uid}`} className="inline-flex h-9 items-center border border-paper-edge bg-vellum px-4 font-serif text-sm text-leather transition-colors hover:border-ink-brown hover:text-ink-brown">查看个人主页</Link>
               <Link href="/connect" className="inline-flex h-9 items-center px-3 font-serif text-sm italic text-leather transition-colors hover:text-ink-brown">管理 Agent →</Link>
             </div>
@@ -252,6 +252,7 @@ export default async function DashboardPage() {
           isConnected: totalCalls > 0,
         }}
         userId={uid}
+        canPublish={me.isAdmin}
       />
     </div>
   );

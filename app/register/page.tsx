@@ -159,7 +159,7 @@ export default function RegisterPage() {
     <AuthFrame
       eyebrow="注册"
       title="加入社区"
-      subtitle="发布、收藏、和同行交流"
+      subtitle="收藏 Skill，连接你的 Agent"
       step={{ current: stepIdx, labels: STEPS }}
       size={stepIdx === 2 ? 'lg' : 'sm'}
       crest={stepIdx === 2}
@@ -324,7 +324,7 @@ export default function RegisterPage() {
           <Input
             label="昵称"
             placeholder="2-20 字符 · 全平台唯一"
-            hint="将展示在你的发布、评论、徽章旁，建议使用真名或机构缩写"
+            hint="将展示在你的个人资料和身份徽章旁，建议使用真名或机构缩写"
             value={nickname}
             onChange={(e) => setNickname(e.target.value)}
             maxLength={20}

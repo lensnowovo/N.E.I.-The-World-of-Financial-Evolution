@@ -104,7 +104,6 @@ export default function LoginPage() {
     <AuthFrame
       eyebrow="登录"
       title="欢迎回来"
-      subtitle="登录后即可发布、评论和收藏"
       footer={
         <>
           初次到访？

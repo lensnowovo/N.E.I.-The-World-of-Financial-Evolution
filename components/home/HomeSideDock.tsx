@@ -10,6 +10,7 @@ export type HomeSideDockData = {
     institution: string | null;
     avatarUrl: string | null;
     githubAvatarUrl: string | null;
+    isAdmin: boolean;
     hasMcpToken: boolean;
     tokenLastUsedAt: Date | null;
     lastMcpCallAt: Date | null;
@@ -77,7 +78,7 @@ function SignedInDock({ data }: { data: HomeSideDockData }) {
 
       <div className="grid grid-cols-3 border-y border-paper-edge py-3 text-center">
         <MiniStat value={data.stats.favoriteCount} label="收藏" />
-        <MiniStat value={data.stats.postCount} label="投稿" />
+        <MiniStat value={data.stats.todayNewCount} label="今日新增" />
         <MiniStat value={data.stats.mcpReadyCount} label="MCP" />
       </div>
 
@@ -111,7 +112,7 @@ function SignedInDock({ data }: { data: HomeSideDockData }) {
       <nav className="space-y-1.5" aria-label="Dossier shortcuts">
         <DockLink href="/dashboard" label="我的收藏库" meta="Library" />
         <DockLink href="/connect" label="配置 MCP" meta={mcpConnected ? 'Live' : mcpPending ? 'Verify' : 'Setup'} />
-        <DockLink href="/publish" label="发布 Skill" meta="Contribute" />
+        {user.isAdmin && <DockLink href="/publish" label="发布 Skill" meta="Admin" />}
         <DockLink href={`/profile/${user.id}`} label="个人主页" meta="Profile" />
       </nav>
     </div>

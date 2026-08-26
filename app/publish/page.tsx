@@ -5,7 +5,7 @@ import { PublishForm } from './PublishForm';
 
 export default async function PublishPage() {
   const user = await getCurrentUser();
-  if (!user) redirect('/login?next=/publish');
+  if (!user?.isAdmin) redirect('/');
 
   return (
     <div className="mx-auto max-w-prose">

@@ -44,9 +44,6 @@ export function TopNav({ user }: { user: User }) {
         <nav className="ml-auto flex items-center gap-2">
           {user ? (
             <>
-              <Link href="/publish" className="btn-primary">
-                ✏️ 发布
-              </Link>
               <div className="relative">
                 <button
                   onClick={() => setMenuOpen((v) => !v)}
@@ -65,9 +62,6 @@ export function TopNav({ user }: { user: User }) {
                   >
                     <Link href={`/profile/${user.id}`} className="block px-3 py-2 text-sm hover:bg-ink-100">
                       个人主页
-                    </Link>
-                    <Link href="/publish" className="block px-3 py-2 text-sm hover:bg-ink-100 md:hidden">
-                      发布内容
                     </Link>
                     <button onClick={onLogout} className="block w-full px-3 py-2 text-left text-sm text-red-600 hover:bg-ink-100">
                       退出登录

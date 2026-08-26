@@ -1,8 +1,9 @@
 import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/db';
-import { getSessionUid } from '@/lib/session';
+import { getCurrentUser } from '@/lib/session';
 import { saveBuffer } from '@/lib/storage';
 import { checkAndConsume, getClientIp } from '@/lib/rate-limit';
+import { CONTRIBUTIONS_DISABLED_MESSAGE, PUBLIC_CONTRIBUTIONS_ENABLED } from '@/lib/community-features';
 
 const MAX_SIZE = 4 * 1024 * 1024;
 
@@ -12,8 +13,12 @@ const ALLOWED_EXT = new Set([
 ]);
 
 export async function POST(req: Request) {
-  const uid = await getSessionUid();
-  if (!uid) return NextResponse.json({ error: '请先登录' }, { status: 401 });
+  const user = await getCurrentUser();
+  if (!user) return NextResponse.json({ error: '请先登录' }, { status: 401 });
+  if (!PUBLIC_CONTRIBUTIONS_ENABLED && !user.isAdmin) {
+    return NextResponse.json({ error: CONTRIBUTIONS_DISABLED_MESSAGE }, { status: 403 });
+  }
+  const uid = user.id;
 
   const ip = getClientIp(req);
   const userLimit = await checkAndConsume({

@@ -31,12 +31,12 @@ N.E.I. 是 New Era Investor 的缩写，由 jammyssy 发起并组织，是一个
 
 - 公开 Skill / Prompt / Workflow 内容库
 - 按任务、行业、内容类型筛选
-- Skill 详情页、复制、收藏、评论与举报
+- Skill 详情页、复制、收藏与安全举报
 - MCP 连接与 Token 管理
 - MCP 全库搜索 + 收藏库读取
 - MCP / API 外部信息连接器库
 - Skill 质量评分与补齐建议
-- 投稿与审核流程
+- 管理员内容维护与审核流程
 - Admin 日常运营台
 - 安全与保密说明页
 - GitHub PR + CI 保护流程
@@ -104,7 +104,7 @@ MCP 的设计目标是让用户继续在自己熟悉的客户端工作。模型�
 
 管理员可以处理：
 
-- 投稿审核
+- 管理员内容审核
 - 举报内容
 - MCP 准入
 - 首页精选
@@ -126,7 +126,7 @@ N.E.I. 会被用于投资工作，因此安全边界必须清楚。
 - 不保存 BP、财务模型、IC 材料、LP 名单等敏感材料
 - 只分发 Skill / Workflow 文本
 - 每个 Agent 客户端使用独立 Token，可单独撤销且互不影响
-- 用户投稿内容审核后才进入 MCP
+- 内容经管理员审核后才进入 MCP
 - 调用日志不记录用户敏感正文
 - 外部 MCP / API 需要用户自行确认权限和数据边界
 
@@ -316,7 +316,7 @@ npm run smoke:public-posts -- --base https://nei-pevc.com
 - 编写 smoke test
 - 改进文档
 
-没有工程背景也可以参与。直接在网站投稿，或在 GitHub Issue 里写一个真实工作场景即可。维护者会把高价值需求整理成 Skill、Workflow 或产品任务。
+没有工程背景也可以参与。请在 GitHub Issue 里写一个真实工作场景；维护者会把高价值需求审核并整理成 Skill、Workflow 或产品任务。站内公开投稿当前暂停。
 
 完整贡献方式见：[CONTRIBUTING.md](./CONTRIBUTING.md)。
 

@@ -39,12 +39,6 @@ export default async function SkillsMapPage() {
           )}
         </div>
 
-        <Link
-          href="/publish"
-          className="inline-flex items-center h-10 px-5 bg-ink-brown text-vellum hover:bg-wax-red font-serif text-sm rounded-sm transition-colors"
-        >
-          发布 Skill Asset
-        </Link>
       </header>
 
       {/* —— Desktop Matrix (lg+) —— */}

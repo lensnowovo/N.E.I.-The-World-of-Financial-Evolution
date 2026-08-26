@@ -7,6 +7,9 @@ export default function ContributionGuidelinesPage() {
     <div className="mx-auto max-w-3xl px-4 sm:px-6 py-10">
       <Link href="/" className="font-serif italic text-sm text-sepia hover:text-ink-brown mb-4 inline-block">← 返回首页</Link>
       <h1 className="font-serif text-3xl text-ink-brown mb-2">投稿与内容授权</h1>
+      <p className="mb-6 border-l-2 border-gilded bg-vellum/60 px-4 py-3 font-sans text-sm leading-6 text-leather">
+        站内公开投稿当前已暂停。内容线索请通过 GitHub Issue 或 Pull Request 提供，由管理员审核整理后决定是否入库。
+      </p>
       <p className="font-sans text-xs text-sepia mb-8">版本 2026-07-22</p>
       <div className="prose-manuscript max-w-none space-y-6 text-sm leading-7 text-leather">
         <section>
@@ -24,7 +27,7 @@ export default function ContributionGuidelinesPage() {
         </section>
         <section>
           <h2 className="font-serif text-xl text-ink-brown">三、审核流程</h2>
-          <p>普通用户投稿统一进入人工待审。机器扫描只提供审核线索；扫描失败、可疑或拒绝均不会自动公开。Web 发布与 MCP 准入是两个独立步骤，编辑已发布内容后会重新进入审核并撤销原 MCP 准入。</p>
+          <p>普通账号不能直接新增或编辑公开 Skill。管理员录入内容时，机器扫描只提供审核线索；扫描失败、可疑或拒绝均不会自动公开。Web 发布与 MCP 准入仍是两个独立步骤，编辑已发布内容后会重新进入审核并撤销原 MCP 准入。</p>
         </section>
         <section>
           <h2 className="font-serif text-xl text-ink-brown">四、内容管理</h2>

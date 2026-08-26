@@ -11,6 +11,7 @@ type User = {
   nickname: string;
   role: string;
   avatarUrl: string | null;
+  isAdmin: boolean;
 } | null;
 
 /**
@@ -128,12 +129,14 @@ export function SiteHeader({ user }: { user: User }) {
           <div className="ml-auto hidden md:flex items-center gap-4 font-sans text-sm">
             {user ? (
               <>
-                <Link
-                  href="/publish"
-                  className="hidden sm:inline-flex items-center h-9 px-3 border border-ink-brown text-ink-brown font-serif italic hover:bg-ink-brown hover:text-vellum transition-colors rounded-sm"
-                >
-                  分享
-                </Link>
+                {user.isAdmin && (
+                  <Link
+                    href="/publish"
+                    className="hidden sm:inline-flex items-center h-9 px-3 border border-ink-brown text-ink-brown font-serif italic hover:bg-ink-brown hover:text-vellum transition-colors rounded-sm"
+                  >
+                    发布
+                  </Link>
+                )}
                 <div className="relative" ref={menuRef}>
                   <button
                     onClick={() => setMenuOpen((v) => !v)}
@@ -157,9 +160,11 @@ export function SiteHeader({ user }: { user: User }) {
                       <MenuItem href="/settings" onClose={() => setMenuOpen(false)}>
                         设置
                       </MenuItem>
-                      <MenuItem href="/publish" onClose={() => setMenuOpen(false)}>
-                        发布
-                      </MenuItem>
+                      {user.isAdmin && (
+                        <MenuItem href="/publish" onClose={() => setMenuOpen(false)}>
+                          发布
+                        </MenuItem>
+                      )}
                       <div className="my-1 border-t border-paper-edge" />
                       <button
                         onClick={logout}
@@ -231,9 +236,11 @@ export function SiteHeader({ user }: { user: User }) {
               </DrawerLink>
               {user && (
                 <>
-                  <DrawerLink href="/publish" active={isActive('/publish')}>
-                    发布
-                  </DrawerLink>
+                  {user.isAdmin && (
+                    <DrawerLink href="/publish" active={isActive('/publish')}>
+                      发布
+                    </DrawerLink>
+                  )}
                   <DrawerLink href="/dashboard" active={isActive('/dashboard')}>
                     我的控制台
                   </DrawerLink>
