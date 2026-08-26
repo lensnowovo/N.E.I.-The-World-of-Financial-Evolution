@@ -120,8 +120,9 @@ export default async function PostDetailPage({
   if (!post || post.status !== POST_STATUS.PUBLISHED || post.deletedAt) notFound();
 
   const uid = me?.id ?? null;
-  // 作者本人或管理员可编辑（US-013）
-  const canEdit = me ? canEditPost(me.id, { userId: post.author.id }, me.isAdmin) : false;
+  // 公开投稿关闭后，仅管理员可改动图书馆正文；作者仍可删除自己的历史内容。
+  const canEdit = Boolean(me?.isAdmin);
+  const canDelete = me ? canEditPost(me.id, { userId: post.author.id }, me.isAdmin) : false;
 
   let starred = false;
   if (uid) {
@@ -267,7 +268,7 @@ export default async function PostDetailPage({
                 编辑
               </Link>
             )}
-            {canEdit && <DeleteButton postId={post.id} isAdmin={me?.isAdmin && me.id !== post.author.id} />}
+            {canDelete && <DeleteButton postId={post.id} isAdmin={me?.isAdmin && me.id !== post.author.id} />}
             <ShareLinkButton title={post.title} description={excerpt} scene={sceneLabel(post.tagScene)} assetLabel={assetLabel} />
             {uid && <ReportButton postId={post.id} />}
           </div>

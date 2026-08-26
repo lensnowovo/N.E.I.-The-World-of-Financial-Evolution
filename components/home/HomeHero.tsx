@@ -70,12 +70,6 @@ export function HomeHero({
         >
           连接 MCP
         </Link>
-        <Link
-          href="/publish"
-          className="inline-flex items-center justify-center h-10 px-3 font-serif italic text-sm text-leather hover:text-wax-red transition-colors"
-        >
-          提交工作流 →
-        </Link>
       </div>
 
       <dl className="mt-7 pt-5 border-t border-paper-edge flex flex-wrap gap-x-8 gap-y-3">

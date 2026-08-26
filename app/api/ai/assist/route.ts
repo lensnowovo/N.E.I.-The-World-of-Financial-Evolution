@@ -1,7 +1,8 @@
 import { NextResponse } from 'next/server';
-import { getSessionUid } from '@/lib/session';
+import { getCurrentUser } from '@/lib/session';
 import { checkRateLimit, getClientIp } from '@/lib/rate-limit';
 import { suggestPublish, isAiEnabled } from '@/lib/ai';
+import { CONTRIBUTIONS_DISABLED_MESSAGE, PUBLIC_CONTRIBUTIONS_ENABLED } from '@/lib/community-features';
 
 export const dynamic = 'force-dynamic';
 
@@ -16,8 +17,12 @@ export const dynamic = 'force-dynamic';
  * 需登录 + 限流（防匿名 / 防滥用 AI 额度）。
  */
 export async function POST(req: Request) {
-  const uid = await getSessionUid();
-  if (!uid) return NextResponse.json({ error: '请先登录' }, { status: 401 });
+  const user = await getCurrentUser();
+  if (!user) return NextResponse.json({ error: '请先登录' }, { status: 401 });
+  if (!PUBLIC_CONTRIBUTIONS_ENABLED && !user.isAdmin) {
+    return NextResponse.json({ error: CONTRIBUTIONS_DISABLED_MESSAGE }, { status: 403 });
+  }
+  const uid = user.id;
 
   if (!isAiEnabled()) {
     return NextResponse.json({ error: 'AI 辅助未启用（未配置 GLM_API_KEY）' }, { status: 503 });

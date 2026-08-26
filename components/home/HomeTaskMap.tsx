@@ -224,9 +224,7 @@ function SkillCardGrid({ items, currentUserId }: { items: PostCardData[]; curren
     return (
       <div className="mt-5 border-l border-dashed border-gilded/45 bg-vellum/45 px-5 py-6">
         <p className="font-serif italic text-sm text-sepia">这一类工作还缺少合适的 Skill。</p>
-        <Link href="/publish" className="mt-2 inline-flex font-serif text-sm text-ink-brown hover:text-wax-red">
-          分享一个对应 Skill →
-        </Link>
+        <p className="mt-2 font-serif text-sm text-sepia">N.E.I. 编辑正在补充对应 Skill。</p>
       </div>
     );
   }

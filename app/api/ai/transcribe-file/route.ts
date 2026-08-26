@@ -1,8 +1,9 @@
 import { NextResponse } from 'next/server';
-import { getSessionUid } from '@/lib/session';
+import { getCurrentUser } from '@/lib/session';
 import { prisma } from '@/lib/db';
 import { saveBuffer } from '@/lib/storage';
 import { transcribeUploadedWithSource, isAiEnabled } from '@/lib/ai';
+import { CONTRIBUTIONS_DISABLED_MESSAGE, PUBLIC_CONTRIBUTIONS_ENABLED } from '@/lib/community-features';
 
 // GLM 转写 .md（长正文 + 生成多字段）耗时较长，给到 Vercel hobby 上限 60s
 // （lib/glm.ts TIMEOUT_MS=55s 留 5s 余量返回错误，避免被 Vercel 硬杀成 500）
@@ -20,8 +21,12 @@ export const maxDuration = 60;
  * 若 shouldAttach，把原文存为附件（postId=null），返回 attachmentId 一并预填。
  */
 export async function POST(req: Request) {
-  const uid = await getSessionUid();
-  if (!uid) return NextResponse.json({ error: '请先登录' }, { status: 401 });
+  const user = await getCurrentUser();
+  if (!user) return NextResponse.json({ error: '请先登录' }, { status: 401 });
+  if (!PUBLIC_CONTRIBUTIONS_ENABLED && !user.isAdmin) {
+    return NextResponse.json({ error: CONTRIBUTIONS_DISABLED_MESSAGE }, { status: 403 });
+  }
+  const uid = user.id;
 
   if (!isAiEnabled()) {
     return NextResponse.json({ error: 'AI 转写未启用（未配置 GLM_API_KEY）' }, { status: 503 });

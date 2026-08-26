@@ -375,8 +375,7 @@ function EmptyTab({ tab, isOwner }: { tab: Tab; isOwner: boolean }) {
   const COPY: Record<Tab, { line: string; sub: string; cta?: { href: string; label: string } }> = {
     posts: {
       line: isOwner ? '还没有发布过内容' : '这个人还没有发布内容',
-      sub:  isOwner ? '把好用的 prompt、模板、工作流分享出来吧' : '',
-      cta:  isOwner ? { href: '/publish', label: '发布第一个' } : undefined,
+      sub:  isOwner ? '公开投稿当前已暂停' : '',
     },
     favorites: {
       line: '还没有收藏内容',

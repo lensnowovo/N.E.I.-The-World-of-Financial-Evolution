@@ -8,6 +8,7 @@ import { withMetrics } from '@/lib/metrics';
 import { POST_STATUS } from '@/lib/status';
 import { writeAdminAudit } from '@/lib/admin-audit';
 import { requireRecentAdmin } from '@/lib/auth-guard';
+import { CONTRIBUTIONS_DISABLED_MESSAGE, PUBLIC_CONTRIBUTIONS_ENABLED } from '@/lib/community-features';
 
 const sceneVals: string[] = SCENE_TAGS.map((t) => t.value);
 const industryVals: string[] = INDUSTRY_TAGS.map((t) => t.value);
@@ -61,6 +62,9 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
 
   const user = await getCurrentUser();
   if (!user) return NextResponse.json({ error: '请先登录' }, { status: 401 });
+  if (!PUBLIC_CONTRIBUTIONS_ENABLED && !user.isAdmin) {
+    return NextResponse.json({ error: CONTRIBUTIONS_DISABLED_MESSAGE }, { status: 403 });
+  }
 
   // 取 post（不早返回 deletedAt，单独判定 → 软删后 PATCH 返回 404）
   const post = await prisma.post.findUnique({

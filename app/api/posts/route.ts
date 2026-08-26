@@ -10,6 +10,10 @@ import { reviewPostSafety } from '@/lib/ai';
 import { ACTIVITY_EVENT, trackActivity } from '@/lib/activity';
 import { CONTRIBUTION_RULES_VERSION } from '@/lib/legal';
 import { getClientIpFromRequest } from '@/lib/client-ip';
+import {
+  CONTRIBUTIONS_DISABLED_MESSAGE,
+  PUBLIC_CONTRIBUTIONS_ENABLED,
+} from '@/lib/community-features';
 
 // Used by POST handler for validation
 const sceneVals: string[] = SCENE_TAGS.map((t) => t.value);
@@ -76,6 +80,9 @@ async function createPost(req: Request) {
   if (!uid) return NextResponse.json({ error: '请先登录' }, { status: 401 });
   const actor = await prisma.user.findUnique({ where: { id: uid }, select: { isAdmin: true } });
   if (!actor) return NextResponse.json({ error: '用户不存在' }, { status: 404 });
+  if (!PUBLIC_CONTRIBUTIONS_ENABLED && !actor.isAdmin) {
+    return NextResponse.json({ error: CONTRIBUTIONS_DISABLED_MESSAGE }, { status: 403 });
+  }
 
   const data = await req.json();
   const title = String(data.title || '').trim();
@@ -128,7 +135,7 @@ async function createPost(req: Request) {
 
   const safeBody = sanitizeHtml(body);
 
-  // 投稿扫描只提供审核线索，不能代替人工审核。普通用户投稿统一进入 pending；
+  // 自动扫描只提供审核线索，不能代替人工审核。公开投稿关闭期间只有管理员可到达此处；
   // 管理员内容仅在扫描明确 safe 时直接发布。扫描失败时 fail-closed。
   let verdict: 'safe' | 'suspicious' | 'reject' = 'safe';
   let reason = '';

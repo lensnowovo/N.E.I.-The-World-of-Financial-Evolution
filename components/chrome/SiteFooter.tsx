@@ -63,9 +63,6 @@ export function SiteFooter() {
           <Link href="/disclaimer" className="hover:text-ink-brown transition-colors">
             免责声明
           </Link>
-          <Link href="/contribution-guidelines" className="hover:text-ink-brown transition-colors">
-            投稿规则
-          </Link>
           <Link href="/security" className="hover:text-ink-brown transition-colors">
             MCP 安全与保密原则
           </Link>

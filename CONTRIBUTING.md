@@ -13,7 +13,7 @@ N.E.I. 是 New Era Investor 的缩写，是由 jammyssy 发起和组建的新一
 `nei-pevc.com` 目前采用“主维护者负责制 + 社群贡献”的轻量模式：
 
 - **主维护者**：lensnowovo，负责产品方向、部署、安全、MCP、代码合并和线上发布。
-- **社群贡献者**：可以通过网站投稿、GitHub Issue 或 Pull Request 贡献内容和代码。
+- **社群贡献者**：可以通过 GitHub Issue 或 Pull Request 提供内容线索和代码。
 - **GitHub Maintainer Agent**：自动为 Issue 打标签、回复下一步说明，并为 PR 运行基础质量检查。
 - **最终发布权**：上线到 `nei-pevc.com` 的代码、内容和 MCP 能力由主维护者审核后发布。
 
@@ -38,9 +38,11 @@ N.E.I. 是 New Era Investor 的缩写，是由 jammyssy 发起和组建的新一
 
 推荐路径：
 
-1. 优先在网站投稿；
-2. 如果还不确定格式，在 GitHub 新建 Content Contribution Issue；
-3. 维护者会判断是否进入公开库、是否 MCP Ready、是否需要补输入 / 输出示例。
+1. 在 GitHub 新建 Content Contribution Issue，提供内容来源、许可证和适用场景；
+2. 也可以提交 Pull Request，由维护者复核来源和安全边界；
+3. 维护者会判断是否由管理员录入公开库、是否 MCP Ready、是否需要补输入 / 输出示例。
+
+站内公开投稿当前暂停，普通账号不能直接新增或编辑公开 Skill。
 
 ### 2. 反馈 bug
 
