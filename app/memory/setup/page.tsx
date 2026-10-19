@@ -32,8 +32,8 @@ export default async function MemorySetupPage({
   return (
     <div className="mx-auto max-w-4xl px-4 pb-16 pt-8 sm:px-6 sm:pt-12">
       <div className="mb-6 flex items-center justify-between gap-4">
-        <Link href="/memory" className="font-serif text-sm text-sepia transition-colors hover:text-wax-red">
-          ← Memory Node
+        <Link href="/" className="font-serif text-sm text-sepia transition-colors hover:text-wax-red">
+          ← 返回首页
         </Link>
         <span className="font-mono text-[10px] uppercase tracking-wider text-sepia">N.E.I. Account</span>
       </div>
